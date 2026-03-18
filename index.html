@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>进销存 · Temu/1688</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg:#f5f5f3;--surface:#fff;--border:#e5e5e2;--border2:#d0d0cb;
+    --text:#1a1a18;--text2:#6b6b66;--text3:#9a9a94;
+    --green:#16a34a;--green-bg:#f0fdf4;
+    --red:#dc2626;--red-bg:#fef2f2;
+    --amber:#d97706;--amber-bg:#fffbeb;
+    --blue:#2563eb;--blue-bg:#eff6ff;
+    --radius:10px;--radius-sm:6px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+  #setup-overlay{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px}
+  #setup-overlay.hidden{display:none}
+  .setup-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;max-width:580px;width:100%}
+  .setup-box h2{font-size:18px;font-weight:600;margin-bottom:8px}
+  .setup-box .sub{font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.7}
+  .setup-step label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px}
+  .setup-hint{background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:var(--radius-sm);padding:14px;margin-bottom:20px;font-size:13px;color:var(--blue);line-height:1.9}
+  .setup-hint a{color:var(--blue)}
+  .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;position:sticky;top:0;z-index:100;min-height:48px}
+  .logo{font-size:15px;font-weight:600;padding-right:16px;border-right:1px solid var(--border);margin-right:8px;white-space:nowrap}
+  .logo span{color:var(--blue)}
+  .tabs{display:flex;flex:1;overflow-x:auto}
+  .tab{padding:14px 14px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--text2);border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s;flex-shrink:0}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:500}
+  .topbar-right{margin-left:auto;padding-left:12px;display:flex;gap:8px;align-items:center;flex-shrink:0}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
+  .sync-dot.offline{background:var(--amber)}
+  .sync-dot.syncing{background:var(--blue)}
+  .sync-dot.error{background:var(--red)}
+  .save-status{font-size:12px;color:var(--text3);white-space:nowrap}
+  .main{max-width:1100px;margin:0 auto;padding:24px 20px}
+  .page{display:none}.page.active{display:block}
+  .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+  .metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+  .metric-label{font-size:12px;color:var(--text2);margin-bottom:8px}
+  .metric-val{font-size:26px;font-weight:600;line-height:1}
+  .metric-sub{font-size:11px;color:var(--text3);margin-top:6px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
+  .card-title{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+  .tbl-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:500px}
+  th{text-align:left;padding:9px 12px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#fafaf8}
+  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap}
+  .badge-warn{background:var(--amber-bg);color:var(--amber)}
+  .badge-ok{background:var(--green-bg);color:var(--green)}
+  .badge-info{background:var(--blue-bg);color:var(--blue)}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+  .form-grid-3{grid-template-columns:1fr 1fr 1fr}
+  .fg{display:flex;flex-direction:column;gap:5px}
+  .fg label{font-size:12px;color:var(--text2);font-weight:500}
+  input[type=text],input[type=number],select,textarea{padding:8px 11px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--surface);color:var(--text);width:100%;transition:border-color .15s;font-family:inherit}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
+  .btn{padding:8px 18px;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-weight:500;border:none;transition:opacity .15s}
+  .btn:hover{opacity:.85}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-success{background:var(--green);color:#fff}
+  .btn-danger{background:var(--red);color:#fff}
+  .btn-ghost{background:none;border:1px solid var(--border2);color:var(--text2)}
+  .btn-sm{padding:4px 10px;font-size:12px}
+  .btns{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .alert{padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:16px}
+  .alert-warn{background:var(--amber-bg);color:var(--amber);border:1px solid #fde68a}
+  .alert-ok{background:var(--green-bg);color:var(--green);border:1px solid #bbf7d0}
+  .alert-info{background:var(--blue-bg);color:var(--blue);border:1px solid #bfdbfe}
+  .c-green{color:var(--green);font-weight:500}
+  .c-red{color:var(--red);font-weight:500}
+  .c-muted{color:var(--text2)}
+  .drop-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:28px;text-align:center;cursor:pointer;transition:background .15s}
+  .drop-zone:hover{background:var(--blue-bg);border-color:var(--blue)}
+  .drop-zone p{color:var(--text2);font-size:13px;margin-bottom:6px}
+  .drop-zone p.hint{font-size:12px;color:var(--text3)}
+  @media(max-width:640px){.metric-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.form-grid-3{grid-template-columns:1fr}.logo{display:none}}
+</style>
+</head>
+<body>
+
+<div id="setup-overlay" style="display:none">
+  <div class="setup-box">
+    <h2>🔧 首次配置 · Firebase 连接</h2>
+    <p class="sub">连接你自己的 Firebase 数据库后，数据可在任何设备实时同步。只需配置一次，免费额度完全够用。</p>
+    <div class="setup-hint">
+      <strong>获取步骤（约5分钟）：</strong><br>
+      1. 打开 <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a>，用 Google 账号登录<br>
+      2. 点「新建项目」→ 起个名字（如 my-inventory）→ 关闭 Analytics → 创建<br>
+      3. 左侧「构建」→「Firestore Database」→「创建数据库」→ 选「测试模式」→ 完成<br>
+      4. 项目首页点「&lt;/&gt;」网页图标，注册应用，复制 firebaseConfig 里的值填到下面
+    </div>
+    <div class="form-grid">
+      <div class="fg setup-step"><label>apiKey</label><input type="text" id="cfg-apiKey" placeholder="AIzaSy..."></div>
+      <div class="fg setup-step"><label>projectId</label><input type="text" id="cfg-projectId" placeholder="my-inventory-xxxxx"></div>
+      <div class="fg setup-step"><label>authDomain</label><input type="text" id="cfg-authDomain" placeholder="xxx.firebaseapp.com"></div>
+      <div class="fg setup-step"><label>appId</label><input type="text" id="cfg-appId" placeholder="1:123456:web:abcdef"></div>
+    </div>
+    <div class="btns">
+      <button class="btn btn-primary" onclick="saveFirebaseConfig()">连接 Firebase</button>
+      <span id="cfg-status" style="font-size:13px;color:var(--text2)"></span>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin-top:12px">配置信息只保存在本浏览器本地，不会上传到任何第三方。</p>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="logo">进销存 <span>Temu/1688</span></div>
+  <div class="tabs">
+    <button class="tab active" onclick="showPage('dashboard')">总览</button>
+    <button class="tab" onclick="showPage('products')">商品管理</button>
+    <button class="tab" onclick="showPage('purchase')">进货</button>
+    <button class="tab" onclick="showPage('sales')">销售</button>
+    <button class="tab" onclick="showPage('add-product')">+ 添加商品</button>
+    <button class="tab" onclick="showPage('backup')">备份/恢复</button>
+    <button class="tab" onclick="showPage('settings')">设置</button>
+  </div>
+  <div class="topbar-right">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span class="save-status" id="save-status">连接中...</span>
+    <button class="btn btn-ghost btn-sm" onclick="resetConfig()" title="重新配置">⚙</button>
+  </div>
+</div>
+
+<div class="main">
+<div id="page-dashboard" class="page active">
+  <div class="metric-grid" id="metrics"></div>
+  <div id="low-stock-alert"></div>
+  <div class="card">
+    <div class="card-title">库存状态</div>
+    <div class="tbl-wrap"><table><thead><tr><th>商品名</th><th>SKU</th><th>库存</th><th>进价(¥)</th><th>售价($)</th><th>利润率</th><th>状态</th></tr></thead><tbody id="stock-table"></tbody></table></div>
+  </div>
+</div>
+
+<div id="page-products" class="page">
+  <div class="card">
+    <div class="card-title">所有商品</div>
+    <div class="tbl-wrap"><table><thead><tr><th>商品名</th><th>SKU</th><th>库存</th><th>进价(¥)</th><th>售价($)</th><th>运费(¥)</th><th>利润率</th><th>操作</th></tr></thead><tbody id="products-table"></tbody></table></div>
+  </div>
+</div>
+
+<div id="page-purchase" class="page">
+  <div class="card">
+    <div class="card-title">录入进货（1688）</div>
+    <div class="form-grid">
+      <div class="fg"><label>选择商品</label><select id="pur-product"></select></div>
+      <div class="fg"><label>进货数量</label><input type="number" id="pur-qty" placeholder="100" min="1"></div>
+      <div class="fg"><label>实际单价（¥）</label><input type="number" id="pur-price" placeholder="5.00" step="0.01"></div>
+      <div class="fg"><label>1688订单号（可选）</label><input type="text" id="pur-order" placeholder="1688-xxxxxxxx"></div>
+    </div>
+    <div class="btns"><button class="btn btn-primary" onclick="addPurchase()">确认入库</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">进货历史 <span class="c-muted" style="font-size:12px;font-weight:400" id="pur-total"></span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>日期</th><th>商品</th><th>数量</th><th>单价(¥)</th><th>总金额(¥)</th><th>订单号</th><th>操作</th></tr></thead><tbody id="purchase-table"></tbody></table></div>
+  </div>
+</div>
+
+<div id="page-sales" class="page">
+  <div class="card">
+    <div class="card-title">录入销售（Temu）</div>
+    <div class="form-grid">
+      <div class="fg"><label>选择商品</label><select id="sale-product"></select></div>
+      <div class="fg"><label>销售数量</label><input type="number" id="sale-qty" placeholder="1" min="1"></div>
+      <div class="fg"><label>实际售价（$）</label><input type="number" id="sale-price" placeholder="9.99" step="0.01"></div>
+      <div class="fg"><label>Temu订单号（可选）</label><input type="text" id="sale-order" placeholder="Temu-xxxxxxxx"></div>
+    </div>
+    <div class="btns"><button class="btn btn-primary" onclick="addSale()">确认销售</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">销售历史 <span class="c-muted" style="font-size:12px;font-weight:400" id="sale-total"></span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>日期</th><th>商品</th><th>数量</th><th>售价($)</th><th>成本(¥)</th><th>毛利($)</th><th>订单号</th><th>操作</th></tr></thead><tbody id="sales-table"></tbody></table></div>
+  </div>
+</div>
+
+<div id="page-add-product" class="page">
+  <div class="card">
+    <div class="card-title">新增商品</div>
+    <div class="form-grid form-grid-3">
+      <div class="fg"><label>商品名称 *</label><input type="text" id="np-name" placeholder="比如：硅胶手机壳"></div>
+      <div class="fg"><label>SKU编码</label><input type="text" id="np-sku" placeholder="CASE-001"></div>
+      <div class="fg"><label>初始库存</label><input type="number" id="np-stock" placeholder="0" min="0"></div>
+      <div class="fg"><label>1688参考进价（¥）*</label><input type="number" id="np-cost" placeholder="5.00" step="0.01"></div>
+      <div class="fg"><label>Temu参考售价（$）*</label><input type="number" id="np-price" placeholder="9.99" step="0.01"></div>
+      <div class="fg"><label>运费/头程估算（¥/件）</label><input type="number" id="np-ship" placeholder="1.50" step="0.01"></div>
+    </div>
+    <div class="btns"><button class="btn btn-primary" onclick="addProduct()">保存商品</button><span style="font-size:12px;color:var(--text3)">* 为必填项</span></div>
+  </div>
+  <div class="card" style="border-color:#bfdbfe;background:var(--blue-bg)">
+    <div style="font-size:13px;color:var(--blue);line-height:1.8"><strong>利润率：</strong>（售价×汇率 - 进价 - 运费）÷ 售价×汇率<br><strong>提示：</strong>运费可包含 1688 运费 + 国际头程 + Temu 佣金，填每件均摊金额。</div>
+  </div>
+</div>
+
+<div id="page-backup" class="page">
+  <div class="card">
+    <div class="card-title">导出数据</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">将全部数据导出为 Excel 文件留存。</p>
+    <div class="btns"><button class="btn btn-success" onclick="exportAll()">导出全部数据（xlsx）</button><button class="btn btn-ghost" onclick="exportProducts()">仅导出商品列表</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">从 Excel 导入</div>
+    <div class="alert alert-warn">⚠️ 导入会覆盖 Firebase 中的全部数据，请谨慎操作。</div>
+    <div class="drop-zone" onclick="document.getElementById('file-input').click()">
+      <p>点击选择文件</p><p class="hint">支持本工具导出的 .xlsx 文件</p>
+      <input type="file" id="file-input" accept=".xlsx" style="display:none" onchange="importExcel(this)">
+    </div>
+    <div id="import-status"></div>
+  </div>
+</div>
+
+<div id="page-settings" class="page">
+  <div class="card">
+    <div class="card-title">基础设置</div>
+    <div class="form-grid">
+      <div class="fg"><label>美元兑人民币汇率（1$ = ?¥）</label><input type="number" id="s-rate" step="0.01" min="1"></div>
+      <div class="fg"><label>低库存预警阈值</label><input type="number" id="s-lowstock" step="1" min="1"></div>
+    </div>
+    <div class="btns"><button class="btn btn-primary" onclick="saveSettings()">保存设置</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--red)">危险操作</div>
+    <div class="btns"><button class="btn btn-danger" onclick="clearAll()">清空所有数据</button><span style="font-size:12px;color:var(--text3)">此操作不可恢复</span></div>
+  </div>
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const CFG_KEY = 'inv_firebase_cfg_v1';
+let db, docRef, D = defaultData();
+
+function defaultData() {
+  return { settings:{ rate:7.2, lowStock:10 }, products:[], purchases:[], sales:[], nextId:1 };
+}
+
+function loadCfg() {
+  try { return JSON.parse(localStorage.getItem(CFG_KEY)); } catch(e) { return null; }
+}
+
+window.saveFirebaseConfig = async function() {
+  const cfg = {
+    apiKey: document.getElementById('cfg-apiKey').value.trim(),
+    projectId: document.getElementById('cfg-projectId').value.trim(),
+    authDomain: document.getElementById('cfg-authDomain').value.trim(),
+    appId: document.getElementById('cfg-appId').value.trim(),
+  };
+  if (!cfg.apiKey || !cfg.projectId) { document.getElementById('cfg-status').textContent = '请至少填写 apiKey 和 projectId'; return; }
+  document.getElementById('cfg-status').textContent = '连接中...';
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+  await initFirebase(cfg);
+};
+
+window.resetConfig = function() {
+  if (!confirm('重置 Firebase 配置？')) return;
+  localStorage.removeItem(CFG_KEY);
+  document.getElementById('setup-overlay').classList.remove('hidden');
+};
+
+async function initFirebase(cfg) {
+  try {
+    const app = initializeApp(cfg);
+    db = getFirestore(app);
+    docRef = doc(db, 'inventory', 'main');
+    await getDoc(docRef);
+    document.getElementById('setup-overlay').classList.add('hidden');
+    setSyncStatus('online');
+    startSync();
+  } catch(e) {
+    document.getElementById('cfg-status').textContent = '连接失败：' + e.message;
+    setSyncStatus('error');
+    document.getElementById('setup-overlay').classList.remove('hidden');
+  }
+}
+
+function startSync() {
+  onSnapshot(docRef, (snap) => {
+    if (snap.exists()) { D = snap.data(); }
+    else { D = defaultData(); pushData(); }
+    render();
+    setSyncStatus('online');
+  }, () => setSyncStatus('error'));
+}
+
+function setSyncStatus(state) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('save-status');
+  dot.className = 'sync-dot' + (state === 'error' ? ' error' : state === 'syncing' ? ' syncing' : '');
+  txt.textContent = state === 'online' ? '云端已同步 · 任意设备可用'
+    : state === 'syncing' ? '保存中...'
+    : state === 'error' ? '同步失败，检查网络' : '连接中...';
+}
+
+let _timer;
+function save() {
+  setSyncStatus('syncing');
+  clearTimeout(_timer);
+  _timer = setTimeout(pushData, 500);
+}
+
+async function pushData() {
+  try { await setDoc(docRef, JSON.parse(JSON.stringify(D))); setSyncStatus('online'); }
+  catch(e) { setSyncStatus('error'); }
+}
+
+function gp(id) { return D.products.find(p => p.id == id); }
+function calcProfit(p) { return (p.price * D.settings.rate - p.cost - p.ship) / (p.price * D.settings.rate) * 100; }
+function today() { return new Date().toISOString().slice(0,10); }
+
+const PAGES = ['dashboard','products','purchase','sales','add-product','backup','settings'];
+window.showPage = function(name) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.tab')[PAGES.indexOf(name)].classList.add('active');
+  render();
+  if (name === 'settings') { document.getElementById('s-rate').value = D.settings.rate; document.getElementById('s-lowstock').value = D.settings.lowStock; }
+};
+
+function render() {
+  const ts = D.products.reduce((s,p)=>s+p.stock,0);
+  const sv = D.products.reduce((s,p)=>s+p.stock*p.cost,0);
+  const tr = D.sales.reduce((s,r)=>s+r.qty*r.price,0);
+  const tc = D.sales.reduce((s,r)=>{const p=gp(r.pid);return s+(p?r.qty*(p.cost+p.ship)/D.settings.rate:0);},0);
+  const gv = tr - tc;
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">总库存件数</div><div class="metric-val">${ts.toLocaleString()}</div><div class="metric-sub">${D.products.length} 个SKU</div></div>
+    <div class="metric"><div class="metric-label">库存成本</div><div class="metric-val">¥${sv.toFixed(0)}</div><div class="metric-sub">按进价计算</div></div>
+    <div class="metric"><div class="metric-label">累计销售额</div><div class="metric-val">$${tr.toFixed(2)}</div><div class="metric-sub">${D.sales.length} 笔记录</div></div>
+    <div class="metric"><div class="metric-label">累计毛利</div><div class="metric-val ${gv>=0?'c-green':'c-red'}">${gv>=0?'+':''}$${gv.toFixed(2)}</div><div class="metric-sub">未扣平台佣金</div></div>`;
+  const low = D.products.filter(p=>p.stock<D.settings.lowStock);
+  document.getElementById('low-stock-alert').innerHTML = low.length ? `<div class="alert alert-warn">⚠️ 库存预警：${low.map(p=>`${p.name}（剩${p.stock}件）`).join('、')}，建议补货</div>` : '';
+  document.getElementById('stock-table').innerHTML = D.products.map(p=>{
+    const pr=calcProfit(p);
+    const st=p.stock<D.settings.lowStock?'<span class="badge badge-warn">低库存</span>':p.stock>100?'<span class="badge badge-info">充足</span>':'<span class="badge badge-ok">正常</span>';
+    return `<tr><td>${p.name}</td><td class="c-muted">${p.sku}</td><td><strong>${p.stock}</strong></td><td>¥${p.cost}</td><td>$${p.price}</td><td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td><td>${st}</td></tr>`;
+  }).join('');
+  document.getElementById('products-table').innerHTML = D.products.map(p=>{
+    const pr=calcProfit(p);
+    return `<tr><td>${p.name}</td><td class="c-muted">${p.sku}</td><td>${p.stock}</td><td>¥${p.cost}</td><td>$${p.price}</td><td>¥${p.ship}</td><td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td><td><button class="btn btn-ghost btn-sm" onclick="editProduct(${p.id})">编辑</button> <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProduct(${p.id})">删除</button></td></tr>`;
+  }).join('');
+  const pt = D.purchases.reduce((s,r)=>s+r.qty*r.price,0);
+  const pel = document.getElementById('pur-total'); if(pel) pel.textContent=`共${D.purchases.length}条，合计¥${pt.toFixed(2)}`;
+  document.getElementById('purchase-table').innerHTML = D.purchases.slice().reverse().map((r,i)=>{
+    const p=gp(r.pid); const idx=D.purchases.length-1-i;
+    return `<tr><td>${r.date}</td><td>${p?p.name:'<span class="c-muted">已删除</span>'}</td><td>${r.qty}</td><td>¥${r.price}</td><td>¥${(r.qty*r.price).toFixed(2)}</td><td class="c-muted">${r.order||'-'}</td><td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletePurchase(${idx})">删除</button></td></tr>`;
+  }).join('');
+  const st2 = D.sales.reduce((s,r)=>s+r.qty*r.price,0);
+  const sel = document.getElementById('sale-total'); if(sel) sel.textContent=`共${D.sales.length}条，销售额$${st2.toFixed(2)}`;
+  document.getElementById('sales-table').innerHTML = D.sales.slice().reverse().map((r,i)=>{
+    const p=gp(r.pid); const c=p?r.qty*(p.cost+p.ship):0; const g=r.qty*r.price-c/D.settings.rate; const idx=D.sales.length-1-i;
+    return `<tr><td>${r.date}</td><td>${p?p.name:'<span class="c-muted">已删除</span>'}</td><td>${r.qty}</td><td>$${r.price}</td><td>¥${c.toFixed(2)}</td><td class="${g>=0?'c-green':'c-red'}">${g>=0?'+':''}$${g.toFixed(2)}</td><td class="c-muted">${r.order||'-'}</td><td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSale(${idx})">删除</button></td></tr>`;
+  }).join('');
+  const opts = D.products.map(p=>`<option value="${p.id}">${p.name}（库存${p.stock}）</option>`).join('');
+  ['pur-product','sale-product'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=opts;});
+}
+
+window.addProduct = function() {
+  const name=document.getElementById('np-name').value.trim();
+  const sku=document.getElementById('np-sku').value.trim();
+  const cost=parseFloat(document.getElementById('np-cost').value);
+  const price=parseFloat(document.getElementById('np-price').value);
+  const ship=parseFloat(document.getElementById('np-ship').value)||0;
+  const stock=parseInt(document.getElementById('np-stock').value)||0;
+  if(!name||isNaN(cost)||isNaN(price)){alert('请填写商品名、进价、售价');return;}
+  D.products.push({id:D.nextId++,name,sku:sku||'SKU-'+D.nextId,cost,price,ship,stock});
+  save(); ['np-name','np-sku','np-cost','np-price','np-ship','np-stock'].forEach(id=>document.getElementById(id).value='');
+  alert('商品已添加！'); showPage('products');
+};
+window.editProduct = function(id) {
+  const p=gp(id); if(!p) return;
+  const name=prompt('商品名称',p.name); if(name===null) return;
+  const cost=parseFloat(prompt('进价（¥）',p.cost)); if(isNaN(cost)) return;
+  const price=parseFloat(prompt('售价（$）',p.price)); if(isNaN(price)) return;
+  const ship=parseFloat(prompt('运费/件（¥）',p.ship))||0;
+  const stock=parseInt(prompt('当前库存',p.stock))||0;
+  Object.assign(p,{name,cost,price,ship,stock}); save(); render();
+};
+window.deleteProduct = function(id) {
+  if(!confirm('确认删除？')) return;
+  D.products=D.products.filter(p=>p.id!=id); save(); render();
+};
+window.addPurchase = function() {
+  const pid=parseInt(document.getElementById('pur-product').value);
+  const qty=parseInt(document.getElementById('pur-qty').value);
+  const price=parseFloat(document.getElementById('pur-price').value);
+  const order=document.getElementById('pur-order').value.trim();
+  if(!qty||isNaN(price)||price<=0){alert('请填写数量和单价');return;}
+  const p=gp(pid); if(p) p.stock+=qty;
+  D.purchases.push({date:today(),pid,qty,price,order}); save();
+  ['pur-qty','pur-price','pur-order'].forEach(id=>document.getElementById(id).value='');
+  render(); alert(`入库成功！${p?p.name:''} 当前库存：${p?p.stock:'-'}`);
+};
+window.deletePurchase = function(idx) {
+  if(!confirm('删除这条进货记录？')) return;
+  D.purchases.splice(idx,1); save(); render();
+};
+window.addSale = function() {
+  const pid=parseInt(document.getElementById('sale-product').value);
+  const qty=parseInt(document.getElementById('sale-qty').value);
+  const price=parseFloat(document.getElementById('sale-price').value);
+  const order=document.getElementById('sale-order').value.trim();
+  if(!qty||isNaN(price)||price<=0){alert('请填写数量和售价');return;}
+  const p=gp(pid);
+  if(p&&p.stock<qty){alert(`库存不足！当前库存：${p.stock}件`);return;}
+  if(p) p.stock-=qty;
+  D.sales.push({date:today(),pid,qty,price,order}); save();
+  ['sale-qty','sale-price','sale-order'].forEach(id=>document.getElementById(id).value='');
+  render(); alert('销售已记录！');
+};
+window.deleteSale = function(idx) {
+  if(!confirm('删除这条销售记录？')) return;
+  D.sales.splice(idx,1); save(); render();
+};
+window.saveSettings = function() {
+  const rate=parseFloat(document.getElementById('s-rate').value);
+  const low=parseInt(document.getElementById('s-lowstock').value);
+  if(isNaN(rate)||rate<=0){alert('请输入正确的汇率');return;}
+  D.settings.rate=rate; D.settings.lowStock=low||10;
+  save(); render(); alert('设置已保存！');
+};
+window.clearAll = function() {
+  if(!confirm('确定清空所有数据？')) return;
+  if(!confirm('再次确认，清空后不可恢复！')) return;
+  D=defaultData(); save(); render(); alert('已清空');
+};
+window.exportAll = function() {
+  const wb=XLSX.utils.book_new();
+  const pd=[['ID','商品名','SKU','进价(¥)','售价($)','运费(¥)','库存','利润率%']];
+  D.products.forEach(p=>pd.push([p.id,p.name,p.sku,p.cost,p.price,p.ship,p.stock,+calcProfit(p).toFixed(2)]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pd),'商品');
+  const purd=[['日期','商品ID','商品名','数量','单价(¥)','总金额(¥)','订单号']];
+  D.purchases.forEach(r=>{const p=gp(r.pid);purd.push([r.date,r.pid,p?p.name:'',r.qty,r.price,+(r.qty*r.price).toFixed(2),r.order||'']);});
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(purd),'进货记录');
+  const sd=[['日期','商品ID','商品名','数量','售价($)','成本(¥)','毛利($)','订单号']];
+  D.sales.forEach(r=>{const p=gp(r.pid);const c=p?r.qty*(p.cost+p.ship):0;const g=+(r.qty*r.price-c/D.settings.rate).toFixed(2);sd.push([r.date,r.pid,p?p.name:'',r.qty,r.price,+c.toFixed(2),g,r.order||'']);});
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sd),'销售记录');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['汇率','低库存阈值'],[D.settings.rate,D.settings.lowStock]]),'配置');
+  XLSX.writeFile(wb,`进销存_${today()}.xlsx`);
+};
+window.exportProducts = function() {
+  const wb=XLSX.utils.book_new();
+  const pd=[['ID','商品名','SKU','进价(¥)','售价($)','运费(¥)','库存','利润率%']];
+  D.products.forEach(p=>pd.push([p.id,p.name,p.sku,p.cost,p.price,p.ship,p.stock,+calcProfit(p).toFixed(2)]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pd),'商品');
+  XLSX.writeFile(wb,`商品列表_${today()}.xlsx`);
+};
+window.importExcel = function(input) {
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try {
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      if(wb.SheetNames.includes('商品')){const rows=XLSX.utils.sheet_to_json(wb.Sheets['商品']);D.products=rows.map(r=>({id:+r['ID'],name:r['商品名']||'',sku:r['SKU']||'',cost:+r['进价(¥)']||0,price:+r['售价($)']||0,ship:+r['运费(¥)']||0,stock:+r['库存']||0}));D.nextId=Math.max(...D.products.map(p=>p.id),0)+1;}
+      if(wb.SheetNames.includes('进货记录'))D.purchases=XLSX.utils.sheet_to_json(wb.Sheets['进货记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['数量']||0,price:+r['单价(¥)']||0,order:r['订单号']||''}));
+      if(wb.SheetNames.includes('销售记录'))D.sales=XLSX.utils.sheet_to_json(wb.Sheets['销售记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['数量']||0,price:+r['售价($)']||0,order:r['订单号']||''}));
+      if(wb.SheetNames.includes('配置')){const rows=XLSX.utils.sheet_to_json(wb.Sheets['配置']);if(rows[0]){D.settings.rate=+rows[0]['汇率']||7.2;D.settings.lowStock=+rows[0]['低库存阈值']||10;}}
+      save(); render();
+      document.getElementById('import-status').innerHTML=`<div class="alert alert-ok" style="margin-top:12px">✅ 导入成功！${D.products.length}个商品、${D.purchases.length}条进货、${D.sales.length}条销售已恢复。</div>`;
+      input.value='';
+    } catch(err){document.getElementById('import-status').innerHTML=`<div class="alert" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;margin-top:12px">导入失败：${err.message}</div>`;}
+  };
+  reader.readAsBinaryString(file);
+};
+
+// 启动 - 配置已内置
+const FIREBASE_CFG = {
+  apiKey: "AIzaSyA2UvLvIvOu20l1v76b23Lb6C9jVwD6sJc",
+  authDomain: "tartgo-6b2f5.firebaseapp.com",
+  projectId: "tartgo-6b2f5",
+  storageBucket: "tartgo-6b2f5.firebasestorage.app",
+  messagingSenderId: "494416286810",
+  appId: "1:494416286810:web:27029fe80e61a137b37463"
+};
+initFirebase(FIREBASE_CFG);
+</script>
+</body>
+</html>
