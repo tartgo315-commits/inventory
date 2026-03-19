@@ -169,7 +169,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
   <div class="card">
     <div class="card-title">各商品成本分析</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO成本(¥/件)</th><th>快速补货</th>
+      <th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO成本(¥/件)</th>
     </tr></thead><tbody id="cost-stats-table"></tbody></table></div>
   </div>
 
@@ -314,8 +314,14 @@ function trackingLink(no) {
 }
 
 function productLink(link, label) {
-  if (!link) return label || '-';
-  return `<a href="${link}" target="_blank" style="color:var(--blue);text-decoration:none" title="在1688查看商品">${label||'查看'} ↗</a>`;
+  if (!link) return `<span>${label||'-'}</span>`;
+  return `<a href="${link}" target="_blank" style="color:var(--blue);text-decoration:underline;text-underline-offset:2px;cursor:pointer" title="点击跳转1688商品页">${label||'查看'}</a>`;
+}
+
+// 从该商品的进货记录里找最新的链接
+function getProductLink(pid) {
+  const records = D.purchases.filter(r=>r.pid==pid&&r.link).sort((a,b)=>b.date.localeCompare(a.date));
+  return records.length ? records[0].link : '';
 }
 
 // 判断是否已签收（保留，用于手动标记）
@@ -519,11 +525,10 @@ function renderCostStats(){
     const last=recv.slice().sort((a,b)=>(b.receivedDate||b.date).localeCompare(a.receivedDate||a.date))[0];
     const lc=last?((last.price||0)+(last.shipPerUnit||0)):0;
     const lastLink=last?last.link||'':'';
-    return `<tr><td>${p.name}</td><td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
+    return `<tr><td>${productLink(lastLink,p.name)}</td><td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
       <td><strong>¥${wavg.toFixed(2)}</strong></td>
       <td>¥${lc.toFixed(2)}<span class="c-muted" style="font-size:11px;margin-left:4px">${last?last.receivedDate||last.date:''}</span></td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
-      <td>${lastLink?`<a href="${lastLink}" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">去1688补货 ↗</a>`:'<span class="c-muted">无链接</span>'}</td>
     </tr>`;
   }).join('');
 }
@@ -534,7 +539,7 @@ function renderOutboundTable(){
   const tbody=document.getElementById('outbound-table'); if(!tbody) return;
   tbody.innerHTML=D.outbounds.slice().reverse().map((r,i)=>{
     const p=gp(r.pid),idx=D.outbounds.length-1-i;
-    return `<tr><td>${r.date}</td><td>${p?p.name:'<span class="c-muted">已删除</span>'}</td>
+    return `<tr><td>${r.date}</td><td>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</td>
       <td><strong>${r.qty}</strong></td><td class="c-muted">${r.tracking||'-'}</td>
       <td class="c-muted">${r.note||'-'}</td>
       <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteOutbound(${idx})">删除</button></td></tr>`;
@@ -547,7 +552,7 @@ function renderSalesTable(){
   const tbody=document.getElementById('sales-table'); if(!tbody) return;
   tbody.innerHTML=D.sales.slice().reverse().map((r,i)=>{
     const p=gp(r.pid),ri=D.sales.length-1-i,fc=getSaleFifoCost(ri),g=r.qty*r.price-fc/D.settings.rate;
-    return `<tr><td>${r.date}</td><td>${p?p.name:'<span class="c-muted">已删除</span>'}</td>
+    return `<tr><td>${r.date}</td><td>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</td>
       <td>${r.qty}</td><td>$${r.price}</td>
       <td>¥${fc.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
       <td class="${g>=0?'c-green':'c-red'}">${g>=0?'+':''}$${g.toFixed(2)}</td>
@@ -561,7 +566,7 @@ function renderStockTable(){
   tbody.innerHTML=D.products.map(p=>{
     const local=getLocalStock(p.id),temu=getTemuStock(p.id),transit=getTransitQty(p.id);
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td>${p.name}</td>
+    return `<tr><td>${productLink(getProductLink(p.id),p.name)}</td>
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
       <td><strong>${local}</strong></td><td>${temu}</td><td>${temu}</td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
@@ -574,7 +579,7 @@ function renderProductsTable(){
   const tbody=document.getElementById('products-table'); if(!tbody) return;
   tbody.innerHTML=D.products.map(p=>{
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td>${p.name}</td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
+    return `<tr><td>${productLink(getProductLink(p.id),p.name)}</td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
       <td>¥${fifo.toFixed(2)}</td><td>¥${wavg.toFixed(2)}</td>
       <td>${getLocalStock(p.id)}</td><td>${getTemuStock(p.id)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
