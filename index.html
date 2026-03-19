@@ -6,53 +6,78 @@
 <title>进销存 · Temu/1688</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root{--bg:#f5f5f3;--surface:#fff;--border:#e5e5e2;--border2:#d0d0cb;--text:#1a1a18;--text2:#6b6b66;--text3:#9a9a94;--green:#16a34a;--green-bg:#f0fdf4;--red:#dc2626;--red-bg:#fef2f2;--amber:#d97706;--amber-bg:#fffbeb;--blue:#2563eb;--blue-bg:#eff6ff;--radius:10px;--radius-sm:6px}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
-  .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;position:sticky;top:0;z-index:100;min-height:48px}
-  .logo{font-size:15px;font-weight:600;padding-right:16px;border-right:1px solid var(--border);margin-right:8px;white-space:nowrap}
-  .logo span{color:var(--blue)}
-  .tabs{display:flex;flex:1;overflow-x:auto}
-  .tab{padding:14px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--text2);border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s;flex-shrink:0}
-  .tab:hover{color:var(--text)}.tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:500}
-  .topbar-right{margin-left:auto;padding-left:12px;display:flex;gap:8px;align-items:center;flex-shrink:0}
-  .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
-  .sync-dot.error{background:var(--red)}.sync-dot.syncing{background:var(--blue)}
-  .save-status{font-size:12px;color:var(--text3);white-space:nowrap}
-  .main{max-width:1160px;margin:0 auto;padding:24px 20px}
-  .page{display:none}.page.active{display:block}
-  .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
-  .metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
-  .metric-label{font-size:12px;color:var(--text2);margin-bottom:8px}
-  .metric-val{font-size:24px;font-weight:600;line-height:1}
-  .metric-sub{font-size:11px;color:var(--text3);margin-top:6px}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
-  .card-title{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
-  .tbl-wrap{overflow-x:auto}
-  table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
-  th{text-align:left;padding:9px 10px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap}
-  td{padding:9px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
-  tr:last-child td{border-bottom:none}tr:hover td{background:#fafaf8}
-  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap}
-  .badge-warn{background:var(--amber-bg);color:var(--amber)}.badge-ok{background:var(--green-bg);color:var(--green)}.badge-info{background:var(--blue-bg);color:var(--blue)}
-  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
-  .form-grid-3{grid-template-columns:1fr 1fr 1fr}.form-grid-4{grid-template-columns:1fr 1fr 1fr 1fr}
-  .fg{display:flex;flex-direction:column;gap:5px}
-  .fg label{font-size:12px;color:var(--text2);font-weight:500}
-  input[type=text],input[type=number],select,textarea{padding:8px 10px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--surface);color:var(--text);width:100%;transition:border-color .15s;font-family:inherit}
-  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
-  .btn{padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-weight:500;border:none;transition:opacity .15s}
-  .btn:hover{opacity:.85}.btn-primary{background:var(--blue);color:#fff}.btn-success{background:var(--green);color:#fff}.btn-danger{background:var(--red);color:#fff}.btn-ghost{background:none;border:1px solid var(--border2);color:var(--text2)}.btn-sm{padding:4px 10px;font-size:12px}
-  .btns{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .alert{padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:14px}
-  .alert-warn{background:var(--amber-bg);color:var(--amber);border:1px solid #fde68a}.alert-ok{background:var(--green-bg);color:var(--green);border:1px solid #bbf7d0}.alert-info{background:var(--blue-bg);color:var(--blue);border:1px solid #bfdbfe}
-  .c-green{color:var(--green);font-weight:500}.c-red{color:var(--red);font-weight:500}.c-muted{color:var(--text2)}
-  .hint-box{background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:var(--radius-sm);padding:12px 14px;font-size:13px;color:var(--blue);line-height:1.8;margin-top:12px}
-  .cost-preview{padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text2)}
-  .fifo-tag{font-size:11px;background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0;border-radius:3px;padding:1px 5px;margin-left:4px}
-  .drop-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:28px;text-align:center;cursor:pointer;transition:background .15s}
-  .drop-zone:hover{background:var(--blue-bg);border-color:var(--blue)}.drop-zone p{color:var(--text2);font-size:13px;margin-bottom:6px}.drop-zone p.hint{font-size:12px;color:var(--text3)}
-  @media(max-width:640px){.metric-grid{grid-template-columns:1fr 1fr}.form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr}.logo{display:none}}
+:root{--bg:#f5f5f3;--surface:#fff;--border:#e5e5e2;--border2:#d0d0cb;--text:#1a1a18;--text2:#6b6b66;--text3:#9a9a94;--green:#16a34a;--green-bg:#f0fdf4;--red:#dc2626;--red-bg:#fef2f2;--amber:#d97706;--amber-bg:#fffbeb;--blue:#2563eb;--blue-bg:#eff6ff;--purple:#7c3aed;--purple-bg:#f5f3ff;--radius:10px;--radius-sm:6px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;position:sticky;top:0;z-index:100;min-height:48px}
+.logo{font-size:15px;font-weight:600;padding-right:16px;border-right:1px solid var(--border);margin-right:8px;white-space:nowrap}
+.logo span{color:var(--blue)}
+.tabs{display:flex;flex:1;overflow-x:auto}
+.tab{padding:13px 12px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--text2);border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s;flex-shrink:0}
+.tab:hover{color:var(--text)}.tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:500}
+.topbar-right{margin-left:auto;padding-left:12px;display:flex;gap:8px;align-items:center;flex-shrink:0}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
+.sync-dot.error{background:var(--red)}.sync-dot.syncing{background:var(--blue)}
+.save-status{font-size:12px;color:var(--text3);white-space:nowrap}
+.main{max-width:1200px;margin:0 auto;padding:24px 20px}
+.page{display:none}.page.active{display:block}
+
+/* 流程图 */
+.flow-bar{display:flex;align-items:center;gap:0;margin-bottom:24px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.flow-step{flex:1;padding:14px 12px;text-align:center;position:relative}
+.flow-step+.flow-step::before{content:'→';position:absolute;left:-10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:16px}
+.flow-step .fs-label{font-size:11px;color:var(--text2);margin-bottom:4px}
+.flow-step .fs-val{font-size:20px;font-weight:600}
+.flow-step.active-step{background:var(--blue-bg)}
+.flow-step .fs-val.amber{color:var(--amber)}
+.flow-step .fs-val.green{color:var(--green)}
+.flow-step .fs-val.blue{color:var(--blue)}
+.flow-step .fs-val.purple{color:var(--purple)}
+
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.metric-label{font-size:12px;color:var(--text2);margin-bottom:6px}
+.metric-val{font-size:22px;font-weight:600;line-height:1}
+.metric-sub{font-size:11px;color:var(--text3);margin-top:5px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px}
+.card-title{font-size:14px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:500px}
+th{text-align:left;padding:8px 10px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}tr:hover td{background:#fafaf8}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap}
+.badge-transit{background:var(--amber-bg);color:var(--amber)}
+.badge-received{background:var(--green-bg);color:var(--green)}
+.badge-sent{background:var(--purple-bg);color:var(--purple)}
+.badge-warn{background:var(--amber-bg);color:var(--amber)}
+.badge-ok{background:var(--green-bg);color:var(--green)}
+.badge-info{background:var(--blue-bg);color:var(--blue)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-grid-3{grid-template-columns:1fr 1fr 1fr}.form-grid-4{grid-template-columns:1fr 1fr 1fr 1fr}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:12px;color:var(--text2);font-weight:500}
+input[type=text],input[type=number],select,textarea{padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--surface);color:var(--text);width:100%;transition:border-color .15s;font-family:inherit}
+input:focus,select:focus{outline:none;border-color:var(--blue)}
+.btn{padding:7px 16px;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-weight:500;border:none;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--blue);color:#fff}.btn-success{background:var(--green);color:#fff}
+.btn-amber{background:var(--amber);color:#fff}.btn-purple{background:var(--purple);color:#fff}
+.btn-danger{background:var(--red);color:#fff}.btn-ghost{background:none;border:1px solid var(--border2);color:var(--text2)}
+.btn-sm{padding:3px 9px;font-size:12px}
+.btns{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.alert{padding:9px 13px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:12px}
+.alert-warn{background:var(--amber-bg);color:var(--amber);border:1px solid #fde68a}
+.alert-ok{background:var(--green-bg);color:var(--green);border:1px solid #bbf7d0}
+.alert-info{background:var(--blue-bg);color:var(--blue);border:1px solid #bfdbfe}
+.c-green{color:var(--green);font-weight:500}.c-red{color:var(--red);font-weight:500}.c-muted{color:var(--text2)}
+.cost-preview{padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text2)}
+.fifo-tag{font-size:11px;background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0;border-radius:3px;padding:1px 5px;margin-left:3px}
+.hint-box{background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:var(--radius-sm);padding:11px 14px;font-size:13px;color:var(--blue);line-height:1.8;margin-top:10px}
+.drop-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:24px;text-align:center;cursor:pointer;transition:background .15s}
+.drop-zone:hover{background:var(--blue-bg);border-color:var(--blue)}.drop-zone p{color:var(--text2);font-size:13px;margin-bottom:5px}.drop-zone p.hint{font-size:12px;color:var(--text3)}
+.section-sep{font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+@media(max-width:640px){.metric-grid{grid-template-columns:1fr 1fr}.form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr}.flow-bar{flex-direction:column}.logo{display:none}}
 </style>
 </head>
 <body>
@@ -61,17 +86,17 @@
   <div class="logo">进销存 <span>Temu/1688</span></div>
   <div class="tabs">
     <button class="tab active" onclick="showPage('dashboard')">总览</button>
+    <button class="tab" onclick="showPage('purchase')">进货 / 入库</button>
+    <button class="tab" onclick="showPage('outbound')">出库到Temu</button>
+    <button class="tab" onclick="showPage('sales')">Temu销售</button>
     <button class="tab" onclick="showPage('products')">商品管理</button>
-    <button class="tab" onclick="showPage('purchase')">进货</button>
-    <button class="tab" onclick="showPage('sales')">销售</button>
-    <button class="tab" onclick="showPage('add-product')">+ 添加商品</button>
     <button class="tab" onclick="showPage('backup')">备份/恢复</button>
     <button class="tab" onclick="showPage('settings')">设置</button>
   </div>
   <div class="topbar-right">
     <div class="sync-dot" id="sync-dot"></div>
     <span class="save-status" id="save-status">连接中...</span>
-    <button class="btn btn-ghost btn-sm" onclick="resetConfig()" title="重置配置">⚙</button>
+    <button class="btn btn-ghost btn-sm" onclick="resetConfig()">⚙</button>
   </div>
 </div>
 
@@ -79,68 +104,103 @@
 
 <!-- 总览 -->
 <div id="page-dashboard" class="page active">
+  <!-- 流程状态栏 -->
+  <div class="flow-bar" id="flow-bar">
+    <div class="flow-step"><div class="fs-label">在途（已下单未到货）</div><div class="fs-val amber" id="f-transit">0</div></div>
+    <div class="flow-step"><div class="fs-label">本地库存（已签收）</div><div class="fs-val green" id="f-local">0</div></div>
+    <div class="flow-step"><div class="fs-label">已发往Temu仓库</div><div class="fs-val blue" id="f-sent">0</div></div>
+    <div class="flow-step"><div class="fs-label">Temu在售库存</div><div class="fs-val purple" id="f-temu">0</div></div>
+  </div>
+
   <div class="metric-grid" id="metrics"></div>
   <div id="low-stock-alert"></div>
+
+  <!-- 待处理事项 -->
+  <div id="pending-section"></div>
+
   <div class="card">
-    <div class="card-title">库存状态 <span style="font-size:12px;font-weight:400;color:var(--text3)">成本按 FIFO 先进先出计算</span></div>
+    <div class="card-title">各商品库存状态</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>SKU</th><th>库存</th><th>FIFO成本/件</th><th>历史加权均价/件</th><th>Temu售价</th><th>利润率(FIFO)</th><th>状态</th>
+      <th>商品名</th><th>在途</th><th>本地库存</th><th>已发Temu</th><th>Temu库存</th><th>FIFO成本/件</th><th>均价/件</th><th>Temu售价</th><th>利润率</th>
     </tr></thead><tbody id="stock-table"></tbody></table></div>
   </div>
 </div>
 
-<!-- 商品管理 -->
-<div id="page-products" class="page">
-  <div class="card">
-    <div class="card-title">所有商品</div>
-    <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>SKU</th><th>库存</th><th>Temu售价($)</th><th>FIFO成本/件(¥)</th><th>历史均价/件(¥)</th><th>利润率(FIFO)</th><th>操作</th>
-    </tr></thead><tbody id="products-table"></tbody></table></div>
-  </div>
-</div>
-
-<!-- 进货 -->
+<!-- 进货 / 入库 -->
 <div id="page-purchase" class="page">
+
+  <div class="section-sep">第一步：下单进货（1688）</div>
   <div class="card">
-    <div class="card-title">录入进货（1688）</div>
+    <div class="card-title">录入进货订单</div>
     <div class="form-grid form-grid-4">
       <div class="fg"><label>选择商品</label><select id="pur-product"></select></div>
-      <div class="fg"><label>进货数量</label><input type="number" id="pur-qty" placeholder="100" min="1"></div>
+      <div class="fg"><label>订单数量</label><input type="number" id="pur-qty" placeholder="100" min="1"></div>
       <div class="fg"><label>单件进价（¥）</label><input type="number" id="pur-price" placeholder="5.00" step="0.01" min="0" oninput="updateCostPreview()"></div>
       <div class="fg"><label>单件运费（¥）</label><input type="number" id="pur-ship" placeholder="1.20" step="0.01" min="0" oninput="updateCostPreview()"></div>
     </div>
-    <div class="form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
       <div class="fg"><label>1688订单号（可选）</label><input type="text" id="pur-order" placeholder="1688-xxxxxxxx"></div>
-      <div class="fg"><label>当次单件总成本（自动计算）</label>
-        <div class="cost-preview" id="pur-cost-preview">填写进价和运费后自动显示</div>
-      </div>
+      <div class="fg"><label>预计到货日期（可选）</label><input type="text" id="pur-eta" placeholder="2024-04-10"></div>
+      <div class="fg"><label>单件总成本（自动）</label><div class="cost-preview" id="pur-cost-preview">填写进价+运费后显示</div></div>
     </div>
-    <div class="btns"><button class="btn btn-primary" onclick="addPurchase()">确认入库</button></div>
+    <div class="btns"><button class="btn btn-primary" onclick="addPurchase()">确认下单（状态：在途）</button></div>
   </div>
 
+  <div class="section-sep">第二步：签收入库</div>
   <div class="card">
-    <div class="card-title">各商品进货成本统计</div>
+    <div class="card-title">待签收订单 <span style="font-size:12px;font-weight:400;color:var(--text3)">货到了就在这里确认签收</span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>进货批次</th><th>累计进货量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>当前库存</th><th>FIFO当前成本(¥/件)</th>
-    </tr></thead><tbody id="cost-stats-table"></tbody></table></div>
+      <th>下单日期</th><th>商品</th><th>订单数量</th><th>单件成本(¥)</th><th>预计到货</th><th>1688单号</th><th>状态</th><th>操作</th>
+    </tr></thead><tbody id="transit-table"></tbody></table></div>
   </div>
 
+  <div class="section-sep">进货历史（全部）</div>
   <div class="card">
     <div class="card-title">进货明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="pur-total"></span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>日期</th><th>商品</th><th>数量</th><th>单件进价(¥)</th><th>单件运费(¥)</th><th>单件总成本(¥)</th><th>批次总金额(¥)</th><th>订单号</th><th>操作</th>
+      <th>下单日期</th><th>商品</th><th>订单量</th><th>签收量</th><th>单件进价(¥)</th><th>单件运费(¥)</th><th>单件总成本(¥)</th><th>批次金额(¥)</th><th>状态</th><th>1688单号</th><th>操作</th>
     </tr></thead><tbody id="purchase-table"></tbody></table></div>
+  </div>
+
+  <div class="section-sep">进货成本统计</div>
+  <div class="card">
+    <div class="card-title">各商品成本分析</div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>商品名</th><th>批次数</th><th>累计订货量</th><th>累计签收量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO当前成本(¥/件)</th>
+    </tr></thead><tbody id="cost-stats-table"></tbody></table></div>
   </div>
 </div>
 
-<!-- 销售 -->
+<!-- 出库到Temu -->
+<div id="page-outbound" class="page">
+  <div class="section-sep">发货到Temu仓库</div>
+  <div class="card">
+    <div class="card-title">录入出库</div>
+    <div class="form-grid form-grid-4">
+      <div class="fg"><label>选择商品</label><select id="out-product"></select></div>
+      <div class="fg"><label>发出数量</label><input type="number" id="out-qty" placeholder="50" min="1"></div>
+      <div class="fg"><label>快递/运单号（可选）</label><input type="text" id="out-tracking" placeholder="SF1234567890"></div>
+      <div class="fg"><label>备注（可选）</label><input type="text" id="out-note" placeholder="第一批发货"></div>
+    </div>
+    <div class="btns"><button class="btn btn-purple" onclick="addOutbound()">确认出库发往Temu</button></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">出库记录 <span class="c-muted" style="font-size:12px;font-weight:400" id="out-total"></span></div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>日期</th><th>商品</th><th>发出数量</th><th>运单号</th><th>备注</th><th>操作</th>
+    </tr></thead><tbody id="outbound-table"></tbody></table></div>
+  </div>
+</div>
+
+<!-- Temu销售 -->
 <div id="page-sales" class="page">
   <div class="card">
-    <div class="card-title">录入销售（Temu）</div>
+    <div class="card-title">录入Temu销售</div>
     <div class="form-grid form-grid-4">
       <div class="fg"><label>选择商品</label><select id="sale-product"></select></div>
       <div class="fg"><label>销售数量</label><input type="number" id="sale-qty" placeholder="1" min="1"></div>
-      <div class="fg"><label>实际售价（$）</label><input type="number" id="sale-price" placeholder="9.99" step="0.01" min="0"></div>
+      <div class="fg"><label>实际售价（$）</label><input type="number" id="sale-price" placeholder="9.99" step="0.01"></div>
       <div class="fg"><label>Temu订单号（可选）</label><input type="text" id="sale-order" placeholder="Temu-xxxxxxxx"></div>
     </div>
     <div class="btns"><button class="btn btn-primary" onclick="addSale()">确认销售</button></div>
@@ -153,35 +213,34 @@
   </div>
 </div>
 
-<!-- 添加商品 -->
-<div id="page-add-product" class="page">
+<!-- 商品管理 -->
+<div id="page-products" class="page">
   <div class="card">
     <div class="card-title">新增商品</div>
     <div class="form-grid form-grid-3">
-      <div class="fg"><label>商品名称 *</label><input type="text" id="np-name" placeholder="比如：硅胶手机壳"></div>
+      <div class="fg"><label>商品名称 *</label><input type="text" id="np-name" placeholder="硅胶手机壳"></div>
       <div class="fg"><label>SKU编码</label><input type="text" id="np-sku" placeholder="CASE-001"></div>
       <div class="fg"><label>Temu参考售价（$）*</label><input type="number" id="np-price" placeholder="9.99" step="0.01"></div>
     </div>
-    <div class="btns"><button class="btn btn-primary" onclick="addProduct()">保存商品</button><span style="font-size:12px;color:var(--text3)">* 为必填项</span></div>
+    <div class="btns"><button class="btn btn-primary" onclick="addProduct()">保存商品</button></div>
   </div>
-  <div class="hint-box">
-    <strong>进价和运费在哪里填？</strong><br>
-    商品建好后，每次去「进货」页面入库时填写「单件进价」+「单件运费」，系统自动记录每批成本。<br><br>
-    <strong>FIFO 先进先出：</strong>卖货时自动按最早入库的批次成本出货，毛利更准确。<br>
-    <strong>历史加权均价：</strong>所有批次（数量×单件成本）之和 ÷ 累计总进货量，反映整体平均水平。
+  <div class="card">
+    <div class="card-title">所有商品</div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>商品名</th><th>SKU</th><th>Temu售价($)</th><th>FIFO成本/件(¥)</th><th>历史均价/件(¥)</th><th>本地库存</th><th>Temu库存</th><th>利润率</th><th>操作</th>
+    </tr></thead><tbody id="products-table"></tbody></table></div>
   </div>
 </div>
 
-<!-- 备份/恢复 -->
+<!-- 备份 -->
 <div id="page-backup" class="page">
   <div class="card">
     <div class="card-title">导出数据</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">将全部数据导出为 Excel 文件留存。</p>
-    <div class="btns"><button class="btn btn-success" onclick="exportAll()">导出全部数据（xlsx）</button><button class="btn btn-ghost" onclick="exportProducts()">仅导出商品列表</button></div>
+    <div class="btns"><button class="btn btn-success" onclick="exportAll()">导出全部数据（xlsx）</button></div>
   </div>
   <div class="card">
     <div class="card-title">从 Excel 导入</div>
-    <div class="alert alert-warn">⚠️ 导入会覆盖云端全部数据，请确认已导出备份。</div>
+    <div class="alert alert-warn">⚠️ 导入会覆盖全部数据，请先导出备份。</div>
     <div class="drop-zone" onclick="document.getElementById('file-input').click()">
       <p>点击选择文件</p><p class="hint">支持本工具导出的 .xlsx 文件</p>
       <input type="file" id="file-input" accept=".xlsx" style="display:none" onchange="importExcel(this)">
@@ -202,11 +261,11 @@
   </div>
   <div class="card">
     <div class="card-title" style="color:var(--red)">危险操作</div>
-    <div class="btns"><button class="btn btn-danger" onclick="clearAll()">清空所有数据</button><span style="font-size:12px;color:var(--text3)">此操作不可恢复</span></div>
+    <div class="btns"><button class="btn btn-danger" onclick="clearAll()">清空所有数据</button><span style="font-size:12px;color:var(--text3)">不可恢复</span></div>
   </div>
 </div>
 
-</div>
+</div><!-- /main -->
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -216,55 +275,70 @@ let db, docRef;
 let D = defaultData();
 
 function defaultData() {
-  return { settings:{rate:7.2,lowStock:10}, products:[], purchases:[], sales:[], nextId:1 };
+  return {
+    settings: { rate:7.2, lowStock:10 },
+    products: [],
+    purchases: [],   // 进货订单：含状态 transit/received，签收数量
+    outbounds: [],   // 出库到Temu
+    sales: [],       // Temu销售
+    nextId: 1
+  };
 }
 
-// ===== FIFO 核心逻辑 =====
+// ===== 库存计算 =====
+// 本地库存 = 已签收数量 - 已出库数量
+function getLocalStock(pid) {
+  const received = D.purchases.filter(r=>r.pid==pid&&r.status==='received').reduce((s,r)=>s+(r.receivedQty||r.qty),0);
+  const sent = D.outbounds.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
+  return Math.max(0, received - sent);
+}
+// Temu库存 = 已出库 - 已售出
+function getTemuStock(pid) {
+  const sent = D.outbounds.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
+  const sold = D.sales.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
+  return Math.max(0, sent - sold);
+}
+// 在途 = 状态为transit的订单
+function getTransitQty(pid) {
+  return D.purchases.filter(r=>r.pid==pid&&r.status==='transit').reduce((s,r)=>s+r.qty,0);
+}
+
+// ===== FIFO =====
 function buildFifoQueue(pid) {
-  return D.purchases
-    .filter(r => r.pid == pid)
-    .slice() // 不改变原数组
-    .sort((a,b) => a.date.localeCompare(b.date))
-    .map(r => ({ qty:r.qty, unitCost:(r.price||0)+(r.ship||0), date:r.date }));
+  return D.purchases.filter(r=>r.pid==pid&&r.status==='received')
+    .slice().sort((a,b)=>((a.receivedDate||a.date)<(b.receivedDate||b.date)?-1:1))
+    .map(r=>({qty:r.receivedQty||r.qty, unitCost:(r.price||0)+(r.ship||0)}));
 }
-
-// 当前剩余库存对应的 FIFO 成本（最早未消耗批次的单价）
 function getFifoCostPerUnit(pid) {
-  const queue = buildFifoQueue(pid);
-  if (!queue.length) return 0;
-  const totalSold = D.sales.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
-  let remaining = totalSold;
-  for (const batch of queue) {
-    if (remaining <= 0) return batch.unitCost;
-    if (remaining >= batch.qty) { remaining -= batch.qty; }
-    else { return batch.unitCost; }
-  }
-  return queue[queue.length-1].unitCost;
+  const q = buildFifoQueue(pid);
+  if(!q.length) return 0;
+  const soldAndSent = D.outbounds.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
+  let rem = soldAndSent;
+  for(const b of q){ if(rem<=0) return b.unitCost; if(rem>=b.qty){rem-=b.qty;}else{return b.unitCost;} }
+  return q[q.length-1].unitCost;
 }
-
-// 某笔销售的 FIFO 成本（¥）
 function getSaleFifoCost(saleIdx) {
   const sale = D.sales[saleIdx];
-  const queue = buildFifoQueue(sale.pid);
+  const q = buildFifoQueue(sale.pid);
+  const outBefore = D.outbounds.filter(r=>r.pid==sale.pid).reduce((s,r)=>s+r.qty,0);
   const soldBefore = D.sales.slice(0,saleIdx).filter(r=>r.pid==sale.pid).reduce((s,r)=>s+r.qty,0);
-  let skip = soldBefore, needed = sale.qty, total = 0;
-  for (const batch of queue) {
-    if (skip >= batch.qty) { skip -= batch.qty; continue; }
-    const avail = batch.qty - skip; skip = 0;
-    const take = Math.min(avail, needed);
-    total += take * batch.unitCost;
-    needed -= take;
-    if (needed <= 0) break;
+  let skip = outBefore - (D.sales.filter(r=>r.pid==sale.pid).reduce((s,r)=>s+r.qty,0) - soldBefore - sale.qty);
+  // 简化：按FIFO顺序，出库视为消耗库存
+  let skip2 = soldBefore, needed = sale.qty, total = 0;
+  for(const b of q){
+    if(skip2>=b.qty){skip2-=b.qty;continue;}
+    const avail=b.qty-skip2; skip2=0;
+    const take=Math.min(avail,needed);
+    total+=take*b.unitCost; needed-=take;
+    if(needed<=0) break;
   }
   return total;
 }
-
-// 历史加权均价（¥/件）
 function getWeightedAvgCost(pid) {
-  const batches = D.purchases.filter(r=>r.pid==pid);
-  const totalQty = batches.reduce((s,r)=>s+r.qty,0);
-  if (!totalQty) return 0;
-  return batches.reduce((s,r)=>s+r.qty*((r.price||0)+(r.ship||0)),0) / totalQty;
+  const bs = D.purchases.filter(r=>r.pid==pid&&r.status==='received');
+  const tq = bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
+  if(!tq) return 0;
+  return bs.reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.ship||0)),0)/tq;
 }
 
 // ===== Firebase =====
@@ -274,160 +348,254 @@ async function initFirebase(cfg) {
     db = getFirestore(app);
     docRef = doc(db,'inventory','main');
     setSyncStatus('syncing');
-    onSnapshot(docRef, snap => {
-      D = snap.exists() ? snap.data() : defaultData();
-      if (!snap.exists()) pushData();
-      render();
-      setSyncStatus('online');
-    }, () => setSyncStatus('error'));
-  } catch(e) { setSyncStatus('error'); console.error(e); }
+    onSnapshot(docRef, snap=>{
+      if(snap.exists()){
+        const d = snap.data();
+        // 兼容旧数据（没有outbounds字段）
+        D = { ...defaultData(), ...d };
+        if(!D.outbounds) D.outbounds = [];
+      } else { D=defaultData(); pushData(); }
+      render(); setSyncStatus('online');
+    }, ()=>setSyncStatus('error'));
+  } catch(e){ setSyncStatus('error'); }
 }
-
-function setSyncStatus(s) {
-  const dot=document.getElementById('sync-dot'), txt=document.getElementById('save-status');
+function setSyncStatus(s){
+  const dot=document.getElementById('sync-dot'),txt=document.getElementById('save-status');
   dot.className='sync-dot'+(s==='error'?' error':s==='syncing'?' syncing':'');
-  txt.textContent = s==='online'?'云端已同步 · 任意设备可用':s==='syncing'?'保存中...':'同步失败，检查网络';
+  txt.textContent=s==='online'?'云端已同步 · 任意设备可用':s==='syncing'?'保存中...':'同步失败';
 }
-
 let _t;
-function save() { setSyncStatus('syncing'); clearTimeout(_t); _t=setTimeout(pushData,600); }
-async function pushData() {
-  try { await setDoc(docRef,JSON.parse(JSON.stringify(D))); setSyncStatus('online'); }
-  catch(e) { setSyncStatus('error'); }
-}
-
-window.resetConfig = function() { if(confirm('重置配置？')) location.reload(); };
+function save(){ setSyncStatus('syncing'); clearTimeout(_t); _t=setTimeout(pushData,600); }
+async function pushData(){ try{ await setDoc(docRef,JSON.parse(JSON.stringify(D))); setSyncStatus('online'); }catch(e){ setSyncStatus('error'); } }
+window.resetConfig = function(){ if(confirm('重置配置？')) location.reload(); };
 
 // ===== 工具 =====
-function gp(id) { return D.products.find(p=>p.id==id); }
-function today() { return new Date().toISOString().slice(0,10); }
-function calcProfitFifo(p) {
+function gp(id){ return D.products.find(p=>p.id==id); }
+function today(){ return new Date().toISOString().slice(0,10); }
+function calcProfitFifo(p){
   const cost=getFifoCostPerUnit(p.id), rev=p.price*D.settings.rate;
-  return rev ? (rev-cost)/rev*100 : 0;
+  return rev?(rev-cost)/rev*100:0;
 }
 
-// ===== 页面 =====
-const PAGES=['dashboard','products','purchase','sales','add-product','backup','settings'];
-window.showPage = function(name) {
+// ===== 页面切换 =====
+const PAGES=['dashboard','purchase','outbound','sales','products','backup','settings'];
+window.showPage = function(name){
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   document.querySelectorAll('.tab')[PAGES.indexOf(name)].classList.add('active');
   render();
-  if(name==='settings'){document.getElementById('s-rate').value=D.settings.rate;document.getElementById('s-lowstock').value=D.settings.lowStock;}
+  if(name==='settings'){ document.getElementById('s-rate').value=D.settings.rate; document.getElementById('s-lowstock').value=D.settings.lowStock; }
 };
 
 // ===== 渲染 =====
-function render() {
-  renderMetrics(); renderStockTable(); renderProductsTable();
-  renderCostStats(); renderPurchaseTable(); renderSalesTable(); populateSelects();
+function render(){
+  renderFlow(); renderMetrics(); renderStockTable();
+  renderPendingSection(); renderTransitTable(); renderPurchaseTable(); renderCostStats();
+  renderOutboundTable(); renderSalesTable(); renderProductsTable(); populateSelects();
 }
 
-function renderMetrics() {
-  const ts=D.products.reduce((s,p)=>s+p.stock,0);
-  const sv=D.products.reduce((s,p)=>s+p.stock*getFifoCostPerUnit(p.id),0);
-  const tr=D.sales.reduce((s,r)=>s+r.qty*r.price,0);
-  const tc=D.sales.reduce((s,r,i)=>s+getSaleFifoCost(i)/D.settings.rate,0);
-  const gv=tr-tc;
+function renderFlow(){
+  const transit = D.products.reduce((s,p)=>s+getTransitQty(p.id),0);
+  const local = D.products.reduce((s,p)=>s+getLocalStock(p.id),0);
+  const sent = D.outbounds.reduce((s,r)=>s+r.qty,0);
+  const temu = D.products.reduce((s,p)=>s+getTemuStock(p.id),0);
+  document.getElementById('f-transit').textContent = transit;
+  document.getElementById('f-local').textContent = local;
+  document.getElementById('f-sent').textContent = sent;
+  document.getElementById('f-temu').textContent = temu;
+}
+
+function renderMetrics(){
+  const localVal = D.products.reduce((s,p)=>s+getLocalStock(p.id)*getFifoCostPerUnit(p.id),0);
+  const tr = D.sales.reduce((s,r)=>s+r.qty*r.price,0);
+  const tc = D.sales.reduce((s,r,i)=>s+getSaleFifoCost(i)/D.settings.rate,0);
+  const gv = tr-tc;
   document.getElementById('metrics').innerHTML=`
-    <div class="metric"><div class="metric-label">总库存件数</div><div class="metric-val">${ts.toLocaleString()}</div><div class="metric-sub">${D.products.length} 个SKU</div></div>
-    <div class="metric"><div class="metric-label">库存成本(FIFO)</div><div class="metric-val">¥${sv.toFixed(0)}</div><div class="metric-sub">先进先出计算</div></div>
-    <div class="metric"><div class="metric-label">累计销售额</div><div class="metric-val">$${tr.toFixed(2)}</div><div class="metric-sub">${D.sales.length} 笔记录</div></div>
-    <div class="metric"><div class="metric-label">累计毛利(FIFO)</div><div class="metric-val ${gv>=0?'c-green':'c-red'}">${gv>=0?'+':''}$${gv.toFixed(2)}</div><div class="metric-sub">未扣平台佣金</div></div>`;
-  const low=D.products.filter(p=>p.stock<D.settings.lowStock);
+    <div class="metric"><div class="metric-label">本地库存成本(FIFO)</div><div class="metric-val">¥${localVal.toFixed(0)}</div><div class="metric-sub">已签收未发Temu</div></div>
+    <div class="metric"><div class="metric-label">累计销售额</div><div class="metric-val">$${tr.toFixed(2)}</div><div class="metric-sub">${D.sales.length} 笔</div></div>
+    <div class="metric"><div class="metric-label">累计毛利(FIFO)</div><div class="metric-val ${gv>=0?'c-green':'c-red'}">${gv>=0?'+':''}$${gv.toFixed(2)}</div><div class="metric-sub">未含Temu运费</div></div>
+    <div class="metric"><div class="metric-label">商品SKU数</div><div class="metric-val">${D.products.length}</div><div class="metric-sub">在售</div></div>`;
+  const low = D.products.filter(p=>getLocalStock(p.id)<D.settings.lowStock&&getLocalStock(p.id)>=0);
   document.getElementById('low-stock-alert').innerHTML=low.length
-    ?`<div class="alert alert-warn">⚠️ 库存预警：${low.map(p=>`${p.name}（剩${p.stock}件）`).join('、')}，建议补货</div>`:'';
+    ?`<div class="alert alert-warn">⚠️ 本地库存预警：${low.map(p=>`${p.name}（本地剩${getLocalStock(p.id)}件）`).join('、')}</div>`:'';
 }
 
-function renderStockTable() {
-  document.getElementById('stock-table').innerHTML=D.products.map(p=>{
-    const fifo=getFifoCostPerUnit(p.id), wavg=getWeightedAvgCost(p.id), pr=calcProfitFifo(p);
-    const st=p.stock<D.settings.lowStock?'<span class="badge badge-warn">低库存</span>':p.stock>100?'<span class="badge badge-info">充足</span>':'<span class="badge badge-ok">正常</span>';
-    return `<tr><td>${p.name}</td><td class="c-muted">${p.sku||'-'}</td><td><strong>${p.stock}</strong></td>
-      <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
-      <td>¥${wavg.toFixed(2)}</td><td>$${p.price}</td>
-      <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td><td>${st}</td></tr>`;
+function renderPendingSection(){
+  const transitItems = D.purchases.filter(r=>r.status==='transit');
+  const el = document.getElementById('pending-section');
+  if(!el) return;
+  if(!transitItems.length){ el.innerHTML=''; return; }
+  el.innerHTML=`<div class="alert alert-warn" style="display:flex;align-items:center;justify-content:space-between">
+    <span>📦 有 ${transitItems.length} 批货物在途，货到后记得去「进货/入库」页面签收确认</span>
+    <button class="btn btn-ghost btn-sm" onclick="showPage('purchase')">去签收 →</button>
+  </div>`;
+}
+
+function renderTransitTable(){
+  const el = document.getElementById('transit-table'); if(!el) return;
+  const items = D.purchases.filter(r=>r.status==='transit');
+  if(!items.length){ el.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">暂无在途订单</td></tr>`; return; }
+  el.innerHTML = items.map(r=>{
+    const p=gp(r.pid), uc=(r.price||0)+(r.ship||0), idx=D.purchases.indexOf(r);
+    return `<tr>
+      <td>${r.date}</td>
+      <td>${p?p.name:'<span class="c-muted">已删除</span>'}</td>
+      <td>${r.qty}</td>
+      <td>¥${uc.toFixed(2)}</td>
+      <td class="c-muted">${r.eta||'-'}</td>
+      <td class="c-muted">${r.order||'-'}</td>
+      <td><span class="badge badge-transit">在途</span></td>
+      <td>
+        <button class="btn btn-amber btn-sm" onclick="confirmReceive(${idx})">签收入库</button>
+      </td>
+    </tr>`;
   }).join('');
 }
 
-function renderProductsTable() {
-  document.getElementById('products-table').innerHTML=D.products.map(p=>{
-    const fifo=getFifoCostPerUnit(p.id), wavg=getWeightedAvgCost(p.id), pr=calcProfitFifo(p);
-    return `<tr><td>${p.name}</td><td class="c-muted">${p.sku||'-'}</td><td>${p.stock}</td>
-      <td>$${p.price}</td><td>¥${fifo.toFixed(2)}</td><td>¥${wavg.toFixed(2)}</td>
-      <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="editProduct(${p.id})">编辑</button> <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProduct(${p.id})">删除</button></td></tr>`;
+function renderPurchaseTable(){
+  const total = D.purchases.filter(r=>r.status==='received').reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.ship||0)),0);
+  const el=document.getElementById('pur-total'); if(el) el.textContent=`共${D.purchases.length}条，已入库合计¥${total.toFixed(2)}`;
+  document.getElementById('purchase-table').innerHTML = D.purchases.slice().reverse().map((r,i)=>{
+    const p=gp(r.pid), uc=(r.price||0)+(r.ship||0), idx=D.purchases.length-1-i;
+    const rqty = r.status==='received'?(r.receivedQty||r.qty):'-';
+    const statusBadge = r.status==='transit'
+      ?'<span class="badge badge-transit">在途</span>'
+      :`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
+    return `<tr>
+      <td>${r.date}</td>
+      <td>${p?p.name:'<span class="c-muted">已删除</span>'}</td>
+      <td>${r.qty}</td>
+      <td>${rqty}</td>
+      <td>¥${(r.price||0).toFixed(2)}</td>
+      <td>¥${(r.ship||0).toFixed(2)}</td>
+      <td><strong>¥${uc.toFixed(2)}</strong></td>
+      <td>¥${(r.status==='received'?(r.receivedQty||r.qty):r.qty)*uc>0?((r.status==='received'?(r.receivedQty||r.qty):r.qty)*uc).toFixed(2):'-'}</td>
+      <td>${statusBadge}</td>
+      <td class="c-muted">${r.order||'-'}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletePurchase(${idx})">删除</button></td>
+    </tr>`;
   }).join('');
 }
 
-function renderCostStats() {
+function renderCostStats(){
   const el=document.getElementById('cost-stats-table'); if(!el) return;
   el.innerHTML=D.products.map(p=>{
-    const batches=D.purchases.filter(r=>r.pid==p.id);
-    const totalQty=batches.reduce((s,r)=>s+r.qty,0);
+    const all=D.purchases.filter(r=>r.pid==p.id);
+    const received=all.filter(r=>r.status==='received');
+    const totalOrdered=all.reduce((s,r)=>s+r.qty,0);
+    const totalReceived=received.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
     const wavg=getWeightedAvgCost(p.id), fifo=getFifoCostPerUnit(p.id);
-    const sorted=batches.slice().sort((a,b)=>b.date.localeCompare(a.date));
-    const last=sorted[0];
-    const lastCost=last?((last.price||0)+(last.ship||0)):0;
-    return `<tr><td>${p.name}</td><td>${batches.length}</td><td>${totalQty}</td>
+    const sorted=received.slice().sort((a,b)=>(b.receivedDate||b.date).localeCompare(a.receivedDate||a.date));
+    const last=sorted[0], lastCost=last?((last.price||0)+(last.ship||0)):0;
+    return `<tr>
+      <td>${p.name}</td><td>${all.length}</td><td>${totalOrdered}</td><td>${totalReceived}</td>
       <td><strong>¥${wavg.toFixed(2)}</strong></td>
-      <td>¥${lastCost.toFixed(2)} <span class="c-muted" style="font-size:11px">${last?last.date:''}</span></td>
-      <td>${p.stock}</td>
-      <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td></tr>`;
+      <td>¥${lastCost.toFixed(2)}<span class="c-muted" style="font-size:11px;margin-left:4px">${last?last.receivedDate||last.date:''}</span></td>
+      <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+    </tr>`;
   }).join('');
 }
 
-function renderPurchaseTable() {
-  const total=D.purchases.reduce((s,r)=>s+r.qty*((r.price||0)+(r.ship||0)),0);
-  const el=document.getElementById('pur-total'); if(el) el.textContent=`共${D.purchases.length}条，合计¥${total.toFixed(2)}`;
-  document.getElementById('purchase-table').innerHTML=D.purchases.slice().reverse().map((r,i)=>{
-    const p=gp(r.pid), idx=D.purchases.length-1-i, uc=(r.price||0)+(r.ship||0);
-    return `<tr><td>${r.date}</td><td>${p?p.name:'<span class="c-muted">已删除</span>'}</td><td>${r.qty}</td>
-      <td>¥${(r.price||0).toFixed(2)}</td><td>¥${(r.ship||0).toFixed(2)}</td>
-      <td><strong>¥${uc.toFixed(2)}</strong></td><td>¥${(r.qty*uc).toFixed(2)}</td>
-      <td class="c-muted">${r.order||'-'}</td>
-      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletePurchase(${idx})">删除</button></td></tr>`;
+function renderOutboundTable(){
+  const total=D.outbounds.reduce((s,r)=>s+r.qty,0);
+  const el=document.getElementById('out-total'); if(el) el.textContent=`共${D.outbounds.length}次，合计${total}件`;
+  const tbody=document.getElementById('outbound-table'); if(!tbody) return;
+  tbody.innerHTML=D.outbounds.slice().reverse().map((r,i)=>{
+    const p=gp(r.pid), idx=D.outbounds.length-1-i;
+    return `<tr>
+      <td>${r.date}</td>
+      <td>${p?p.name:'<span class="c-muted">已删除</span>'}</td>
+      <td><strong>${r.qty}</strong></td>
+      <td class="c-muted">${r.tracking||'-'}</td>
+      <td class="c-muted">${r.note||'-'}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteOutbound(${idx})">删除</button></td>
+    </tr>`;
   }).join('');
 }
 
-function renderSalesTable() {
+function renderSalesTable(){
   const tr2=D.sales.reduce((s,r)=>s+r.qty*r.price,0);
   const el=document.getElementById('sale-total'); if(el) el.textContent=`共${D.sales.length}条，销售额$${tr2.toFixed(2)}`;
-  document.getElementById('sales-table').innerHTML=D.sales.slice().reverse().map((r,i)=>{
+  const tbody=document.getElementById('sales-table'); if(!tbody) return;
+  tbody.innerHTML=D.sales.slice().reverse().map((r,i)=>{
     const p=gp(r.pid), realIdx=D.sales.length-1-i;
     const fc=getSaleFifoCost(realIdx), gross=r.qty*r.price-fc/D.settings.rate;
-    return `<tr><td>${r.date}</td><td>${p?p.name:'<span class="c-muted">已删除</span>'}</td><td>${r.qty}</td>
-      <td>$${r.price}</td><td>¥${fc.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+    return `<tr>
+      <td>${r.date}</td>
+      <td>${p?p.name:'<span class="c-muted">已删除</span>'}</td>
+      <td>${r.qty}</td><td>$${r.price}</td>
+      <td>¥${fc.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
       <td class="${gross>=0?'c-green':'c-red'}">${gross>=0?'+':''}$${gross.toFixed(2)}</td>
       <td class="c-muted">${r.order||'-'}</td>
-      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSale(${realIdx})">删除</button></td></tr>`;
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSale(${realIdx})">删除</button></td>
+    </tr>`;
   }).join('');
 }
 
-function populateSelects() {
-  const opts=D.products.map(p=>`<option value="${p.id}">${p.name}（库存${p.stock}）</option>`).join('');
-  ['pur-product','sale-product'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=opts;});
+function renderStockTable(){
+  document.getElementById('stock-table').innerHTML=D.products.map(p=>{
+    const local=getLocalStock(p.id), temu=getTemuStock(p.id), transit=getTransitQty(p.id);
+    const fifo=getFifoCostPerUnit(p.id), wavg=getWeightedAvgCost(p.id), pr=calcProfitFifo(p);
+    return `<tr>
+      <td>${p.name}</td>
+      <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
+      <td><strong>${local}</strong></td>
+      <td>${temu}</td>
+      <td>${temu}</td>
+      <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+      <td>¥${wavg.toFixed(2)}</td>
+      <td>$${p.price}</td>
+      <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderProductsTable(){
+  const tbody=document.getElementById('products-table'); if(!tbody) return;
+  tbody.innerHTML=D.products.map(p=>{
+    const fifo=getFifoCostPerUnit(p.id), wavg=getWeightedAvgCost(p.id), pr=calcProfitFifo(p);
+    return `<tr>
+      <td>${p.name}</td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
+      <td>¥${fifo.toFixed(2)}</td><td>¥${wavg.toFixed(2)}</td>
+      <td>${getLocalStock(p.id)}</td><td>${getTemuStock(p.id)}</td>
+      <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="editProduct(${p.id})">编辑</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProduct(${p.id})">删除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function populateSelects(){
+  const purOpts=D.products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  const outOpts=D.products.map(p=>`<option value="${p.id}">${p.name}（本地${getLocalStock(p.id)}件）</option>`).join('');
+  const saleOpts=D.products.map(p=>`<option value="${p.id}">${p.name}（Temu${getTemuStock(p.id)}件）</option>`).join('');
+  ['pur-product'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=purOpts;});
+  ['out-product'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=outOpts;});
+  ['sale-product'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=saleOpts;});
 }
 
 // ===== 操作 =====
-window.updateCostPreview = function() {
-  const price=parseFloat(document.getElementById('pur-price').value)||0;
-  const ship=parseFloat(document.getElementById('pur-ship').value)||0;
+window.updateCostPreview = function(){
+  const p=parseFloat(document.getElementById('pur-price').value)||0;
+  const s=parseFloat(document.getElementById('pur-ship').value)||0;
   const el=document.getElementById('pur-cost-preview');
-  if(el) el.textContent=(price||ship)?`¥${(price+ship).toFixed(2)} / 件`:'填写进价和运费后自动显示';
+  if(el) el.textContent=(p||s)?`¥${(p+s).toFixed(2)} / 件`:'填写进价+运费后显示';
 };
 
-window.addProduct = function() {
+window.addProduct = function(){
   const name=document.getElementById('np-name').value.trim();
   const sku=document.getElementById('np-sku').value.trim();
   const price=parseFloat(document.getElementById('np-price').value);
   if(!name||isNaN(price)){alert('请填写商品名和售价');return;}
-  D.products.push({id:D.nextId++,name,sku:sku||'',price,stock:0});
+  D.products.push({id:D.nextId++,name,sku:sku||'',price});
   save(); ['np-name','np-sku','np-price'].forEach(id=>document.getElementById(id).value='');
   alert('商品已添加！'); showPage('products');
 };
 
-window.editProduct = function(id) {
+window.editProduct = function(id){
   const p=gp(id); if(!p) return;
   const name=prompt('商品名称',p.name); if(name===null) return;
   const price=parseFloat(prompt('Temu售价（$）',p.price)); if(isNaN(price)) return;
@@ -435,51 +603,87 @@ window.editProduct = function(id) {
   Object.assign(p,{name,price,sku}); save(); render();
 };
 
-window.deleteProduct = function(id) {
-  if(!confirm('确认删除该商品？'))return;
+window.deleteProduct = function(id){
+  if(!confirm('确认删除？'))return;
   D.products=D.products.filter(p=>p.id!=id); save(); render();
 };
 
-window.addPurchase = function() {
+window.addPurchase = function(){
   const pid=parseInt(document.getElementById('pur-product').value);
   const qty=parseInt(document.getElementById('pur-qty').value);
   const price=parseFloat(document.getElementById('pur-price').value);
   const ship=parseFloat(document.getElementById('pur-ship').value)||0;
   const order=document.getElementById('pur-order').value.trim();
+  const eta=document.getElementById('pur-eta').value.trim();
   if(!qty||isNaN(price)||price<0){alert('请填写数量和进价');return;}
-  const p=gp(pid); if(p) p.stock+=qty;
-  D.purchases.push({date:today(),pid,qty,price,ship,order});
+  D.purchases.push({date:today(),pid,qty,price,ship,order,eta,status:'transit'});
   save();
-  ['pur-qty','pur-price','pur-ship','pur-order'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('pur-cost-preview').textContent='填写进价和运费后自动显示';
-  render(); alert(`入库成功！${p?p.name:''} 库存：${p?p.stock:'-'}，本批成本：¥${(price+ship).toFixed(2)}/件`);
+  ['pur-qty','pur-price','pur-ship','pur-order','pur-eta'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pur-cost-preview').textContent='填写进价+运费后显示';
+  render(); alert(`下单成功！状态：在途，等货到了记得来签收。`);
 };
 
-window.deletePurchase = function(idx) {
-  if(!confirm('删除此进货记录？库存不会自动回退，请手动修改。'))return;
+// 签收入库
+window.confirmReceive = function(idx){
+  const r = D.purchases[idx];
+  const p = gp(r.pid);
+  const inputQty = prompt(`确认签收「${p?p.name:''}」\n订单数量：${r.qty}\n实际签收数量：`, r.qty);
+  if(inputQty===null) return;
+  const rqty = parseInt(inputQty);
+  if(isNaN(rqty)||rqty<=0){alert('请输入正确的签收数量');return;}
+  r.status = 'received';
+  r.receivedQty = rqty;
+  r.receivedDate = today();
+  if(rqty !== r.qty){
+    alert(`已签收 ${rqty} 件（订单 ${r.qty} 件）${rqty<r.qty?'，少货 '+(r.qty-rqty)+' 件':'，多货 '+(rqty-r.qty)+' 件'}。`);
+  }
+  save(); render(); alert(`签收成功！${p?p.name:''} 入库 ${rqty} 件，本地库存已更新。`);
+};
+
+window.deletePurchase = function(idx){
+  if(!confirm('删除此进货记录？'))return;
   D.purchases.splice(idx,1); save(); render();
 };
 
-window.addSale = function() {
+window.addOutbound = function(){
+  const pid=parseInt(document.getElementById('out-product').value);
+  const qty=parseInt(document.getElementById('out-qty').value);
+  const tracking=document.getElementById('out-tracking').value.trim();
+  const note=document.getElementById('out-note').value.trim();
+  if(!qty){alert('请填写发出数量');return;}
+  const localStock=getLocalStock(pid);
+  if(qty>localStock){alert(`本地库存不足！当前本地库存：${localStock} 件`);return;}
+  D.outbounds.push({date:today(),pid,qty,tracking,note});
+  save();
+  ['out-qty','out-tracking','out-note'].forEach(id=>document.getElementById(id).value='');
+  const p=gp(pid);
+  render(); alert(`出库成功！${p?p.name:''} 发出 ${qty} 件，剩余本地库存：${getLocalStock(pid)} 件`);
+};
+
+window.deleteOutbound = function(idx){
+  if(!confirm('删除此出库记录？'))return;
+  D.outbounds.splice(idx,1); save(); render();
+};
+
+window.addSale = function(){
   const pid=parseInt(document.getElementById('sale-product').value);
   const qty=parseInt(document.getElementById('sale-qty').value);
   const price=parseFloat(document.getElementById('sale-price').value);
   const order=document.getElementById('sale-order').value.trim();
   if(!qty||isNaN(price)||price<=0){alert('请填写数量和售价');return;}
-  const p=gp(pid);
-  if(p&&p.stock<qty){alert(`库存不足！当前库存：${p.stock}件`);return;}
-  if(p) p.stock-=qty;
+  const temuStock=getTemuStock(pid);
+  if(qty>temuStock){alert(`Temu库存不足！当前Temu库存：${temuStock} 件`);return;}
   D.sales.push({date:today(),pid,qty,price,order});
   save(); ['sale-qty','sale-price','sale-order'].forEach(id=>document.getElementById(id).value='');
   render(); alert('销售已记录！');
 };
 
-window.deleteSale = function(idx) {
-  if(!confirm('删除此销售记录？库存不会自动恢复，请手动修改。'))return;
+window.deleteSale = function(idx){
+  if(!confirm('删除此销售记录？'))return;
   D.sales.splice(idx,1); save(); render();
 };
 
-window.saveSettings = function() {
+window.saveSettings = function(){
   const rate=parseFloat(document.getElementById('s-rate').value);
   const low=parseInt(document.getElementById('s-lowstock').value);
   if(isNaN(rate)||rate<=0){alert('请输入正确的汇率');return;}
@@ -487,20 +691,23 @@ window.saveSettings = function() {
   save(); render(); alert('设置已保存！');
 };
 
-window.clearAll = function() {
+window.clearAll = function(){
   if(!confirm('确定清空所有数据？'))return;
   if(!confirm('再次确认，不可恢复！'))return;
   D=defaultData(); save(); render(); alert('已清空');
 };
 
-window.exportAll = function() {
+window.exportAll = function(){
   const wb=XLSX.utils.book_new();
-  const pd=[['ID','商品名','SKU','Temu售价($)','库存','FIFO成本/件(¥)','历史均价/件(¥)']];
-  D.products.forEach(p=>pd.push([p.id,p.name,p.sku||'',p.price,p.stock,+getFifoCostPerUnit(p.id).toFixed(2),+getWeightedAvgCost(p.id).toFixed(2)]));
+  const pd=[['ID','商品名','SKU','Temu售价($)','本地库存','Temu库存','在途','FIFO成本/件(¥)','历史均价/件(¥)']];
+  D.products.forEach(p=>pd.push([p.id,p.name,p.sku||'',p.price,getLocalStock(p.id),getTemuStock(p.id),getTransitQty(p.id),+getFifoCostPerUnit(p.id).toFixed(2),+getWeightedAvgCost(p.id).toFixed(2)]));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pd),'商品');
-  const purd=[['日期','商品ID','商品名','数量','单件进价(¥)','单件运费(¥)','单件总成本(¥)','批次总金额(¥)','订单号']];
-  D.purchases.forEach(r=>{const p=gp(r.pid);const uc=(r.price||0)+(r.ship||0);purd.push([r.date,r.pid,p?p.name:'',r.qty,r.price||0,r.ship||0,uc,+(r.qty*uc).toFixed(2),r.order||'']);});
+  const purd=[['下单日期','商品ID','商品名','订单量','签收量','签收日期','单件进价(¥)','单件运费(¥)','单件总成本(¥)','状态','1688单号']];
+  D.purchases.forEach(r=>{const p=gp(r.pid);const uc=(r.price||0)+(r.ship||0);purd.push([r.date,r.pid,p?p.name:'',r.qty,r.receivedQty||'',r.receivedDate||'',r.price||0,r.ship||0,uc,r.status==='received'?'已入库':'在途',r.order||'']);});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(purd),'进货记录');
+  const outd=[['日期','商品ID','商品名','发出数量','运单号','备注']];
+  D.outbounds.forEach(r=>{const p=gp(r.pid);outd.push([r.date,r.pid,p?p.name:'',r.qty,r.tracking||'',r.note||'']);});
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(outd),'出库记录');
   const sd=[['日期','商品ID','商品名','数量','售价($)','FIFO成本(¥)','FIFO毛利($)','订单号']];
   D.sales.forEach((r,i)=>{const p=gp(r.pid);const fc=getSaleFifoCost(i);const g=+(r.qty*r.price-fc/D.settings.rate).toFixed(2);sd.push([r.date,r.pid,p?p.name:'',r.qty,r.price,+fc.toFixed(2),g,r.order||'']);});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sd),'销售记录');
@@ -508,28 +715,21 @@ window.exportAll = function() {
   XLSX.writeFile(wb,`进销存_${today()}.xlsx`);
 };
 
-window.exportProducts = function() {
-  const wb=XLSX.utils.book_new();
-  const pd=[['ID','商品名','SKU','Temu售价($)','库存','FIFO成本/件(¥)','历史均价/件(¥)']];
-  D.products.forEach(p=>pd.push([p.id,p.name,p.sku||'',p.price,p.stock,+getFifoCostPerUnit(p.id).toFixed(2),+getWeightedAvgCost(p.id).toFixed(2)]));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pd),'商品');
-  XLSX.writeFile(wb,`商品列表_${today()}.xlsx`);
-};
-
-window.importExcel = function(input) {
+window.importExcel = function(input){
   const file=input.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=function(e){
-    try {
+    try{
       const wb=XLSX.read(e.target.result,{type:'binary'});
-      if(wb.SheetNames.includes('商品')){const rows=XLSX.utils.sheet_to_json(wb.Sheets['商品']);D.products=rows.map(r=>({id:+r['ID'],name:r['商品名']||'',sku:r['SKU']||'',price:+r['Temu售价($)']||0,stock:+r['库存']||0}));D.nextId=Math.max(...D.products.map(p=>p.id),0)+1;}
-      if(wb.SheetNames.includes('进货记录'))D.purchases=XLSX.utils.sheet_to_json(wb.Sheets['进货记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['数量']||0,price:+r['单件进价(¥)']||0,ship:+r['单件运费(¥)']||0,order:r['订单号']||''}));
+      if(wb.SheetNames.includes('商品')){const rows=XLSX.utils.sheet_to_json(wb.Sheets['商品']);D.products=rows.map(r=>({id:+r['ID'],name:r['商品名']||'',sku:r['SKU']||'',price:+r['Temu售价($)']||0}));D.nextId=Math.max(...D.products.map(p=>p.id),0)+1;}
+      if(wb.SheetNames.includes('进货记录'))D.purchases=XLSX.utils.sheet_to_json(wb.Sheets['进货记录']).map(r=>({date:r['下单日期']||'',pid:+r['商品ID'],qty:+r['订单量']||0,receivedQty:+r['签收量']||0,receivedDate:r['签收日期']||'',price:+r['单件进价(¥)']||0,ship:+r['单件运费(¥)']||0,status:r['状态']==='已入库'?'received':'transit',order:r['1688单号']||''}));
+      if(wb.SheetNames.includes('出库记录'))D.outbounds=XLSX.utils.sheet_to_json(wb.Sheets['出库记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['发出数量']||0,tracking:r['运单号']||'',note:r['备注']||''}));
       if(wb.SheetNames.includes('销售记录'))D.sales=XLSX.utils.sheet_to_json(wb.Sheets['销售记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['数量']||0,price:+r['售价($)']||0,order:r['订单号']||''}));
       if(wb.SheetNames.includes('配置')){const rows=XLSX.utils.sheet_to_json(wb.Sheets['配置']);if(rows[0]){D.settings.rate=+rows[0]['汇率']||7.2;D.settings.lowStock=+rows[0]['低库存阈值']||10;}}
       save(); render();
-      document.getElementById('import-status').innerHTML=`<div class="alert alert-ok" style="margin-top:12px">✅ 导入成功！${D.products.length}个商品、${D.purchases.length}条进货、${D.sales.length}条销售。</div>`;
+      document.getElementById('import-status').innerHTML=`<div class="alert alert-ok" style="margin-top:10px">✅ 导入成功！</div>`;
       input.value='';
-    } catch(err){document.getElementById('import-status').innerHTML=`<div class="alert" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;margin-top:12px">导入失败：${err.message}</div>`;}
+    }catch(err){document.getElementById('import-status').innerHTML=`<div class="alert alert-warn" style="margin-top:10px">导入失败：${err.message}</div>`;}
   };
   reader.readAsBinaryString(file);
 };
