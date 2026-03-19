@@ -297,7 +297,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品成本分析</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO成本(¥/件)</th>
+      <th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO成本(¥/件)</th><th>Temu售价($)</th><th>售价(¥)</th><th>毛利/件(¥)</th><th>毛利率</th>
     </tr></thead><tbody id="cost-stats-table"></tbody></table></div>
   </div>
 
@@ -733,10 +733,20 @@ function renderCostStats(){
     const last=recv.slice().sort((a,b)=>(b.receivedDate||b.date).localeCompare(a.receivedDate||a.date))[0];
     const lc=last?((last.price||0)+(last.shipPerUnit||0)):0;
     const lastLink=last?last.link||'':'';
+    const temuPrice = p.price || 0;
+    const temuPriceRmb = temuPrice * D.settings.rate;
+    const profitPerUnit = temuPriceRmb - fifo;
+    const profitRate = temuPriceRmb > 0 ? (profitPerUnit / temuPriceRmb * 100) : 0;
+    const profitColor = profitPerUnit >= 0 ? 'c-green' : 'c-red';
+    const rateColor = profitRate >= 20 ? 'c-green' : profitRate >= 0 ? '' : 'c-red';
     return `<tr><td>${productLink(getProductLink(p.id),p.name)}</td><td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
       <td><strong>¥${wavg.toFixed(2)}</strong></td>
       <td>¥${lc.toFixed(2)}<span class="c-muted" style="font-size:11px;margin-left:4px">${last?last.receivedDate||last.date:''}</span></td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+      <td>${temuPrice ? `$${temuPrice.toFixed(2)}` : '<span class="c-muted">未设置</span>'}</td>
+      <td>${temuPriceRmb ? `¥${temuPriceRmb.toFixed(2)}` : '-'}</td>
+      <td class="${profitColor}">${temuPriceRmb ? (profitPerUnit>=0?'+':'')+'¥'+profitPerUnit.toFixed(2) : '-'}</td>
+      <td class="${rateColor}">${temuPriceRmb ? profitRate.toFixed(1)+'%' : '-'}</td>
     </tr>`;
   }).join('');
 }
