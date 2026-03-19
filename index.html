@@ -74,6 +74,9 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
 .tracking-info .t-transit{color:var(--amber)}
 .drop-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:22px;text-align:center;cursor:pointer;transition:background .15s}
 .drop-zone:hover{background:var(--blue-bg);border-color:var(--blue)}.drop-zone p{color:var(--text2);font-size:13px;margin-bottom:5px}.drop-zone p.hint{font-size:12px;color:var(--text3)}
+.prod-img{width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border);vertical-align:middle;margin-right:8px}
+.prod-img-lg{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+.prod-img-preview{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border)}
 /* 弹窗 */
 .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
 .modal-box{background:var(--surface);border-radius:var(--radius);padding:24px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18)}
@@ -150,11 +153,13 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
       <div class="fg"><label>快递单号（可选）</label><input type="text" id="pur-tracking" placeholder="SF1234567890123"></div>
       <div class="fg"><label>1688订单号（可选）</label><input type="text" id="pur-order" placeholder="1688-xxxxxxxx"></div>
       <div class="fg"><label>1688商品链接（可选，下次补货用）</label><input type="text" id="pur-link" placeholder="https://detail.1688.com/offer/..."></div>
+      <div class="fg"><label>商品图片地址（可选）</label><input type="text" id="pur-img" placeholder="https://cbu01.alicdn.com/img/..." oninput="previewPurImg()"></div>
     </div>
     <div class="btns">
       <button class="btn btn-primary" onclick="addPurchase()">确认下单（在途）</button>
       <div class="cost-preview" id="pur-cost-preview" style="flex:1;max-width:300px">填写数量+进价+运费后显示单件成本</div>
     </div>
+    <div id="pur-img-preview" style="margin-top:8px"></div>
   </div>
 
   <div class="section-sep">第二步：待签收 — 货到后确认入库</div>
@@ -292,7 +297,9 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
       <div class="fg"><label>1688订单号</label><input type="text" id="edit-order"></div>
       <div class="fg"><label>预计到货日期</label><input type="text" id="edit-eta" placeholder="2024-04-10"></div>
       <div class="fg"><label>1688商品链接</label><input type="text" id="edit-link" placeholder="https://detail.1688.com/offer/..."></div>
+      <div class="fg"><label>商品图片地址（右键图片→复制图片地址）</label><input type="text" id="edit-img" placeholder="https://cbu01.alicdn.com/img/..." oninput="previewEditImg()"></div>
     </div>
+    <div id="edit-img-preview" style="margin-bottom:10px"></div>
     <input type="hidden" id="edit-idx">
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px">单件运费将根据总运费 ÷ 数量自动重新计算</div>
     <div class="btns">
@@ -318,8 +325,17 @@ function productLink(link, label) {
   return `<a href="${link}" target="_blank" style="color:var(--blue);text-decoration:underline;text-underline-offset:2px;cursor:pointer" title="点击跳转1688商品页">${label||'查看'}</a>`;
 }
 
-// 从该商品的进货记录里找最新的链接
-function getProductLink(pid) {
+// 从进货记录取最新图片
+function getProductImg(pid) {
+  const records = D.purchases.filter(r=>r.pid==pid&&r.img).sort((a,b)=>b.date.localeCompare(a.date));
+  return records.length ? records[0].img : '';
+}
+
+function imgThumb(pid, size) {
+  const img = getProductImg(pid);
+  if (!img) return `<div style="width:${size}px;height:${size}px;background:var(--bg);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px">📦</div>`;
+  return `<img src="${img}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:6px;border:1px solid var(--border)" onerror="this.style.display='none'">`;
+}
   const records = D.purchases.filter(r=>r.pid==pid&&r.link).sort((a,b)=>b.date.localeCompare(a.date));
   return records.length ? records[0].link : '';
 }
@@ -472,7 +488,7 @@ function renderTransitTable(){
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
     return `<tr>
       <td>${r.date}</td>
-      <td>${productLink(r.link, p?p.name:'已删除')}</td>
+      <td><div style="display:flex;align-items:center;gap:8px">${imgThumb(r.pid,36)}${productLink(r.link,p?p.name:'已删除')}</div></td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
       <td>${trackingLink(r.tracking)}</td>
@@ -498,7 +514,7 @@ function renderPurchaseTable(){
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
       <td>${r.date}</td>
-      <td>${productLink(r.link, p?p.name:'已删除')}</td>
+      <td><div style="display:flex;align-items:center;gap:8px">${imgThumb(r.pid,36)}${productLink(r.link,p?p.name:'已删除')}</div></td>
       <td>${r.qty}</td><td>${rqty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
@@ -566,7 +582,7 @@ function renderStockTable(){
   tbody.innerHTML=D.products.map(p=>{
     const local=getLocalStock(p.id),temu=getTemuStock(p.id),transit=getTransitQty(p.id);
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td>${productLink(getProductLink(p.id),p.name)}</td>
+    return `<tr><td><div style="display:flex;align-items:center;gap:8px">${imgThumb(p.id,40)}${productLink(getProductLink(p.id),p.name)}</div></td>
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
       <td><strong>${local}</strong></td><td>${temu}</td><td>${temu}</td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
@@ -579,7 +595,7 @@ function renderProductsTable(){
   const tbody=document.getElementById('products-table'); if(!tbody) return;
   tbody.innerHTML=D.products.map(p=>{
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td>${productLink(getProductLink(p.id),p.name)}</td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
+    return `<tr><td><div style="display:flex;align-items:center;gap:8px">${imgThumb(p.id,40)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
       <td>¥${fifo.toFixed(2)}</td><td>¥${wavg.toFixed(2)}</td>
       <td>${getLocalStock(p.id)}</td><td>${getTemuStock(p.id)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
@@ -596,6 +612,20 @@ function populateSelects(){
 }
 
 // ===== 操作 =====
+window.previewPurImg = function(){
+  const url = document.getElementById('pur-img').value.trim();
+  const el = document.getElementById('pur-img-preview');
+  if(!el) return;
+  el.innerHTML = url ? `<img src="${url}" class="prod-img-preview" onerror="this.parentNode.innerHTML='<span style=color:var(--red);font-size:12px>图片加载失败，请确认地址正确</span>'">` : '';
+};
+
+window.previewEditImg = function(){
+  const url = document.getElementById('edit-img').value.trim();
+  const el = document.getElementById('edit-img-preview');
+  if(!el) return;
+  el.innerHTML = url ? `<img src="${url}" class="prod-img-preview" onerror="this.parentNode.innerHTML='<span style=color:var(--red);font-size:12px>图片加载失败</span>'">` : '';
+};
+
 window.updateCostPreview = function(){
   const qty=parseFloat(document.getElementById('pur-qty').value)||0;
   const price=parseFloat(document.getElementById('pur-price').value)||0;
@@ -640,9 +670,11 @@ window.addPurchase = function(){
   if(!qty||isNaN(price)||price<0){alert('请填写数量和进价');return;}
   const shipPerUnit=qty>0?shipTotal/qty:0;
   const link=document.getElementById('pur-link').value.trim();
-  D.purchases.push({date:today(),pid,qty,price,shipPerUnit,shipTotal,tracking,order,link,status:'transit'});
+  const img=document.getElementById('pur-img').value.trim();
+  D.purchases.push({date:today(),pid,qty,price,shipPerUnit,shipTotal,tracking,order,link,img,status:'transit'});
   save();
-  ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link'].forEach(id=>document.getElementById(id).value='');
+  ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link','pur-img'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pur-img-preview').innerHTML = '';
   document.getElementById('pur-cost-preview').textContent='填写后自动显示';
   render();
   const p=gp(pid);
@@ -672,6 +704,8 @@ window.openEditPurchase = function(idx) {
   document.getElementById('edit-order').value = r.order || '';
   document.getElementById('edit-eta').value = r.eta || '';
   document.getElementById('edit-link').value = r.link || '';
+  document.getElementById('edit-img').value = r.img || '';
+  document.getElementById('edit-img-preview').innerHTML = r.img ? `<img src="${r.img}" class="prod-img-preview">` : '';
   document.getElementById('edit-modal').style.display = 'flex';
 };
 
@@ -688,6 +722,7 @@ window.saveEditPurchase = function() {
   r.order = document.getElementById('edit-order').value.trim();
   r.eta = document.getElementById('edit-eta').value.trim();
   r.link = document.getElementById('edit-link').value.trim();
+  r.img = document.getElementById('edit-img').value.trim();
   document.getElementById('edit-modal').style.display = 'none';
   save(); render(); alert('修改已保存！');
 };
