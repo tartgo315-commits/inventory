@@ -525,7 +525,7 @@ function renderCostStats(){
     const last=recv.slice().sort((a,b)=>(b.receivedDate||b.date).localeCompare(a.receivedDate||a.date))[0];
     const lc=last?((last.price||0)+(last.shipPerUnit||0)):0;
     const lastLink=last?last.link||'':'';
-    return `<tr><td>${productLink(lastLink,p.name)}</td><td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
+    return `<tr><td>${productLink(getProductLink(p.id),p.name)}</td><td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
       <td><strong>¥${wavg.toFixed(2)}</strong></td>
       <td>¥${lc.toFixed(2)}<span class="c-muted" style="font-size:11px;margin-left:4px">${last?last.receivedDate||last.date:''}</span></td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
