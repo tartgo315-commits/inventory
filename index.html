@@ -289,7 +289,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">在途订单</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>下单日期</th><th>商品</th><th>数量</th><th>单件成本(¥)</th><th>快递单号（点击查询）</th><th>预计到货</th><th>1688单号</th><th>操作</th>
+      <th>下单日期</th><th>图片</th><th>商品</th><th>数量</th><th>单件成本(¥)</th><th>快递单号（点击查询）</th><th>预计到货</th><th>1688单号</th><th>操作</th>
     </tr></thead><tbody id="transit-table"></tbody></table></div>
   </div>
 
@@ -305,7 +305,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">进货明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="pur-total"></span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>下单日期</th><th>商品</th><th>采购量</th><th>入库量</th><th>单件进价(¥)</th><th>单件运费(¥)</th><th>单件总成本(¥)</th><th>批次金额(¥)</th><th>状态</th><th>快递单号</th><th>操作</th>
+      <th>下单日期</th><th>图片</th><th>商品</th><th>采购量</th><th>入库量</th><th>单件进价(¥)</th><th>单件运费(¥)</th><th>单件总成本(¥)</th><th>批次金额(¥)</th><th>状态</th><th>快递单号</th><th>操作</th>
     </tr></thead><tbody id="purchase-table"></tbody></table></div>
     <p style="font-size:12px;color:var(--text3);margin-top:8px">点「编辑」可修改数量、进价、运费、快递单号等信息</p>
   </div>
@@ -698,7 +698,8 @@ function renderTransitTable(){
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
     return `<tr>
       <td>${r.date}</td>
-      <td><div class="prod-cell">${imgThumb(r.pid)}${productLink(r.link,p?p.name:'已删除')}</div></td>
+      <td>${imgThumb(r.pid)}</td>
+      <td>${productLink(r.link,p?p.name:'已删除')}</td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
       <td>${trackingLink(r.tracking)}</td>
@@ -724,7 +725,8 @@ function renderPurchaseTable(){
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
       <td>${r.date}</td>
-      <td><div class="prod-cell">${imgThumb(r.pid)}${productLink(r.link,p?p.name:'已删除')}</div></td>
+      <td>${imgThumb(r.pid)}</td>
+      <td>${productLink(r.link,p?p.name:'已删除')}</td>
       <td>${r.qty}</td><td>${rqty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
@@ -757,7 +759,7 @@ function renderCostStats(){
     const profitColor = profitPerUnit >= 0 ? 'c-green' : 'c-red';
     const rateColor = profitRate >= 20 ? 'c-green' : profitRate >= 0 ? '' : 'c-red';
     const temuPriceCell = temuPrice
-      ? `¥${temuPrice.toFixed(2)}`
+      ? `<div style="display:flex;align-items:center;gap:6px">¥${temuPrice.toFixed(2)}<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="font-size:11px;height:24px;padding:0 8px">编辑</button></div>`
       : `<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="color:var(--primary)">+ 填写售价</button>`;
     return `<tr>
       <td>${imgThumb(p.id)}</td>
