@@ -84,8 +84,8 @@ td{padding:14px 16px;border-bottom:1px solid var(--border);color:var(--text);ver
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#fafbfe}
 .prod-cell{display:flex;align-items:center;gap:14px}
-.prod-thumb{width:113px;height:113px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);flex-shrink:0;background:var(--bg)}
-.prod-placeholder{width:113px;height:113px;background:#f3f4f6;border:1.5px dashed var(--border2);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:36px;flex-shrink:0;color:var(--text3)}
+.prod-thumb{width:110px;height:110px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);flex-shrink:0;background:var(--bg)}
+.prod-placeholder{width:110px;height:110px;background:#f3f4f6;border:1.5px dashed var(--border2);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:36px;flex-shrink:0;color:var(--text3)}
 .prod-info{display:flex;flex-direction:column;gap:3px}
 .prod-name-link{font-weight:600;color:var(--text);text-decoration:none;font-size:14px}
 .prod-name-link:hover{color:var(--primary)}
@@ -289,7 +289,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">在途订单</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>下单日期</th><th>图片</th><th>商品</th><th>数量</th><th>单件成本(¥)</th><th>快递单号（点击查询）</th><th>预计到货</th><th>1688单号</th><th>操作</th>
+      <th>图片</th><th>商品 / 日期</th><th>数量</th><th>单件成本(¥)</th><th>快递单号</th><th>预计到货</th><th>操作</th>
     </tr></thead><tbody id="transit-table"></tbody></table></div>
   </div>
 
@@ -305,7 +305,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">进货明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="pur-total"></span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>下单日期</th><th>图片</th><th>商品</th><th>采购量</th><th>入库量</th><th>单件进价(¥)</th><th>单件运费(¥)</th><th>单件总成本(¥)</th><th>批次金额(¥)</th><th>状态</th><th>快递单号</th><th>操作</th>
+      <th>图片</th><th>商品 / 日期</th><th>采购量</th><th>入库量</th><th>进价(¥)</th><th>运费(¥)</th><th>总成本(¥)</th><th>批次金额(¥)</th><th>状态</th><th>快递单号</th><th>操作</th>
     </tr></thead><tbody id="purchase-table"></tbody></table></div>
     <p style="font-size:12px;color:var(--text3);margin-top:8px">点「编辑」可修改数量、进价、运费、快递单号等信息</p>
   </div>
@@ -697,14 +697,12 @@ function renderTransitTable(){
   el.innerHTML=items.map(r=>{
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
     return `<tr>
-      <td>${r.date}</td>
-      <td>${imgThumb(r.pid)}</td>
-      <td>${productLink(r.link,p?p.name:'已删除')}</td>
+      <td style="width:130px">${imgThumb(r.pid)}</td>
+      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}${r.order?' · '+r.order:''}</div></td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
       <td>${trackingLink(r.tracking)}</td>
       <td class="c-muted">${r.eta||'-'}</td>
-      <td class="c-muted">${r.order||'-'}</td>
       <td>
         <div class="action-btns">
           <button class="btn btn-ghost btn-sm" onclick="confirmReceive(${idx})">签收入库</button>
@@ -724,9 +722,8 @@ function renderPurchaseTable(){
     const rqty=r.status==='received'?(r.receivedQty||r.qty):'-';
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
-      <td>${r.date}</td>
-      <td>${imgThumb(r.pid)}</td>
-      <td>${productLink(r.link,p?p.name:'已删除')}</td>
+      <td style="width:130px">${imgThumb(r.pid)}</td>
+      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}</div></td>
       <td>${r.qty}</td><td>${rqty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
@@ -762,7 +759,7 @@ function renderCostStats(){
       ? `<div style="display:flex;align-items:center;gap:6px">¥${temuPrice.toFixed(2)}<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="font-size:11px;height:24px;padding:0 8px">编辑</button></div>`
       : `<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="color:var(--primary)">+ 填写售价</button>`;
     return `<tr>
-      <td>${imgThumb(p.id)}</td>
+      <td style="width:130px">${imgThumb(p.id)}</td>
       <td>${productLink(getProductLink(p.id),p.name)}</td>
       <td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
       <td><strong>¥${wavg.toFixed(2)}</strong></td>
