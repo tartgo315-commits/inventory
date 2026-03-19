@@ -6,111 +6,213 @@
 <title>进销存 · Temu/1688</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{--bg:#f5f5f3;--surface:#fff;--border:#e5e5e2;--border2:#d0d0cb;--text:#1a1a18;--text2:#6b6b66;--text3:#9a9a94;--green:#16a34a;--green-bg:#f0fdf4;--red:#dc2626;--red-bg:#fef2f2;--amber:#d97706;--amber-bg:#fffbeb;--blue:#2563eb;--blue-bg:#eff6ff;--purple:#7c3aed;--purple-bg:#f5f3ff;--radius:10px;--radius-sm:6px}
+:root{
+  --sidebar:#1a1b2e;--sidebar-hover:#2d2f4a;--sidebar-active:#4f46e5;--sidebar-text:#a8a9c0;--sidebar-text-active:#fff;
+  --bg:#f5f6fa;--surface:#fff;--border:#e8eaed;--border2:#d1d5db;
+  --text:#1a1d23;--text2:#6b7280;--text3:#9ca3af;
+  --primary:#4f46e5;--primary-bg:#eef2ff;--primary-light:#c7d2fe;
+  --green:#059669;--green-bg:#ecfdf5;--green-light:#a7f3d0;
+  --red:#dc2626;--red-bg:#fef2f2;
+  --amber:#d97706;--amber-bg:#fffbeb;--amber-light:#fde68a;
+  --purple:#7c3aed;--purple-bg:#f5f3ff;
+  --radius:10px;--radius-sm:7px;--radius-xs:5px;
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,.08);
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;position:sticky;top:0;z-index:100;min-height:48px}
-.logo{font-size:15px;font-weight:600;padding-right:16px;border-right:1px solid var(--border);margin-right:8px;white-space:nowrap}
-.logo span{color:var(--blue)}
-.tabs{display:flex;flex:1;overflow-x:auto}
-.tab{padding:13px 12px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--text2);border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s;flex-shrink:0}
-.tab:hover{color:var(--text)}.tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:500}
-.topbar-right{margin-left:auto;padding-left:12px;display:flex;gap:8px;align-items:center;flex-shrink:0}
-.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
-.sync-dot.error{background:var(--red)}.sync-dot.syncing{background:var(--blue)}
-.save-status{font-size:12px;color:var(--text3);white-space:nowrap}
-.main{max-width:1200px;margin:0 auto;padding:24px 20px}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh;display:flex}
+
+/* 侧边栏 */
+.sidebar{width:220px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0;position:fixed;top:0;left:0;bottom:0;z-index:100;overflow-y:auto}
+.sidebar-logo{padding:24px 20px 20px;border-bottom:1px solid rgba(255,255,255,.07)}
+.sidebar-logo .logo-title{font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px}
+.sidebar-logo .logo-sub{font-size:11px;color:var(--sidebar-text);margin-top:3px}
+.sidebar-logo .logo-badge{display:inline-block;background:var(--primary);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-top:6px}
+.sidebar-nav{padding:12px 0;flex:1}
+.nav-section{padding:8px 16px 4px;font-size:10px;font-weight:700;color:rgba(255,255,255,.3);letter-spacing:.1em;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;border:none;background:none;color:var(--sidebar-text);font-size:13px;font-weight:500;width:100%;text-align:left;transition:all .15s;border-radius:0;position:relative}
+.nav-item:hover{background:var(--sidebar-hover);color:#fff}
+.nav-item.active{background:var(--sidebar-active);color:var(--sidebar-text-active)}
+.nav-item.active::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:3px;background:#fff;border-radius:0 3px 3px 0}
+.nav-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0}
+.sidebar-bottom{padding:16px;border-top:1px solid rgba(255,255,255,.07)}
+.sync-status-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(255,255,255,.05);border-radius:var(--radius-sm)}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+.sync-dot.error{background:var(--red)}.sync-dot.syncing{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.sync-text{font-size:11px;color:var(--sidebar-text);flex:1;line-height:1.3}
+
+/* 主内容区 */
+.main-wrap{margin-left:220px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;height:56px;position:sticky;top:0;z-index:50;box-shadow:var(--shadow)}
+.page-title{font-size:18px;font-weight:700;color:var(--text)}
+.topbar-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+.main{padding:28px;flex:1}
 .page{display:none}.page.active{display:block}
-.flow-bar{display:flex;align-items:stretch;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
-.flow-step{flex:1;padding:14px 10px;text-align:center;position:relative;border-right:1px solid var(--border)}
-.flow-step:last-child{border-right:none}
-.flow-arrow{display:flex;align-items:center;justify-content:center;padding:0 4px;color:var(--text3);font-size:18px;background:var(--surface)}
-.fs-label{font-size:11px;color:var(--text2);margin-bottom:5px}
-.fs-val{font-size:22px;font-weight:600}
-.fs-val.amber{color:var(--amber)}.fs-val.green{color:var(--green)}.fs-val.blue{color:var(--blue)}.fs-val.purple{color:var(--purple)}
-.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
-.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
-.metric-label{font-size:12px;color:var(--text2);margin-bottom:6px}
-.metric-val{font-size:22px;font-weight:600;line-height:1}
-.metric-sub{font-size:11px;color:var(--text3);margin-top:5px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px}
-.card-title{font-size:14px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
-.tbl-wrap{overflow-x:auto}
+
+/* 流程条 */
+.flow-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.flow-step{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.flow-step::after{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.flow-step.amber::after{background:var(--amber)}
+.flow-step.green::after{background:var(--green)}
+.flow-step.blue::after{background:var(--primary)}
+.flow-step.purple::after{background:var(--purple)}
+.fs-label{font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.fs-val{font-size:32px;font-weight:800;line-height:1}
+.fs-val.amber{color:var(--amber)}.fs-val.green{color:var(--green)}.fs-val.blue{color:var(--primary)}.fs-val.purple{color:var(--purple)}
+.fs-sub{font-size:11px;color:var(--text3);margin-top:6px}
+
+/* 指标卡 */
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.metric-icon{font-size:22px;margin-bottom:10px}
+.metric-label{font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.metric-val{font-size:26px;font-weight:800;line-height:1}
+.metric-sub{font-size:11px;color:var(--text3);margin-top:6px}
+
+/* 卡片 */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;margin-bottom:18px;box-shadow:var(--shadow)}
+.card-title{font-size:15px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;color:var(--text)}
+.card-title-sub{font-size:12px;font-weight:400;color:var(--text3);margin-left:8px}
+
+/* 表格 */
+.tbl-wrap{overflow-x:auto;border-radius:var(--radius-sm);border:1px solid var(--border)}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:500px}
-th{text-align:left;padding:8px 10px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap}
-td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
-tr:last-child td{border-bottom:none}tr:hover td{background:#fafaf8}
-.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap}
+th{text-align:left;padding:11px 16px;color:var(--text2);font-weight:700;border-bottom:1px solid var(--border);background:#fafbfc;white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+td{padding:14px 16px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafbfe}
+.prod-cell{display:flex;align-items:center;gap:14px}
+.prod-thumb{width:150px;height:150px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);flex-shrink:0;background:var(--bg)}
+.prod-placeholder{width:150px;height:150px;background:#f3f4f6;border:1.5px dashed var(--border2);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:36px;flex-shrink:0;color:var(--text3)}
+.prod-info{display:flex;flex-direction:column;gap:3px}
+.prod-name-link{font-weight:600;color:var(--text);text-decoration:none;font-size:14px}
+.prod-name-link:hover{color:var(--primary)}
+.prod-name-link[href]{color:var(--primary)}
+
+/* 徽章 */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:.02em}
 .badge-transit{background:var(--amber-bg);color:var(--amber)}
 .badge-received{background:var(--green-bg);color:var(--green)}
-.badge-arrived{background:#fef3c7;color:#92400e;border:1px solid #fbbf24}
+.badge-arrived{background:#fef3c7;color:#92400e}
 .badge-warn{background:var(--amber-bg);color:var(--amber)}
 .badge-ok{background:var(--green-bg);color:var(--green)}
-.badge-info{background:var(--blue-bg);color:var(--blue)}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.badge-info{background:var(--primary-bg);color:var(--primary)}
+
+/* 表单 */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
 .form-grid-3{grid-template-columns:1fr 1fr 1fr}.form-grid-4{grid-template-columns:1fr 1fr 1fr 1fr}
-.fg{display:flex;flex-direction:column;gap:4px}
-.fg label{font-size:12px;color:var(--text2);font-weight:500}
-input[type=text],input[type=number],select{padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--surface);color:var(--text);width:100%;transition:border-color .15s;font-family:inherit}
-input:focus,select:focus{outline:none;border-color:var(--blue)}
-.btn{padding:7px 16px;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-weight:500;border:none;transition:opacity .15s}
-.btn:hover{opacity:.85}
-.btn-primary{background:var(--blue);color:#fff}.btn-success{background:var(--green);color:#fff}
-.btn-amber{background:var(--amber);color:#fff}.btn-purple{background:var(--purple);color:#fff}
-.btn-danger{background:var(--red);color:#fff}.btn-ghost{background:none;border:1px solid var(--border2);color:var(--text2)}
-.btn-sm{padding:3px 9px;font-size:12px}
-.btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.alert{padding:9px 13px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:12px}
-.alert-warn{background:var(--amber-bg);color:var(--amber);border:1px solid #fde68a}
-.alert-ok{background:var(--green-bg);color:var(--green);border:1px solid #bbf7d0}
-.alert-info{background:var(--blue-bg);color:var(--blue);border:1px solid #bfdbfe}
-.alert-arrived{background:#fef3c7;color:#92400e;border:1px solid #fbbf24}
-.c-green{color:var(--green);font-weight:500}.c-red{color:var(--red);font-weight:500}.c-muted{color:var(--text2)}
-.cost-preview{padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text2)}
-.fifo-tag{font-size:11px;background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0;border-radius:3px;padding:1px 5px;margin-left:3px}
-.section-sep{font-size:12px;font-weight:600;color:var(--text3);letter-spacing:.04em;margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
-.tracking-info{font-size:12px;color:var(--text2);margin-top:4px;line-height:1.6;max-width:280px}
-.tracking-info .t-arrived{color:var(--green);font-weight:500}
-.tracking-info .t-transit{color:var(--amber)}
-.drop-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:22px;text-align:center;cursor:pointer;transition:background .15s}
-.drop-zone:hover{background:var(--blue-bg);border-color:var(--blue)}.drop-zone p{color:var(--text2);font-size:13px;margin-bottom:5px}.drop-zone p.hint{font-size:12px;color:var(--text3)}
-.prod-img{width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border);vertical-align:middle;margin-right:8px}
-.prod-img-lg{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
-.prod-img-preview{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border)}
+.fg{display:flex;flex-direction:column;gap:6px}
+.fg label{font-size:12px;color:var(--text2);font-weight:700;letter-spacing:.02em}
+input[type=text],input[type=number],select{
+  padding:0 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);
+  font-size:13px;background:var(--surface);color:var(--text);width:100%;
+  transition:border-color .15s,box-shadow .15s;font-family:inherit;height:40px
+}
+input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
+input::placeholder{color:var(--text3)}
+
+/* 按钮 */
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:0 18px;height:38px;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-weight:700;border:none;transition:all .15s;white-space:nowrap;gap:6px;letter-spacing:.01em}
+.btn:hover{filter:brightness(.92)}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--primary);color:#fff;box-shadow:0 1px 4px rgba(79,70,229,.3)}
+.btn-success{background:var(--green);color:#fff}
+.btn-amber{background:var(--amber);color:#fff}
+.btn-purple{background:var(--purple);color:#fff}
+.btn-danger{background:var(--red);color:#fff}
+.btn-ghost{background:var(--surface);border:1.5px solid var(--border2);color:var(--text2);font-weight:600}
+.btn-ghost:hover{background:var(--bg);border-color:var(--border);color:var(--text)}
+.btn-sm{height:30px;padding:0 12px;font-size:12px;border-radius:var(--radius-xs)}
+.btns{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.action-btns{display:flex;flex-direction:column;gap:6px;min-width:90px}
+.action-btns .btn{width:100%}
+
+/* 提示 */
+.alert{padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-weight:500}
+.alert-warn{background:#fffbeb;color:#92400e;border:1px solid var(--amber-light)}
+.alert-ok{background:var(--green-bg);color:#065f46;border:1px solid var(--green-light)}
+.alert-info{background:var(--primary-bg);color:#3730a3;border:1px solid var(--primary-light)}
+.alert-arrived{background:#fef3c7;color:#92400e;border:1px solid var(--amber-light)}
+.c-green{color:var(--green);font-weight:700}.c-red{color:var(--red);font-weight:700}.c-muted{color:var(--text2)}
+
+/* 成本预览 */
+.cost-preview{padding:0 14px;background:#fafbfc;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text2);height:40px;display:flex;align-items:center;font-weight:500}
+
+/* FIFO标签 */
+.fifo-tag{font-size:10px;background:var(--green-bg);color:var(--green);border-radius:4px;padding:2px 6px;margin-left:4px;font-weight:700}
+
+/* 分隔线 */
+.section-sep{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin:24px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--border)}
+
 /* 弹窗 */
-.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal-box{background:var(--surface);border-radius:var(--radius);padding:24px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18)}
-.modal-title{font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
-.modal-close{cursor:pointer;font-size:18px;color:var(--text2);background:none;border:none;padding:0 4px}
-.tracking-event{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)}
-.tracking-event:last-child{border-bottom:none}
-.tracking-dot{width:10px;height:10px;border-radius:50%;background:var(--border2);flex-shrink:0;margin-top:4px}
-.tracking-dot.latest{background:var(--green)}
-.tracking-time{font-size:11px;color:var(--text3);white-space:nowrap;min-width:110px}
-.tracking-context{font-size:13px;color:var(--text)}
-@media(max-width:640px){.metric-grid{grid-template-columns:1fr 1fr}.form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr}.flow-bar{flex-wrap:wrap}.logo{display:none}}
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal-box{background:var(--surface);border-radius:var(--radius);padding:28px;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-md)}
+.modal-title{font-size:16px;font-weight:800;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
+.modal-close{cursor:pointer;font-size:20px;color:var(--text3);background:none;border:none;padding:0 4px;line-height:1;transition:color .15s;font-weight:400}
+.modal-close:hover{color:var(--text)}
+
+/* 图片预览 */
+.prod-img-preview{width:100px;height:100px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)}
+
+/* 拖放区 */
+.drop-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer;transition:all .15s}
+.drop-zone:hover{background:var(--primary-bg);border-color:var(--primary)}
+.drop-zone p{color:var(--text2);font-size:13px;margin-bottom:6px;font-weight:500}
+.drop-zone p.hint{font-size:12px;color:var(--text3)}
+
+@media(max-width:900px){
+  .sidebar{width:60px}
+  .sidebar-logo .logo-title,.sidebar-logo .logo-sub,.sidebar-logo .logo-badge,.nav-section,.nav-item span,.sync-text{display:none}
+  .nav-item{justify-content:center;padding:12px}
+  .main-wrap{margin-left:60px}
+}
+@media(max-width:640px){
+  .sidebar{display:none}
+  .main-wrap{margin-left:0}
+  .metric-grid,.flow-bar{grid-template-columns:1fr 1fr}
+  .form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr}
+  .prod-thumb,.prod-placeholder{width:80px!important;height:80px!important}
+}
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <div class="logo">进销存 <span>Temu/1688</span></div>
-  <div class="tabs">
-    <button class="tab active" onclick="showPage('dashboard')">总览</button>
-    <button class="tab" onclick="showPage('purchase')">进货 / 入库</button>
-    <button class="tab" onclick="showPage('outbound')">出库到Temu</button>
-    <button class="tab" onclick="showPage('sales')">Temu销售</button>
-    <button class="tab" onclick="showPage('products')">商品管理</button>
-    <button class="tab" onclick="showPage('backup')">备份/恢复</button>
-    <button class="tab" onclick="showPage('settings')">设置</button>
+<!-- 侧边栏 -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-title">进销存</div>
+    <div class="logo-sub">Temu / 1688</div>
+    <div class="logo-badge">CLOUD SYNC</div>
   </div>
-  <div class="topbar-right">
-    <div class="sync-dot" id="sync-dot"></div>
-    <span class="save-status" id="save-status">连接中...</span>
-    <button class="btn btn-ghost btn-sm" onclick="resetConfig()">⚙</button>
+  <nav class="sidebar-nav">
+    <div class="nav-section">主菜单</div>
+    <button class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">📊</span><span>总览</span></button>
+    <button class="nav-item" onclick="showPage('purchase')"><span class="nav-icon">📦</span><span>进货 / 入库</span></button>
+    <button class="nav-item" onclick="showPage('outbound')"><span class="nav-icon">🚚</span><span>出库到Temu</span></button>
+    <button class="nav-item" onclick="showPage('sales')"><span class="nav-icon">💰</span><span>Temu销售</span></button>
+    <div class="nav-section">管理</div>
+    <button class="nav-item" onclick="showPage('products')"><span class="nav-icon">🏷️</span><span>商品管理</span></button>
+    <button class="nav-item" onclick="showPage('backup')"><span class="nav-icon">💾</span><span>备份/恢复</span></button>
+    <button class="nav-item" onclick="showPage('settings')"><span class="nav-icon">⚙️</span><span>设置</span></button>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="sync-status-bar">
+      <div class="sync-dot" id="sync-dot"></div>
+      <div class="sync-text" id="save-status">连接中...</div>
+    </div>
   </div>
 </div>
 
+<!-- 主内容 -->
+<div class="main-wrap">
+<div class="topbar">
+  <div class="page-title" id="page-title">总览</div>
+  <div class="topbar-right">
+    <button class="btn btn-ghost btn-sm" onclick="resetConfig()">重置配置</button>
+  </div>
+</div>
 <div class="main">
 
 <!-- 总览 -->
@@ -281,6 +383,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
 </div>
 
 </div>
+</div><!-- /main-wrap -->
 
 <!-- 编辑进货弹窗 -->
 <div id="edit-modal" class="modal-mask" style="display:none" onclick="closeEditModal(event)">
@@ -331,10 +434,10 @@ function getProductImg(pid) {
   return records.length ? records[0].img : '';
 }
 
-function imgThumb(pid, size) {
+function imgThumb(pid) {
   const img = getProductImg(pid);
-  if (!img) return `<div style="width:${size}px;height:${size}px;background:var(--bg);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px">📦</div>`;
-  return `<img src="${img}" width="${size}" height="${size}" style="object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'">`;
+  if (!img) return `<div class="prod-placeholder">📦</div>`;
+  return `<img src="${img}" class="prod-thumb" onerror="this.style.display='none'">`;
 }
 
 function getProductLink(pid) {
@@ -424,11 +527,13 @@ function calcProfitFifo(p){ const c=getFifoCostPerUnit(p.id),rv=p.price*D.settin
 
 // ===== 页面切换 =====
 const PAGES=['dashboard','purchase','outbound','sales','products','backup','settings'];
+const PAGE_TITLES={'dashboard':'总览','purchase':'进货 / 入库','outbound':'出库到Temu','sales':'Temu销售','products':'商品管理','backup':'备份/恢复','settings':'设置'};
 window.showPage = function(name){
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  document.querySelectorAll('.tab')[PAGES.indexOf(name)].classList.add('active');
+  document.querySelectorAll('.nav-item')[PAGES.indexOf(name)].classList.add('active');
+  const pt=document.getElementById('page-title');if(pt)pt.textContent=PAGE_TITLES[name]||name;
   render();
   if(name==='settings'){document.getElementById('s-rate').value=D.settings.rate;document.getElementById('s-lowstock').value=D.settings.lowStock;}
 };
@@ -490,14 +595,14 @@ function renderTransitTable(){
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
     return `<tr>
       <td>${r.date}</td>
-      <td><div style="display:flex;align-items:center;gap:8px">${imgThumb(r.pid,150)}${productLink(r.link,p?p.name:'已删除')}</div></td>
+      <td><div class="prod-cell">${imgThumb(r.pid)}${productLink(r.link,p?p.name:'已删除')}</div></td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
       <td>${trackingLink(r.tracking)}</td>
       <td class="c-muted">${r.eta||'-'}</td>
       <td class="c-muted">${r.order||'-'}</td>
       <td>
-        <div style="display:flex;flex-direction:column;gap:3px">
+        <div class="action-btns">
           <button class="btn btn-ghost btn-sm" onclick="confirmReceive(${idx})">签收入库</button>
           <button class="btn btn-ghost btn-sm" onclick="openEditPurchase(${idx})">编辑</button>
         </div>
@@ -516,7 +621,7 @@ function renderPurchaseTable(){
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
       <td>${r.date}</td>
-      <td><div style="display:flex;align-items:center;gap:8px">${imgThumb(r.pid,150)}${productLink(r.link,p?p.name:'已删除')}</div></td>
+      <td><div class="prod-cell">${imgThumb(r.pid)}${productLink(r.link,p?p.name:'已删除')}</div></td>
       <td>${r.qty}</td><td>${rqty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
@@ -584,7 +689,7 @@ function renderStockTable(){
   tbody.innerHTML=D.products.map(p=>{
     const local=getLocalStock(p.id),temu=getTemuStock(p.id),transit=getTransitQty(p.id);
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td><div style="display:flex;align-items:center;gap:8px">${imgThumb(p.id,150)}${productLink(getProductLink(p.id),p.name)}</div></td>
+    return `<tr><td><div class="prod-cell">${imgThumb(p.id)}${productLink(getProductLink(p.id),p.name)}</div></td>
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
       <td><strong>${local}</strong></td><td>${temu}</td><td>${temu}</td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
@@ -597,7 +702,7 @@ function renderProductsTable(){
   const tbody=document.getElementById('products-table'); if(!tbody) return;
   tbody.innerHTML=D.products.map(p=>{
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td><div style="display:flex;align-items:center;gap:8px">${imgThumb(p.id,150)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
+    return `<tr><td><div class="prod-cell">${imgThumb(p.id)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
       <td>¥${fifo.toFixed(2)}</td><td>¥${wavg.toFixed(2)}</td>
       <td>${getLocalStock(p.id)}</td><td>${getTemuStock(p.id)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
