@@ -74,6 +74,17 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
 .tracking-info .t-transit{color:var(--amber)}
 .drop-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:22px;text-align:center;cursor:pointer;transition:background .15s}
 .drop-zone:hover{background:var(--blue-bg);border-color:var(--blue)}.drop-zone p{color:var(--text2);font-size:13px;margin-bottom:5px}.drop-zone p.hint{font-size:12px;color:var(--text3)}
+/* 弹窗 */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:var(--surface);border-radius:var(--radius);padding:24px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.modal-close{cursor:pointer;font-size:18px;color:var(--text2);background:none;border:none;padding:0 4px}
+.tracking-event{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)}
+.tracking-event:last-child{border-bottom:none}
+.tracking-dot{width:10px;height:10px;border-radius:50%;background:var(--border2);flex-shrink:0;margin-top:4px}
+.tracking-dot.latest{background:var(--green)}
+.tracking-time{font-size:11px;color:var(--text3);white-space:nowrap;min-width:110px}
+.tracking-context{font-size:13px;color:var(--text)}
 @media(max-width:640px){.metric-grid{grid-template-columns:1fr 1fr}.form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr}.flow-bar{flex-wrap:wrap}.logo{display:none}}
 </style>
 </head>
@@ -150,7 +161,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
       <button class="btn btn-ghost btn-sm" onclick="refreshAllTracking()">🔄 刷新所有物流</button>
     </div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>下单日期</th><th>商品</th><th>数量</th><th>单件成本(¥)</th><th>快递单号</th><th>物流状态</th><th>1688单号</th><th>操作</th>
+      <th>下单日期</th><th>商品</th><th>数量</th><th>单件成本(¥)</th><th>快递单号</th><th>物流状态</th><th>预计到货</th><th>1688单号</th><th>操作</th>
     </tr></thead><tbody id="transit-table"></tbody></table></div>
   </div>
 
@@ -168,6 +179,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
     <div class="tbl-wrap"><table><thead><tr>
       <th>下单日期</th><th>商品</th><th>采购量</th><th>入库量</th><th>单件进价(¥)</th><th>单件运费(¥)</th><th>单件总成本(¥)</th><th>批次金额(¥)</th><th>状态</th><th>快递单号</th><th>操作</th>
     </tr></thead><tbody id="purchase-table"></tbody></table></div>
+    <p style="font-size:12px;color:var(--text3);margin-top:8px">点「编辑」可修改数量、进价、运费、快递单号等信息</p>
   </div>
 </div>
 
@@ -263,6 +275,42 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
   </div>
 </div>
 
+</div>
+
+<!-- 物流弹窗 -->
+<div id="tracking-modal" class="modal-mask" style="display:none" onclick="closeTrackingModal(event)">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span id="modal-title-text">物流详情</span>
+      <button class="modal-close" onclick="document.getElementById('tracking-modal').style.display='none'">✕</button>
+    </div>
+    <div id="modal-tracking-no" style="font-size:12px;color:var(--text2);margin-bottom:12px"></div>
+    <div id="modal-tracking-body">查询中...</div>
+  </div>
+</div>
+
+<!-- 编辑进货弹窗 -->
+<div id="edit-modal" class="modal-mask" style="display:none" onclick="closeEditModal(event)">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>编辑进货记录</span>
+      <button class="modal-close" onclick="document.getElementById('edit-modal').style.display='none'">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="fg"><label>采购数量</label><input type="number" id="edit-qty" min="1"></div>
+      <div class="fg"><label>单件进价（¥）</label><input type="number" id="edit-price" step="0.01" min="0"></div>
+      <div class="fg"><label>这批总运费（¥）</label><input type="number" id="edit-ship-total" step="0.01" min="0"></div>
+      <div class="fg"><label>快递单号</label><input type="text" id="edit-tracking"></div>
+      <div class="fg"><label>1688订单号</label><input type="text" id="edit-order"></div>
+      <div class="fg"><label>预计到货日期</label><input type="text" id="edit-eta" placeholder="2024-04-10"></div>
+    </div>
+    <input type="hidden" id="edit-idx">
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">单件运费将根据总运费 ÷ 数量自动重新计算</div>
+    <div class="btns">
+      <button class="btn btn-primary" onclick="saveEditPurchase()">保存修改</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('edit-modal').style.display='none'">取消</button>
+    </div>
+  </div>
 </div>
 
 <script type="module">
@@ -492,10 +540,9 @@ function renderTransitTable(){
       else if(r.trackingStatus){ trackingHtml=`<span class="tracking-info"><span class="t-transit">🚚 运输中</span><br>${r.trackingStatus}</span>`; }
       else{ trackingHtml=`<span class="c-muted">${r.tracking}<br><span style="font-size:11px">待查询</span></span>`; }
     }
-    const actionBtn=r.trackingDelivered
+    const actionBtn = r.trackingDelivered
       ?`<button class="btn btn-amber btn-sm" onclick="confirmReceive(${idx})">确认入库</button>`
-      :`<button class="btn btn-ghost btn-sm" onclick="confirmReceive(${idx})">手动入库</button>
-        ${r.tracking?`<button class="btn btn-ghost btn-sm" onclick="refreshOneTracking(${idx})" style="margin-top:3px">查物流</button>`:''}`;
+      :`<button class="btn btn-ghost btn-sm" onclick="confirmReceive(${idx})">手动入库</button>`;
     return `<tr>
       <td>${r.date}</td>
       <td>${p?p.name:'<span class="c-muted">已删除</span>'}</td>
@@ -503,8 +550,15 @@ function renderTransitTable(){
       <td>¥${uc.toFixed(2)}</td>
       <td class="c-muted" style="font-size:12px">${r.tracking||'-'}</td>
       <td>${trackingHtml}</td>
+      <td class="c-muted">${r.eta||'-'}</td>
       <td class="c-muted">${r.order||'-'}</td>
-      <td><div style="display:flex;flex-direction:column;gap:3px">${actionBtn}</div></td>
+      <td>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          ${actionBtn}
+          ${r.tracking?`<button class="btn btn-ghost btn-sm" onclick="showTrackingDetail(${idx})">查看物流</button>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="openEditPurchase(${idx})">编辑</button>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -527,7 +581,10 @@ function renderPurchaseTable(){
       <td>¥${(r.status==='received'?(r.receivedQty||r.qty)*uc:r.qty*uc).toFixed(2)}</td>
       <td>${sb}</td>
       <td class="c-muted" style="font-size:12px">${r.tracking||'-'}</td>
-      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletePurchase(${idx})">删除</button></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="openEditPurchase(${idx})">编辑</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-left:4px" onclick="deletePurchase(${idx})">删除</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -676,7 +733,77 @@ window.confirmReceive = function(idx){
   alert(`✅ 入库成功！${p?p.name:''} 签收 ${rqty} 件${rqty!==r.qty?`（订单${r.qty}件，差异${rqty-r.qty}件）`:''}`);
 };
 
-window.deletePurchase = function(idx){ if(!confirm('删除？'))return; D.purchases.splice(idx,1); save(); render(); };
+window.openEditPurchase = function(idx) {
+  const r = D.purchases[idx];
+  if (!r) return;
+  document.getElementById('edit-idx').value = idx;
+  document.getElementById('edit-qty').value = r.qty;
+  document.getElementById('edit-price').value = r.price || 0;
+  document.getElementById('edit-ship-total').value = r.shipTotal || (r.shipPerUnit ? r.shipPerUnit * r.qty : 0);
+  document.getElementById('edit-tracking').value = r.tracking || '';
+  document.getElementById('edit-order').value = r.order || '';
+  document.getElementById('edit-eta').value = r.eta || '';
+  document.getElementById('edit-modal').style.display = 'flex';
+};
+
+window.saveEditPurchase = function() {
+  const idx = parseInt(document.getElementById('edit-idx').value);
+  const r = D.purchases[idx]; if (!r) return;
+  const qty = parseInt(document.getElementById('edit-qty').value);
+  const price = parseFloat(document.getElementById('edit-price').value);
+  const shipTotal = parseFloat(document.getElementById('edit-ship-total').value) || 0;
+  if (!qty || isNaN(price)) { alert('请填写正确的数量和进价'); return; }
+  const shipPerUnit = qty > 0 ? shipTotal / qty : 0;
+  r.qty = qty; r.price = price; r.shipTotal = shipTotal; r.shipPerUnit = shipPerUnit;
+  r.tracking = document.getElementById('edit-tracking').value.trim();
+  r.order = document.getElementById('edit-order').value.trim();
+  r.eta = document.getElementById('edit-eta').value.trim();
+  document.getElementById('edit-modal').style.display = 'none';
+  save(); render(); alert('修改已保存！');
+};
+
+window.closeEditModal = function(e) {
+  if (e.target === document.getElementById('edit-modal'))
+    document.getElementById('edit-modal').style.display = 'none';
+};
+
+window.showTrackingDetail = async function(idx) {
+  const r = D.purchases[idx]; if (!r || !r.tracking) { alert('该订单没有填写快递单号'); return; }
+  const modal = document.getElementById('tracking-modal');
+  const body = document.getElementById('modal-tracking-body');
+  const p = gp(r.pid);
+  document.getElementById('modal-title-text').textContent = `物流详情 · ${p ? p.name : ''}`;
+  document.getElementById('modal-tracking-no').textContent = `快递单号：${r.tracking}`;
+  body.innerHTML = '<div style="color:var(--text2);padding:20px 0;text-align:center">查询中...</div>';
+  modal.style.display = 'flex';
+  const data = await queryTracking(r.tracking);
+  if (!data || data.status !== '200') {
+    body.innerHTML = `<div class="alert alert-warn">查询失败，请稍后重试。${data ? '（'+data.message+'）' : ''}</div>`;
+    return;
+  }
+  const events = data.data || [];
+  if (!events.length) { body.innerHTML = '<div style="color:var(--text2)">暂无物流信息</div>'; return; }
+  const delivered = isDelivered(data);
+  body.innerHTML = `
+    ${delivered ? '<div class="alert alert-ok" style="margin-bottom:12px">✅ 快递已签收！可回到列表点「签收入库」确认。</div>' : ''}
+    ${events.map((e, i) => `
+      <div class="tracking-event">
+        <div class="tracking-dot ${i === 0 ? 'latest' : ''}"></div>
+        <div>
+          <div class="tracking-time">${e.time || ''}</div>
+          <div class="tracking-context">${e.context || ''}</div>
+        </div>
+      </div>`).join('')}`;
+  // 同步更新状态
+  r.trackingStatus = events[0] ? events[0].context : null;
+  r.trackingDelivered = delivered;
+  save(); render();
+};
+
+window.closeTrackingModal = function(e) {
+  if (e.target === document.getElementById('tracking-modal'))
+    document.getElementById('tracking-modal').style.display = 'none';
+};
 
 window.addOutbound = function(){
   const pid=parseInt(document.getElementById('out-product').value);
