@@ -248,7 +248,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品库存状态</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>在途</th><th>本地库存</th><th>已发Temu</th><th>Temu库存</th><th>FIFO成本/件</th><th>历史均价/件</th><th>售价($)</th><th>利润率</th>
+      <th>商品名</th><th>在途</th><th>本地库存</th><th>已发Temu</th><th>Temu库存</th><th>FIFO成本/件</th><th>历史均价/件</th><th>利润率</th>
     </tr></thead><tbody id="stock-table"></tbody></table></div>
   </div>
 </div>
@@ -297,7 +297,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品成本分析</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO成本(¥/件)</th><th>Temu售价($)</th><th>售价(¥)</th><th>毛利/件(¥)</th><th>毛利率</th>
+      <th>图片</th><th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO成本(¥/件)</th><th>Temu售价(¥)</th><th>毛利/件(¥)</th><th>毛利率</th>
     </tr></thead><tbody id="cost-stats-table"></tbody></table></div>
   </div>
 
@@ -338,7 +338,7 @@ input::placeholder{color:var(--text3)}
     <div class="form-grid form-grid-4">
       <div class="fg"><label>选择商品</label><select id="sale-product"></select></div>
       <div class="fg"><label>销售数量</label><input type="number" id="sale-qty" placeholder="1" min="1"></div>
-      <div class="fg"><label>实际售价（$）</label><input type="number" id="sale-price" placeholder="9.99" step="0.01"></div>
+      <div class="fg"><label>实际售价（¥）</label><input type="number" id="sale-price" placeholder="65.00" step="0.01"></div>
       <div class="fg"><label>Temu订单号（可选）</label><input type="text" id="sale-order" placeholder="Temu-xxxxxxxx"></div>
     </div>
     <div class="btns"><button class="btn btn-primary" onclick="addSale()">确认销售</button></div>
@@ -346,7 +346,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">销售明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="sale-total"></span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>日期</th><th>商品</th><th>数量</th><th>售价($)</th><th>FIFO成本(¥)</th><th>FIFO毛利($)</th><th>订单号</th><th>操作</th>
+      <th>日期</th><th>商品</th><th>数量</th><th>FIFO成本(¥)</th><th>FIFO毛利(¥)</th><th>订单号</th><th>操作</th>
     </tr></thead><tbody id="sales-table"></tbody></table></div>
   </div>
 </div>
@@ -358,14 +358,14 @@ input::placeholder{color:var(--text3)}
     <div class="form-grid form-grid-3">
       <div class="fg"><label>商品名称 *</label><input type="text" id="np-name" placeholder="硅胶手机壳"></div>
       <div class="fg"><label>SKU编码</label><input type="text" id="np-sku" placeholder="CASE-001"></div>
-      <div class="fg"><label>Temu参考售价（$）*</label><input type="number" id="np-price" placeholder="9.99" step="0.01"></div>
+      <div class="fg"><label>Temu参考售价（¥）*</label><input type="number" id="np-price" placeholder="65.00" step="0.01"></div>
     </div>
     <div class="btns"><button class="btn btn-primary" onclick="addProduct()">保存商品</button></div>
   </div>
   <div class="card">
     <div class="card-title">所有商品</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>SKU</th><th>Temu售价($)</th><th>FIFO成本/件(¥)</th><th>历史均价/件(¥)</th><th>本地库存</th><th>Temu库存</th><th>利润率</th><th>操作</th>
+      <th>商品名</th><th>SKU</th><th>Temu售价(¥)</th><th>FIFO成本/件(¥)</th><th>历史均价/件(¥)</th><th>本地库存</th><th>Temu库存</th><th>利润率</th><th>操作</th>
     </tr></thead><tbody id="products-table"></tbody></table></div>
   </div>
 </div>
@@ -392,7 +392,6 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">基础设置</div>
     <div class="form-grid">
-      <div class="fg"><label>美元兑人民币汇率（1$ = ?¥）</label><input type="number" id="s-rate" step="0.01" min="1"></div>
       <div class="fg"><label>低库存预警阈值（件）</label><input type="number" id="s-lowstock" step="1" min="1"></div>
     </div>
     <div class="btns"><button class="btn btn-primary" onclick="saveSettings()">保存设置</button></div>
@@ -452,8 +451,26 @@ input::placeholder{color:var(--text3)}
   </div>
 </div>
 
-<script>
-// ===== 密码锁（普通script，可被onclick调用）=====
+<!-- 商品编辑弹窗 -->
+<div id="product-edit-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>编辑商品信息</span>
+      <button class="modal-close" onclick="document.getElementById('product-edit-modal').style.display='none'">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="fg"><label>商品名称 *</label><input type="text" id="pe-name"></div>
+      <div class="fg"><label>SKU编码</label><input type="text" id="pe-sku"></div>
+      <div class="fg"><label>Temu售价（$）*</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
+      <div class="fg"><label>Temu商品链接（可选）</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
+    </div>
+    <input type="hidden" id="pe-id">
+    <div class="btns">
+      <button class="btn btn-primary" onclick="saveEditProduct()">保存</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('product-edit-modal').style.display='none'">取消</button>
+    </div>
+  </div>
+</div>
 const PWD_KEY = 'inv_pwd_v1';
 function getPassword() { return localStorage.getItem(PWD_KEY) || '1234'; }
 
@@ -539,7 +556,7 @@ let db, docRef;
 let D = defaultData();
 
 function defaultData() {
-  return { settings:{rate:7.2,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1 };
+  return { settings:{rate:1,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1 };
 }
 
 async function initFirebase(cfg) {
@@ -620,7 +637,7 @@ window.showPage = function(name){
   document.querySelectorAll('.nav-item')[PAGES.indexOf(name)].classList.add('active');
   const pt=document.getElementById('page-title');if(pt)pt.textContent=PAGE_TITLES[name]||name;
   render();
-  if(name==='settings'){document.getElementById('s-rate').value=D.settings.rate;document.getElementById('s-lowstock').value=D.settings.lowStock;}
+  if(name==='settings'){document.getElementById('s-lowstock').value=D.settings.lowStock;}
 };
 
 // ===== 渲染 =====
@@ -667,8 +684,8 @@ function renderMetrics(){
   const mel=document.getElementById('metrics'); if(!mel) return;
   mel.innerHTML=`
     <div class="metric"><div class="metric-label">本地库存成本(FIFO)</div><div class="metric-val">¥${lv.toFixed(0)}</div><div class="metric-sub">已入库未发Temu</div></div>
-    <div class="metric"><div class="metric-label">累计销售额</div><div class="metric-val">$${tr.toFixed(2)}</div><div class="metric-sub">${D.sales.length} 笔</div></div>
-    <div class="metric"><div class="metric-label">累计毛利(FIFO)</div><div class="metric-val ${gv>=0?'c-green':'c-red'}">${gv>=0?'+':''}$${gv.toFixed(2)}</div><div class="metric-sub">未含Temu头程运费</div></div>
+    <div class="metric"><div class="metric-label">累计销售额</div><div class="metric-val">¥${tr.toFixed(2)}</div><div class="metric-sub">${D.sales.length} 笔</div></div>
+    <div class="metric"><div class="metric-label">累计毛利(FIFO)</div><div class="metric-val ${gv>=0?'c-green':'c-red'}">${gv>=0?'+':''}¥${gv.toFixed(2)}</div><div class="metric-sub">未含Temu头程运费</div></div>
     <div class="metric"><div class="metric-label">SKU数量</div><div class="metric-val">${D.products.length}</div><div class="metric-sub">在售</div></div>`;
 }
 
@@ -732,19 +749,24 @@ function renderCostStats(){
     const wavg=getWeightedAvgCost(p.id),fifo=getFifoCostPerUnit(p.id);
     const last=recv.slice().sort((a,b)=>(b.receivedDate||b.date).localeCompare(a.receivedDate||a.date))[0];
     const lc=last?((last.price||0)+(last.shipPerUnit||0)):0;
-    const lastLink=last?last.link||'':'';
     const temuPrice = p.price || 0;
     const temuPriceRmb = temuPrice * D.settings.rate;
     const profitPerUnit = temuPriceRmb - fifo;
     const profitRate = temuPriceRmb > 0 ? (profitPerUnit / temuPriceRmb * 100) : 0;
     const profitColor = profitPerUnit >= 0 ? 'c-green' : 'c-red';
     const rateColor = profitRate >= 20 ? 'c-green' : profitRate >= 0 ? '' : 'c-red';
-    return `<tr><td>${productLink(getProductLink(p.id),p.name)}</td><td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
+    const temuPriceCell = temuPrice
+      ? `¥${temuPrice.toFixed(2)}`
+      : `<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="color:var(--primary)">+ 填写售价</button>`;
+    return `<tr>
+      <td>${imgThumb(p.id)}</td>
+      <td>${productLink(getProductLink(p.id),p.name)}</td>
+      <td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
       <td><strong>¥${wavg.toFixed(2)}</strong></td>
       <td>¥${lc.toFixed(2)}<span class="c-muted" style="font-size:11px;margin-left:4px">${last?last.receivedDate||last.date:''}</span></td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
-      <td>${temuPrice ? `$${temuPrice.toFixed(2)}` : '<span class="c-muted">未设置</span>'}</td>
-      <td>${temuPriceRmb ? `¥${temuPriceRmb.toFixed(2)}` : '-'}</td>
+      <td>${temuPriceCell}</td>
+      
       <td class="${profitColor}">${temuPriceRmb ? (profitPerUnit>=0?'+':'')+'¥'+profitPerUnit.toFixed(2) : '-'}</td>
       <td class="${rateColor}">${temuPriceRmb ? profitRate.toFixed(1)+'%' : '-'}</td>
     </tr>`;
@@ -766,14 +788,14 @@ function renderOutboundTable(){
 
 function renderSalesTable(){
   const tr2=D.sales.reduce((s,r)=>s+r.qty*r.price,0);
-  const el=document.getElementById('sale-total'); if(el) el.textContent=`共${D.sales.length}条，销售额$${tr2.toFixed(2)}`;
+  const el=document.getElementById('sale-total'); if(el) el.textContent=`共${D.sales.length}条，销售额¥${tr2.toFixed(2)}`;
   const tbody=document.getElementById('sales-table'); if(!tbody) return;
   tbody.innerHTML=D.sales.slice().reverse().map((r,i)=>{
     const p=gp(r.pid),ri=D.sales.length-1-i,fc=getSaleFifoCost(ri),g=r.qty*r.price-fc/D.settings.rate;
     return `<tr><td>${r.date}</td><td>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</td>
       <td>${r.qty}</td><td>$${r.price}</td>
       <td>¥${fc.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
-      <td class="${g>=0?'c-green':'c-red'}">${g>=0?'+':''}$${g.toFixed(2)}</td>
+      <td class="${g>=0?'c-green':'c-red'}">${g>=0?'+':''}¥${g.toFixed(2)}</td>
       <td class="c-muted">${r.order||'-'}</td>
       <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSale(${ri})">删除</button></td></tr>`;
   }).join('');
@@ -788,7 +810,7 @@ function renderStockTable(){
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
       <td><strong>${local}</strong></td><td>${temu}</td><td>${temu}</td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
-      <td>¥${wavg.toFixed(2)}</td><td>$${p.price}</td>
+      <td>¥${wavg.toFixed(2)}</td><td>¥${p.price}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td></tr>`;
   }).join('');
 }
@@ -797,7 +819,7 @@ function renderProductsTable(){
   const tbody=document.getElementById('products-table'); if(!tbody) return;
   tbody.innerHTML=D.products.map(p=>{
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td><div class="prod-cell">${imgThumb(p.id)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
+    return `<tr><td><div class="prod-cell">${imgThumb(p.id)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.sku||'-'}</td><td>¥${p.price}</td>
       <td>¥${fifo.toFixed(2)}</td><td>¥${wavg.toFixed(2)}</td>
       <td>${getLocalStock(p.id)}</td><td>${getTemuStock(p.id)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
@@ -917,12 +939,28 @@ window.addProduct = function(){
   alert('商品已添加！'); showPage('products');
 };
 
-window.editProduct = function(id){
+window.openEditProduct = window.editProduct = function(id){
   const p=gp(id); if(!p) return;
-  const name=prompt('商品名称',p.name); if(name===null) return;
-  const price=parseFloat(prompt('Temu售价（$）',p.price)); if(isNaN(price)) return;
-  const sku=prompt('SKU',p.sku||'')||'';
-  Object.assign(p,{name,price,sku}); save(); render();
+  document.getElementById('pe-id').value = id;
+  document.getElementById('pe-name').value = p.name||'';
+  document.getElementById('pe-sku').value = p.sku||'';
+  document.getElementById('pe-price').value = p.price||'';
+  document.getElementById('pe-temu-link').value = p.temuLink||'';
+  document.getElementById('product-edit-modal').style.display = 'flex';
+};
+
+window.saveEditProduct = function(){
+  const id = parseInt(document.getElementById('pe-id').value);
+  const p = gp(id); if(!p) return;
+  const name = document.getElementById('pe-name').value.trim();
+  const price = parseFloat(document.getElementById('pe-price').value);
+  const sku = document.getElementById('pe-sku').value.trim();
+  const temuLink = document.getElementById('pe-temu-link').value.trim();
+  if(!name){alert('请填写商品名称');return;}
+  if(isNaN(price)||price<=0){alert('请填写正确的Temu售价');return;}
+  Object.assign(p,{name,price,sku,temuLink});
+  document.getElementById('product-edit-modal').style.display='none';
+  save(); render(); alert('商品信息已保存！');
 };
 
 window.deleteProduct = function(id){
@@ -1037,10 +1075,8 @@ window.addSale = function(){
 window.deleteSale = function(idx){ if(!confirm('删除？'))return; D.sales.splice(idx,1); save(); render(); };
 
 window.saveSettings = function(){
-  const rate=parseFloat(document.getElementById('s-rate').value);
   const low=parseInt(document.getElementById('s-lowstock').value);
-  if(isNaN(rate)||rate<=0){alert('请输入正确汇率');return;}
-  D.settings.rate=rate; D.settings.lowStock=low||10; save(); render(); alert('已保存');
+  D.settings.lowStock=low||10; save(); render(); alert('已保存');
 };
 
 window.clearAll = function(){
@@ -1050,7 +1086,7 @@ window.clearAll = function(){
 
 window.exportAll = function(){
   const wb=XLSX.utils.book_new();
-  const pd=[['ID','商品名','SKU','Temu售价($)','本地库存','Temu库存','在途','FIFO成本(¥)','均价(¥)']];
+  const pd=[['ID','商品名','SKU','Temu售价(¥)','本地库存','Temu库存','在途','FIFO成本(¥)','均价(¥)']];
   D.products.forEach(p=>pd.push([p.id,p.name,p.sku||'',p.price,getLocalStock(p.id),getTemuStock(p.id),getTransitQty(p.id),+getFifoCostPerUnit(p.id).toFixed(2),+getWeightedAvgCost(p.id).toFixed(2)]));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pd),'商品');
   const purd=[['下单日期','商品ID','商品名','采购量','入库量','入库日期','单件进价(¥)','单件运费(¥)','总运费(¥)','单件总成本(¥)','状态','快递单号','1688单号']];
@@ -1059,7 +1095,7 @@ window.exportAll = function(){
   const outd=[['日期','商品ID','商品名','发出量','运单号','备注']];
   D.outbounds.forEach(r=>{const p=gp(r.pid);outd.push([r.date,r.pid,p?p.name:'',r.qty,r.tracking||'',r.note||'']);});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(outd),'出库记录');
-  const sd=[['日期','商品ID','商品名','数量','售价($)','FIFO成本(¥)','毛利($)','订单号']];
+  const sd=[['日期','商品ID','商品名','数量','售价(¥)','FIFO成本(¥)','毛利($)','订单号']];
   D.sales.forEach((r,i)=>{const p=gp(r.pid),fc=getSaleFifoCost(i),g=+(r.qty*r.price-fc/D.settings.rate).toFixed(2);sd.push([r.date,r.pid,p?p.name:'',r.qty,r.price,+fc.toFixed(2),g,r.order||'']);});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sd),'销售记录');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['汇率','低库存阈值'],[D.settings.rate,D.settings.lowStock]]),'配置');
@@ -1072,10 +1108,10 @@ window.importExcel = function(input){
   reader.onload=function(e){
     try{
       const wb=XLSX.read(e.target.result,{type:'binary'});
-      if(wb.SheetNames.includes('商品')){const rows=XLSX.utils.sheet_to_json(wb.Sheets['商品']);D.products=rows.map(r=>({id:+r['ID'],name:r['商品名']||'',sku:r['SKU']||'',price:+r['Temu售价($)']||0}));D.nextId=Math.max(...D.products.map(p=>p.id),0)+1;}
+      if(wb.SheetNames.includes('商品')){const rows=XLSX.utils.sheet_to_json(wb.Sheets['商品']);D.products=rows.map(r=>({id:+r['ID'],name:r['商品名']||'',sku:r['SKU']||'',price:+r['Temu售价(¥)']||0}));D.nextId=Math.max(...D.products.map(p=>p.id),0)+1;}
       if(wb.SheetNames.includes('进货记录'))D.purchases=XLSX.utils.sheet_to_json(wb.Sheets['进货记录']).map(r=>({date:r['下单日期']||'',pid:+r['商品ID'],qty:+r['采购量']||0,receivedQty:+r['入库量']||0,receivedDate:r['入库日期']||'',price:+r['单件进价(¥)']||0,shipPerUnit:+r['单件运费(¥)']||0,shipTotal:+r['总运费(¥)']||0,status:r['状态']==='已入库'?'received':'transit',tracking:r['快递单号']||'',order:r['1688单号']||''}));
       if(wb.SheetNames.includes('出库记录'))D.outbounds=XLSX.utils.sheet_to_json(wb.Sheets['出库记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['发出量']||0,tracking:r['运单号']||'',note:r['备注']||''}));
-      if(wb.SheetNames.includes('销售记录'))D.sales=XLSX.utils.sheet_to_json(wb.Sheets['销售记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['数量']||0,price:+r['售价($)']||0,order:r['订单号']||''}));
+      if(wb.SheetNames.includes('销售记录'))D.sales=XLSX.utils.sheet_to_json(wb.Sheets['销售记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['数量']||0,price:+r['售价(¥)']||0,order:r['订单号']||''}));
       if(wb.SheetNames.includes('配置')){const rows=XLSX.utils.sheet_to_json(wb.Sheets['配置']);if(rows[0]){D.settings.rate=+rows[0]['汇率']||7.2;D.settings.lowStock=+rows[0]['低库存阈值']||10;}}
       save(); render();
       document.getElementById('import-status').innerHTML=`<div class="alert alert-ok" style="margin-top:10px">✅ 导入成功！</div>`;
