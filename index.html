@@ -147,21 +147,21 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
       <div class="fg"><label>这批总运费（¥，自动均摊）</label><input type="number" id="pur-ship-total" placeholder="50.00" step="0.01" min="0" oninput="updateCostPreview()"></div>
     </div>
     <div class="form-grid form-grid-3">
-      <div class="fg"><label>快递单号（填了自动查物流）</label><input type="text" id="pur-tracking" placeholder="SF1234567890123"></div>
+      <div class="fg"><label>快递单号（可选）</label><input type="text" id="pur-tracking" placeholder="SF1234567890123"></div>
       <div class="fg"><label>1688订单号（可选）</label><input type="text" id="pur-order" placeholder="1688-xxxxxxxx"></div>
-      <div class="fg"><label>单件总成本（自动）</label><div class="cost-preview" id="pur-cost-preview">填写后自动显示</div></div>
+      <div class="fg"><label>1688商品链接（可选，下次补货用）</label><input type="text" id="pur-link" placeholder="https://detail.1688.com/offer/..."></div>
     </div>
-    <div class="btns"><button class="btn btn-primary" onclick="addPurchase()">确认下单（在途）</button></div>
+    <div class="btns">
+      <button class="btn btn-primary" onclick="addPurchase()">确认下单（在途）</button>
+      <div class="cost-preview" id="pur-cost-preview" style="flex:1;max-width:300px">填写数量+进价+运费后显示单件成本</div>
+    </div>
   </div>
 
   <div class="section-sep">第二步：待签收 — 货到后确认入库</div>
   <div class="card">
-    <div class="card-title">
-      在途订单
-      <button class="btn btn-ghost btn-sm" onclick="refreshAllTracking()">🔄 刷新所有物流</button>
-    </div>
+    <div class="card-title">在途订单</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>下单日期</th><th>商品</th><th>数量</th><th>单件成本(¥)</th><th>快递单号</th><th>物流状态</th><th>预计到货</th><th>1688单号</th><th>操作</th>
+      <th>下单日期</th><th>商品</th><th>数量</th><th>单件成本(¥)</th><th>快递单号（点击查询）</th><th>预计到货</th><th>1688单号</th><th>操作</th>
     </tr></thead><tbody id="transit-table"></tbody></table></div>
   </div>
 
@@ -169,7 +169,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
   <div class="card">
     <div class="card-title">各商品成本分析</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO成本(¥/件)</th>
+      <th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO成本(¥/件)</th><th>快速补货</th>
     </tr></thead><tbody id="cost-stats-table"></tbody></table></div>
   </div>
 
@@ -277,18 +277,6 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
 
 </div>
 
-<!-- 物流弹窗 -->
-<div id="tracking-modal" class="modal-mask" style="display:none" onclick="closeTrackingModal(event)">
-  <div class="modal-box">
-    <div class="modal-title">
-      <span id="modal-title-text">物流详情</span>
-      <button class="modal-close" onclick="document.getElementById('tracking-modal').style.display='none'">✕</button>
-    </div>
-    <div id="modal-tracking-no" style="font-size:12px;color:var(--text2);margin-bottom:12px"></div>
-    <div id="modal-tracking-body">查询中...</div>
-  </div>
-</div>
-
 <!-- 编辑进货弹窗 -->
 <div id="edit-modal" class="modal-mask" style="display:none" onclick="closeEditModal(event)">
   <div class="modal-box">
@@ -303,6 +291,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
       <div class="fg"><label>快递单号</label><input type="text" id="edit-tracking"></div>
       <div class="fg"><label>1688订单号</label><input type="text" id="edit-order"></div>
       <div class="fg"><label>预计到货日期</label><input type="text" id="edit-eta" placeholder="2024-04-10"></div>
+      <div class="fg"><label>1688商品链接</label><input type="text" id="edit-link" placeholder="https://detail.1688.com/offer/..."></div>
     </div>
     <input type="hidden" id="edit-idx">
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px">单件运费将根据总运费 ÷ 数量自动重新计算</div>
@@ -317,84 +306,21 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getFirestore, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-// ===== 快递100配置 =====
-const KD100_KEY = 'ltoQpaQV8781';
-const KD100_CUSTOMER = '8DA9ECFDB334D2D5E700294AE3757402';
-
-// MD5 实现
-function md5(string) {
-  function safeAdd(x,y){const lsw=(x&0xffff)+(y&0xffff);return(((x>>16)+(y>>16)+(lsw>>16))<<16)|(lsw&0xffff)}
-  function bitRotateLeft(num,cnt){return(num<<cnt)|(num>>>(32-cnt))}
-  function md5cmn(q,a,b,x,s,t){return safeAdd(bitRotateLeft(safeAdd(safeAdd(a,q),safeAdd(x,t)),s),b)}
-  function md5ff(a,b,c,d,x,s,t){return md5cmn((b&c)|((~b)&d),a,b,x,s,t)}
-  function md5gg(a,b,c,d,x,s,t){return md5cmn((b&d)|(c&(~d)),a,b,x,s,t)}
-  function md5hh(a,b,c,d,x,s,t){return md5cmn(b^c^d,a,b,x,s,t)}
-  function md5ii(a,b,c,d,x,s,t){return md5cmn(c^(b|(~d)),a,b,x,s,t)}
-  const utf8=unescape(encodeURIComponent(string));
-  const msg=[];for(let i=0;i<utf8.length;i++)msg.push(utf8.charCodeAt(i));
-  msg.push(0x80);while(msg.length%64!==56)msg.push(0);
-  const len=utf8.length*8;msg.push(len&0xff,(len>>8)&0xff,(len>>16)&0xff,(len>>24)&0xff,0,0,0,0);
-  let a=0x67452301,b=0xefcdab89,c=0x98badcfe,d=0x10325476;
-  for(let i=0;i<msg.length;i+=64){
-    const M=[];for(let j=0;j<16;j++)M[j]=msg[i+j*4]|(msg[i+j*4+1]<<8)|(msg[i+j*4+2]<<16)|(msg[i+j*4+3]<<24);
-    let[aa,bb,cc,dd]=[a,b,c,d];
-    a=md5ff(a,b,c,d,M[0],7,-680876936);d=md5ff(d,a,b,c,M[1],12,-389564586);c=md5ff(c,d,a,b,M[2],17,606105819);b=md5ff(b,c,d,a,M[3],22,-1044525330);
-    a=md5ff(a,b,c,d,M[4],7,-176418897);d=md5ff(d,a,b,c,M[5],12,1200080426);c=md5ff(c,d,a,b,M[6],17,-1473231341);b=md5ff(b,c,d,a,M[7],22,-45705983);
-    a=md5ff(a,b,c,d,M[8],7,1770035416);d=md5ff(d,a,b,c,M[9],12,-1958414417);c=md5ff(c,d,a,b,M[10],17,-42063);b=md5ff(b,c,d,a,M[11],22,-1990404162);
-    a=md5ff(a,b,c,d,M[12],7,1804603682);d=md5ff(d,a,b,c,M[13],12,-40341101);c=md5ff(c,d,a,b,M[14],17,-1502002290);b=md5ff(b,c,d,a,M[15],22,1236535329);
-    a=md5gg(a,b,c,d,M[1],5,-165796510);d=md5gg(d,a,b,c,M[6],9,-1069501632);c=md5gg(c,d,a,b,M[11],14,643717713);b=md5gg(b,c,d,a,M[0],20,-373897302);
-    a=md5gg(a,b,c,d,M[5],5,-701558691);d=md5gg(d,a,b,c,M[10],9,38016083);c=md5gg(c,d,a,b,M[15],14,-660478335);b=md5gg(b,c,d,a,M[4],20,-405537848);
-    a=md5gg(a,b,c,d,M[9],5,568446438);d=md5gg(d,a,b,c,M[14],9,-1019803690);c=md5gg(c,d,a,b,M[3],14,-187363961);b=md5gg(b,c,d,a,M[8],20,1163531501);
-    a=md5gg(a,b,c,d,M[13],5,-1444681467);d=md5gg(d,a,b,c,M[2],9,-51403784);c=md5gg(c,d,a,b,M[7],14,1735328473);b=md5gg(b,c,d,a,M[12],20,-1926607734);
-    a=md5hh(a,b,c,d,M[5],4,-378558);d=md5hh(d,a,b,c,M[8],11,-2022574463);c=md5hh(c,d,a,b,M[11],16,1839030562);b=md5hh(b,c,d,a,M[14],23,-35309556);
-    a=md5hh(a,b,c,d,M[1],4,-1530992060);d=md5hh(d,a,b,c,M[4],11,1272893353);c=md5hh(c,d,a,b,M[7],16,-155497632);b=md5hh(b,c,d,a,M[10],23,-1094730640);
-    a=md5hh(a,b,c,d,M[13],4,681279174);d=md5hh(d,a,b,c,M[0],11,-358537222);c=md5hh(c,d,a,b,M[3],16,-722521979);b=md5hh(b,c,d,a,M[6],23,76029189);
-    a=md5hh(a,b,c,d,M[9],4,-640364487);d=md5hh(d,a,b,c,M[12],11,-421815835);c=md5hh(c,d,a,b,M[15],16,530742520);b=md5hh(b,c,d,a,M[2],23,-995338651);
-    a=md5ii(a,b,c,d,M[0],6,-198630844);d=md5ii(d,a,b,c,M[7],10,1126891415);c=md5ii(c,d,a,b,M[14],15,-1416354905);b=md5ii(b,c,d,a,M[5],21,-57434055);
-    a=md5ii(a,b,c,d,M[12],6,1700485571);d=md5ii(d,a,b,c,M[3],10,-1894986606);c=md5ii(c,d,a,b,M[10],15,-1051523);b=md5ii(b,c,d,a,M[1],21,-2054922799);
-    a=md5ii(a,b,c,d,M[8],6,1873313359);d=md5ii(d,a,b,c,M[15],10,-30611744);c=md5ii(c,d,a,b,M[6],15,-1560198380);b=md5ii(b,c,d,a,M[13],21,1309151649);
-    a=md5ii(a,b,c,d,M[4],6,-145523070);d=md5ii(d,a,b,c,M[11],10,-1120210379);c=md5ii(c,d,a,b,M[2],15,718787259);b=md5ii(b,c,d,a,M[9],21,-343485551);
-    a=safeAdd(a,aa);b=safeAdd(b,bb);c=safeAdd(c,cc);d=safeAdd(d,dd);
-  }
-  return [a,b,c,d].map(n=>(n<0?n+0x100000000:n).toString(16).padStart(8,'0').match(/../g).reverse().join('')).join('');
+// ===== 快递查询：点击跳转快递100 =====
+function trackingLink(no) {
+  if (!no) return '-';
+  const url = `https://www.kuaidi100.com/chaxun?nu=${no}`;
+  return `<a href="${url}" target="_blank" style="color:var(--blue);font-size:12px;text-decoration:none" title="点击查询物流">${no} ↗</a>`;
 }
 
-// 快递100查询（JSONP方式，避免跨域）
-function queryTracking(trackingNo) {
-  return new Promise(resolve => {
-    if (!trackingNo) { resolve(null); return; }
-    try {
-      const param = JSON.stringify({ com:'auto', num:trackingNo, resultv2:'1' });
-      const sign = md5(param + KD100_KEY + KD100_CUSTOMER).toUpperCase();
-      const cbName = 'kd100cb_' + Date.now();
-      const script = document.createElement('script');
-      let done = false;
-      const timer = setTimeout(() => {
-        if (!done) { done=true; delete window[cbName]; script.remove(); resolve(null); }
-      }, 8000);
-      window[cbName] = (data) => {
-        if (!done) { done=true; clearTimeout(timer); delete window[cbName]; script.remove(); resolve(data); }
-      };
-      const qs = new URLSearchParams({ customer:KD100_CUSTOMER, sign, param, callback:cbName });
-      script.src = `https://poll.kuaidi100.com/poll/query.do?${qs}`;
-      script.onerror = () => { if(!done){done=true;clearTimeout(timer);delete window[cbName];script.remove();resolve(null);} };
-      document.head.appendChild(script);
-    } catch(e) { resolve(null); }
-  });
+function productLink(link, label) {
+  if (!link) return label || '-';
+  return `<a href="${link}" target="_blank" style="color:var(--blue);text-decoration:none" title="在1688查看商品">${label||'查看'} ↗</a>`;
 }
 
-// 判断是否已签收
-function isDelivered(data) {
-  if (!data || data.status !== '200') return false;
-  return data.state === '3' || (data.data && data.data[0] && (
-    data.data[0].context.includes('已签收') || data.data[0].context.includes('签收') || data.data[0].context.includes('投递成功')
-  ));
-}
-
-function getLatestStatus(data) {
-  if (!data || data.status !== '200') return null;
-  return data.data && data.data.length > 0 ? data.data[0].context : null;
-}
+// 判断是否已签收（保留，用于手动标记）
+function isDelivered(data) { return false; }
+function getLatestStatus(data) { return null; }
 
 // ===== Firebase =====
 let db, docRef;
@@ -414,8 +340,6 @@ async function initFirebase(cfg) {
       if(snap.exists()){ D={...defaultData(),...snap.data()}; if(!D.outbounds)D.outbounds=[]; }
       else { D=defaultData(); pushData(); }
       render(); setSyncStatus('online');
-      // 启动时自动刷新在途物流
-      autoRefreshTracking();
     }, ()=>setSyncStatus('error'));
   } catch(e){ setSyncStatus('error'); }
 }
@@ -429,40 +353,6 @@ let _t;
 function save(){ setSyncStatus('syncing'); clearTimeout(_t); _t=setTimeout(pushData,600); }
 async function pushData(){ try{ await setDoc(docRef,JSON.parse(JSON.stringify(D))); setSyncStatus('online'); }catch(e){ setSyncStatus('error'); } }
 window.resetConfig = ()=>{ if(confirm('重置？')) location.reload(); };
-
-// ===== 物流自动刷新 =====
-async function autoRefreshTracking() {
-  const transitItems = D.purchases.filter(r=>r.status==='transit'&&r.tracking);
-  if (!transitItems.length) return;
-  let hasArrived = false;
-  for (const r of transitItems) {
-    const data = await queryTracking(r.tracking);
-    if (!data) continue;
-    r.trackingStatus = getLatestStatus(data);
-    r.trackingDelivered = isDelivered(data);
-    if (r.trackingDelivered) hasArrived = true;
-  }
-  if (hasArrived) save();
-  render();
-}
-
-window.refreshAllTracking = async function() {
-  const btn = document.querySelector('[onclick="refreshAllTracking()"]');
-  if(btn){ btn.textContent='查询中...'; btn.disabled=true; }
-  await autoRefreshTracking();
-  if(btn){ btn.textContent='🔄 刷新所有物流'; btn.disabled=false; }
-};
-
-window.refreshOneTracking = async function(idx) {
-  const r = D.purchases[idx];
-  if (!r||!r.tracking) return;
-  const data = await queryTracking(r.tracking);
-  if (data) {
-    r.trackingStatus = getLatestStatus(data);
-    r.trackingDelivered = isDelivered(data);
-    save(); render();
-  }
-};
 
 // ===== 库存计算 =====
 function getLocalStock(pid){
@@ -574,28 +464,17 @@ function renderTransitTable(){
   if(!items.length){el.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">暂无在途订单</td></tr>`;return;}
   el.innerHTML=items.map(r=>{
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
-    let trackingHtml='<span class="c-muted">-</span>';
-    if(r.tracking){
-      if(r.trackingDelivered){ trackingHtml=`<span class="tracking-info"><span class="t-arrived">✅ 已签收</span><br>${r.trackingStatus||''}</span>`; }
-      else if(r.trackingStatus){ trackingHtml=`<span class="tracking-info"><span class="t-transit">🚚 运输中</span><br>${r.trackingStatus}</span>`; }
-      else{ trackingHtml=`<span class="c-muted">${r.tracking}<br><span style="font-size:11px">待查询</span></span>`; }
-    }
-    const actionBtn = r.trackingDelivered
-      ?`<button class="btn btn-amber btn-sm" onclick="confirmReceive(${idx})">确认入库</button>`
-      :`<button class="btn btn-ghost btn-sm" onclick="confirmReceive(${idx})">手动入库</button>`;
     return `<tr>
       <td>${r.date}</td>
-      <td>${p?p.name:'<span class="c-muted">已删除</span>'}</td>
+      <td>${productLink(r.link, p?p.name:'已删除')}</td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
-      <td class="c-muted" style="font-size:12px">${r.tracking||'-'}</td>
-      <td>${trackingHtml}</td>
+      <td>${trackingLink(r.tracking)}</td>
       <td class="c-muted">${r.eta||'-'}</td>
       <td class="c-muted">${r.order||'-'}</td>
       <td>
         <div style="display:flex;flex-direction:column;gap:3px">
-          ${actionBtn}
-          ${r.tracking?`<button class="btn btn-ghost btn-sm" onclick="showTrackingDetail(${idx})">查看物流</button>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="confirmReceive(${idx})">签收入库</button>
           <button class="btn btn-ghost btn-sm" onclick="openEditPurchase(${idx})">编辑</button>
         </div>
       </td>
@@ -613,14 +492,14 @@ function renderPurchaseTable(){
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
       <td>${r.date}</td>
-      <td>${p?p.name:'<span class="c-muted">已删除</span>'}</td>
+      <td>${productLink(r.link, p?p.name:'已删除')}</td>
       <td>${r.qty}</td><td>${rqty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
       <td><strong>¥${uc.toFixed(2)}</strong></td>
       <td>¥${(r.status==='received'?(r.receivedQty||r.qty)*uc:r.qty*uc).toFixed(2)}</td>
       <td>${sb}</td>
-      <td class="c-muted" style="font-size:12px">${r.tracking||'-'}</td>
+      <td>${trackingLink(r.tracking)}</td>
       <td>
         <button class="btn btn-ghost btn-sm" onclick="openEditPurchase(${idx})">编辑</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-left:4px" onclick="deletePurchase(${idx})">删除</button>
@@ -639,10 +518,13 @@ function renderCostStats(){
     const wavg=getWeightedAvgCost(p.id),fifo=getFifoCostPerUnit(p.id);
     const last=recv.slice().sort((a,b)=>(b.receivedDate||b.date).localeCompare(a.receivedDate||a.date))[0];
     const lc=last?((last.price||0)+(last.shipPerUnit||0)):0;
+    const lastLink=last?last.link||'':'';
     return `<tr><td>${p.name}</td><td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
       <td><strong>¥${wavg.toFixed(2)}</strong></td>
       <td>¥${lc.toFixed(2)}<span class="c-muted" style="font-size:11px;margin-left:4px">${last?last.receivedDate||last.date:''}</span></td>
-      <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td></tr>`;
+      <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+      <td>${lastLink?`<a href="${lastLink}" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">去1688补货 ↗</a>`:'<span class="c-muted">无链接</span>'}</td>
+    </tr>`;
   }).join('');
 }
 
@@ -752,9 +634,10 @@ window.addPurchase = function(){
   const order=document.getElementById('pur-order').value.trim();
   if(!qty||isNaN(price)||price<0){alert('请填写数量和进价');return;}
   const shipPerUnit=qty>0?shipTotal/qty:0;
-  D.purchases.push({date:today(),pid,qty,price,shipPerUnit,shipTotal,tracking,order,status:'transit'});
+  const link=document.getElementById('pur-link').value.trim();
+  D.purchases.push({date:today(),pid,qty,price,shipPerUnit,shipTotal,tracking,order,link,status:'transit'});
   save();
-  ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order'].forEach(id=>document.getElementById(id).value='');
+  ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('pur-cost-preview').textContent='填写后自动显示';
   render();
   const p=gp(pid);
@@ -783,6 +666,7 @@ window.openEditPurchase = function(idx) {
   document.getElementById('edit-tracking').value = r.tracking || '';
   document.getElementById('edit-order').value = r.order || '';
   document.getElementById('edit-eta').value = r.eta || '';
+  document.getElementById('edit-link').value = r.link || '';
   document.getElementById('edit-modal').style.display = 'flex';
 };
 
@@ -798,6 +682,7 @@ window.saveEditPurchase = function() {
   r.tracking = document.getElementById('edit-tracking').value.trim();
   r.order = document.getElementById('edit-order').value.trim();
   r.eta = document.getElementById('edit-eta').value.trim();
+  r.link = document.getElementById('edit-link').value.trim();
   document.getElementById('edit-modal').style.display = 'none';
   save(); render(); alert('修改已保存！');
 };
@@ -805,44 +690,6 @@ window.saveEditPurchase = function() {
 window.closeEditModal = function(e) {
   if (e.target === document.getElementById('edit-modal'))
     document.getElementById('edit-modal').style.display = 'none';
-};
-
-window.showTrackingDetail = async function(idx) {
-  const r = D.purchases[idx]; if (!r || !r.tracking) { alert('该订单没有填写快递单号'); return; }
-  const modal = document.getElementById('tracking-modal');
-  const body = document.getElementById('modal-tracking-body');
-  const p = gp(r.pid);
-  document.getElementById('modal-title-text').textContent = `物流详情 · ${p ? p.name : ''}`;
-  document.getElementById('modal-tracking-no').textContent = `快递单号：${r.tracking}`;
-  body.innerHTML = '<div style="color:var(--text2);padding:20px 0;text-align:center">查询中...</div>';
-  modal.style.display = 'flex';
-  const data = await queryTracking(r.tracking);
-  if (!data || data.status !== '200') {
-    body.innerHTML = `<div class="alert alert-warn">查询失败，请稍后重试。${data ? '（'+data.message+'）' : ''}</div>`;
-    return;
-  }
-  const events = data.data || [];
-  if (!events.length) { body.innerHTML = '<div style="color:var(--text2)">暂无物流信息</div>'; return; }
-  const delivered = isDelivered(data);
-  body.innerHTML = `
-    ${delivered ? '<div class="alert alert-ok" style="margin-bottom:12px">✅ 快递已签收！可回到列表点「签收入库」确认。</div>' : ''}
-    ${events.map((e, i) => `
-      <div class="tracking-event">
-        <div class="tracking-dot ${i === 0 ? 'latest' : ''}"></div>
-        <div>
-          <div class="tracking-time">${e.time || ''}</div>
-          <div class="tracking-context">${e.context || ''}</div>
-        </div>
-      </div>`).join('')}`;
-  // 同步更新状态
-  r.trackingStatus = events[0] ? events[0].context : null;
-  r.trackingDelivered = delivered;
-  save(); render();
-};
-
-window.closeTrackingModal = function(e) {
-  if (e.target === document.getElementById('tracking-modal'))
-    document.getElementById('tracking-modal').style.display = 'none';
 };
 
 window.deletePurchase = function(idx){ if(!confirm('删除此进货记录？'))return; D.purchases.splice(idx,1); save(); render(); };
