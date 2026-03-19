@@ -334,8 +334,10 @@ function getProductImg(pid) {
 function imgThumb(pid, size) {
   const img = getProductImg(pid);
   if (!img) return `<div style="width:${size}px;height:${size}px;background:var(--bg);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px">📦</div>`;
-  return `<img src="${img}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:6px;border:1px solid var(--border)" onerror="this.style.display='none'">`;
+  return `<img src="${img}" width="${size}" height="${size}" style="object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'">`;
 }
+
+function getProductLink(pid) {
   const records = D.purchases.filter(r=>r.pid==pid&&r.link).sort((a,b)=>b.date.localeCompare(a.date));
   return records.length ? records[0].link : '';
 }
@@ -488,7 +490,7 @@ function renderTransitTable(){
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
     return `<tr>
       <td>${r.date}</td>
-      <td><div style="display:flex;align-items:center;gap:8px">${imgThumb(r.pid,36)}${productLink(r.link,p?p.name:'已删除')}</div></td>
+      <td><div style="display:flex;align-items:center;gap:8px">${imgThumb(r.pid,150)}${productLink(r.link,p?p.name:'已删除')}</div></td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
       <td>${trackingLink(r.tracking)}</td>
@@ -514,7 +516,7 @@ function renderPurchaseTable(){
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
       <td>${r.date}</td>
-      <td><div style="display:flex;align-items:center;gap:8px">${imgThumb(r.pid,36)}${productLink(r.link,p?p.name:'已删除')}</div></td>
+      <td><div style="display:flex;align-items:center;gap:8px">${imgThumb(r.pid,150)}${productLink(r.link,p?p.name:'已删除')}</div></td>
       <td>${r.qty}</td><td>${rqty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
@@ -582,7 +584,7 @@ function renderStockTable(){
   tbody.innerHTML=D.products.map(p=>{
     const local=getLocalStock(p.id),temu=getTemuStock(p.id),transit=getTransitQty(p.id);
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td><div style="display:flex;align-items:center;gap:8px">${imgThumb(p.id,40)}${productLink(getProductLink(p.id),p.name)}</div></td>
+    return `<tr><td><div style="display:flex;align-items:center;gap:8px">${imgThumb(p.id,150)}${productLink(getProductLink(p.id),p.name)}</div></td>
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
       <td><strong>${local}</strong></td><td>${temu}</td><td>${temu}</td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
@@ -595,7 +597,7 @@ function renderProductsTable(){
   const tbody=document.getElementById('products-table'); if(!tbody) return;
   tbody.innerHTML=D.products.map(p=>{
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td><div style="display:flex;align-items:center;gap:8px">${imgThumb(p.id,40)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
+    return `<tr><td><div style="display:flex;align-items:center;gap:8px">${imgThumb(p.id,150)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.sku||'-'}</td><td>$${p.price}</td>
       <td>¥${fifo.toFixed(2)}</td><td>¥${wavg.toFixed(2)}</td>
       <td>${getLocalStock(p.id)}</td><td>${getTemuStock(p.id)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
@@ -616,14 +618,24 @@ window.previewPurImg = function(){
   const url = document.getElementById('pur-img').value.trim();
   const el = document.getElementById('pur-img-preview');
   if(!el) return;
-  el.innerHTML = url ? `<img src="${url}" class="prod-img-preview" onerror="this.parentNode.innerHTML='<span style=color:var(--red);font-size:12px>图片加载失败，请确认地址正确</span>'">` : '';
+  if(!url){ el.innerHTML=''; return; }
+  const img = document.createElement('img');
+  img.src = url;
+  img.className = 'prod-img-preview';
+  img.onerror = ()=>{ el.innerHTML='<span style="color:var(--red);font-size:12px">图片加载失败，请确认地址正确</span>'; };
+  el.innerHTML=''; el.appendChild(img);
 };
 
 window.previewEditImg = function(){
   const url = document.getElementById('edit-img').value.trim();
   const el = document.getElementById('edit-img-preview');
   if(!el) return;
-  el.innerHTML = url ? `<img src="${url}" class="prod-img-preview" onerror="this.parentNode.innerHTML='<span style=color:var(--red);font-size:12px>图片加载失败</span>'">` : '';
+  if(!url){ el.innerHTML=''; return; }
+  const img = document.createElement('img');
+  img.src = url;
+  img.className = 'prod-img-preview';
+  img.onerror = ()=>{ el.innerHTML='<span style="color:var(--red);font-size:12px">图片加载失败</span>'; };
+  el.innerHTML=''; el.appendChild(img);
 };
 
 window.updateCostPreview = function(){
