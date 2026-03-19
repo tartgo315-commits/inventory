@@ -501,8 +501,11 @@ import { getFirestore, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/f
 // ===== 快递查询：点击跳转快递100 =====
 function trackingLink(no) {
   if (!no) return '-';
-  const url = `https://www.kuaidi100.com/chaxun?nu=${no}`;
-  return `<a href="${url}" target="_blank" style="color:var(--blue);font-size:12px;text-decoration:none" title="点击查询物流">${no} ↗</a>`;
+  const url = `https://www.baidu.com/s?wd=${no}+快递查询`;
+  return `<div style="font-size:12px">
+    <div style="color:var(--text);font-weight:500;margin-bottom:4px">${no}</div>
+    <a href="${url}" target="_blank" style="color:var(--primary);text-decoration:none;background:var(--primary-bg);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">百度查询 ↗</a>
+  </div>`;
 }
 
 function productLink(link, label) {
