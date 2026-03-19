@@ -179,6 +179,21 @@ input::placeholder{color:var(--text3)}
 </head>
 <body>
 
+<!-- 密码锁界面 -->
+<div id="lock-screen" style="position:fixed;inset:0;background:#1a1b2e;z-index:9999;display:flex;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:40px;width:100%;max-width:380px;margin:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center">
+    <div style="font-size:36px;margin-bottom:16px">🔒</div>
+    <div style="font-size:20px;font-weight:800;color:#1a1b2e;margin-bottom:6px">进销存系统</div>
+    <div style="font-size:13px;color:#6b7280;margin-bottom:28px">请输入访问密码</div>
+    <input type="password" id="lock-input" placeholder="输入密码" onkeydown="if(event.key==='Enter')checkPassword()"
+      style="width:100%;padding:12px 16px;border:2px solid #e8eaed;border-radius:10px;font-size:15px;text-align:center;letter-spacing:4px;margin-bottom:14px;outline:none;font-family:inherit;transition:border-color .15s"
+      onfocus="this.style.borderColor='#4f46e5'" onblur="this.style.borderColor='#e8eaed'">
+    <div id="lock-error" style="color:#dc2626;font-size:13px;margin-bottom:10px;min-height:18px"></div>
+    <button onclick="checkPassword()" style="width:100%;padding:12px;background:#4f46e5;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">进入</button>
+    <div style="font-size:11px;color:#9ca3af;margin-top:20px">首次使用默认密码：<strong>1234</strong>，进入后可在设置中修改</div>
+  </div>
+</div>
+
 <!-- 侧边栏 -->
 <div class="sidebar">
   <div class="sidebar-logo">
@@ -381,6 +396,14 @@ input::placeholder{color:var(--text3)}
       <div class="fg"><label>低库存预警阈值（件）</label><input type="number" id="s-lowstock" step="1" min="1"></div>
     </div>
     <div class="btns"><button class="btn btn-primary" onclick="saveSettings()">保存设置</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">修改访问密码</div>
+    <div class="form-grid">
+      <div class="fg"><label>新密码</label><input type="password" id="new-pwd" placeholder="输入新密码"></div>
+      <div class="fg"><label>确认新密码</label><input type="password" id="new-pwd2" placeholder="再次输入"></div>
+    </div>
+    <div class="btns"><button class="btn btn-primary" onclick="changePassword()">修改密码</button></div>
   </div>
   <div class="card">
     <div class="card-title" style="color:var(--red)">危险操作</div>
@@ -1006,6 +1029,48 @@ window.importExcel = function(input){
   };
   reader.readAsBinaryString(file);
 };
+
+// ===== 密码锁 =====
+const PWD_KEY = 'inv_pwd_v1';
+function getPassword() { return localStorage.getItem(PWD_KEY) || '1234'; }
+
+function checkPassword() {
+  const input = document.getElementById('lock-input').value;
+  if (input === getPassword()) {
+    document.getElementById('lock-screen').style.display = 'none';
+    localStorage.setItem('inv_unlocked', Date.now());
+  } else {
+    const err = document.getElementById('lock-error');
+    err.textContent = '密码错误，请重试';
+    document.getElementById('lock-input').value = '';
+    document.getElementById('lock-input').focus();
+    setTimeout(() => { err.textContent = ''; }, 2000);
+  }
+}
+
+window.changePassword = function() {
+  const p1 = document.getElementById('new-pwd').value;
+  const p2 = document.getElementById('new-pwd2').value;
+  if (!p1) { alert('密码不能为空'); return; }
+  if (p1 !== p2) { alert('两次输入的密码不一致'); return; }
+  if (p1.length < 4) { alert('密码至少4位'); return; }
+  localStorage.setItem(PWD_KEY, p1);
+  document.getElementById('new-pwd').value = '';
+  document.getElementById('new-pwd2').value = '';
+  alert('密码已修改！下次打开网站需要用新密码登录。');
+};
+
+// 检查是否已解锁（同一天内不需要重复输密码）
+(function() {
+  const last = parseInt(localStorage.getItem('inv_unlocked') || '0');
+  const now = Date.now();
+  const oneDay = 24 * 60 * 60 * 1000;
+  if (now - last < oneDay) {
+    document.getElementById('lock-screen').style.display = 'none';
+  } else {
+    setTimeout(() => document.getElementById('lock-input').focus(), 100);
+  }
+})();
 
 // ===== 启动 =====
 const FIREBASE_CFG = {
