@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v1.9 · 2026-03-20 15:05</div>
+      <div>v2.0 · 2026-03-20 15:30</div>
       <div>数据保护 · FIFO成本 · 云同步</div>
     </div>
   </div>
@@ -264,6 +264,17 @@ input::placeholder{color:var(--text3)}
   <div id="arrived-alerts-purchase"></div>
 
   <div class="section-sep">第一步：录入1688采购订单</div>
+
+  <!-- 智能解析区 -->
+  <div class="card" style="border:1.5px solid var(--primary);background:var(--primary-bg)">
+    <div class="card-title" style="color:var(--primary);margin-bottom:10px">
+      ✨ 智能识别 — 粘贴1688页面文字自动填写
+      <span style="font-size:11px;font-weight:400;color:var(--text3)">在1688商品页 Ctrl+A 全选 → Ctrl+C 复制 → 粘贴到下方</span>
+    </div>
+    <textarea id="paste-input" rows="4" placeholder="将1688商品页面的文字粘贴到这里，自动识别商品名和价格..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;resize:vertical;background:#fff" oninput="smartParse()"></textarea>
+    <div id="parse-result" style="margin-top:8px;font-size:13px;color:var(--text2)"></div>
+  </div>
+
   <div class="card">
     <div class="card-title">新建采购单</div>
     <div class="form-grid form-grid-4">
@@ -568,6 +579,7 @@ function defaultData() {
 
 // 标记：Firebase数据是否已加载完成
 let _firebaseReady = false;
+let _bookmarkHandled = false;
 
 async function initFirebase(cfg) {
   try {
@@ -596,6 +608,8 @@ async function initFirebase(cfg) {
       _firebaseReady = true;
       render();
       setSyncStatus('online');
+      // 处理书签跳转参数（只处理一次）
+      if(!_bookmarkHandled){ _bookmarkHandled=true; handleBookmarkParams(); }
     }, ()=>setSyncStatus('error'));
   } catch(e){ setSyncStatus('error'); }
 }
@@ -891,6 +905,106 @@ function populateSelects(){
 }
 
 // ===== 操作 =====
+// ===== 智能解析1688文字 =====
+window.smartParse = function() {
+  const text = document.getElementById('paste-input').value;
+  const resultEl = document.getElementById('parse-result');
+  if (!text.trim()) { resultEl.innerHTML = ''; return; }
+
+  let name = '', price = 0;
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+  // 提取商品名：找第一个长度合适、有实际内容的行
+  for (const line of lines) {
+    if (line.length >= 6 && line.length <= 100 &&
+        !/^[\d\s¥￥元,，。.\/\-\+\*]+$/.test(line) &&
+        !/^(收藏|加购|立即|联系|发货|评价|店铺|优惠|满减|活动|运费|快递|查看|更多|图片|规格|数量|备注|留言|登录|注册|首页|分类|搜索|购物车|客服|关注|分享|举报|复制|粘贴)/.test(line)) {
+      name = line;
+      break;
+    }
+  }
+
+  // 提取价格：按优先级匹配
+  const pricePatterns = [
+    /起批价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,
+    /批发价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,
+    /单价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,
+    /价格[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,
+    /[¥￥]\s*(\d+\.?\d*)/,
+    /(\d+\.?\d*)\s*元[\/每件起]/,
+    /(\d{1,5}\.\d{2})/,
+  ];
+  for (const p of pricePatterns) {
+    const m = text.match(p);
+    if (m) {
+      const val = parseFloat(m[1]);
+      if (val >= 0.1 && val < 99999) { price = val; break; }
+    }
+  }
+
+  if (!name && !price) {
+    resultEl.innerHTML = '<span style="color:var(--amber)">未能识别，请确认复制了完整的商品页面文字</span>';
+    return;
+  }
+
+  // 自动填入表单
+  if (name) {
+    // 检查是否有匹配商品，没有则提示新建
+    const matched = D.products.find(p => p.name.includes(name.slice(0,6)) || name.includes(p.name.slice(0,6)));
+    if (matched) {
+      document.getElementById('pur-product').value = matched.id;
+    }
+  }
+  if (price) {
+    document.getElementById('pur-price').value = price;
+    updateCostPreview();
+  }
+
+  resultEl.innerHTML = `
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:#fff;border-radius:8px;border:1px solid var(--border)">
+      ${name ? `<span>📦 商品名：<strong>${name.slice(0,30)}${name.length>30?'...':''}</strong></span>` : ''}
+      ${price ? `<span>💰 识别价格：<strong>¥${price}</strong>（已填入进价）</span>` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
+    </div>`;
+};
+
+// ===== 书签脚本：接收URL参数自动填表 =====
+function handleBookmarkParams() {
+  const params = new URLSearchParams(window.location.search);
+  const bName = params.get('name');
+  const bPrice = params.get('price');
+  const bLink = params.get('link');
+  if (!bName && !bPrice) return;
+
+  // 跳转到进货页面
+  showPage('purchase');
+
+  setTimeout(() => {
+    if (bPrice) {
+      document.getElementById('pur-price').value = bPrice;
+      updateCostPreview();
+    }
+    if (bLink) {
+      document.getElementById('pur-link').value = bLink;
+    }
+    if (bName) {
+      // 尝试匹配已有商品
+      const matched = D.products.find(p =>
+        p.name.includes(bName.slice(0,6)) || bName.includes(p.name.slice(0,6))
+      );
+      if (matched) document.getElementById('pur-product').value = matched.id;
+    }
+    // 显示提示
+    const resultEl = document.getElementById('parse-result');
+    if (resultEl) resultEl.innerHTML = `
+      <div style="padding:10px 12px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:13px">
+        ✅ 书签自动填入：${bName?`<strong>${bName.slice(0,30)}</strong>`:''}${bPrice?` · ¥${bPrice}`:''}
+      </div>`;
+    // 清理URL参数
+    window.history.replaceState({}, '', window.location.pathname);
+  }, 800);
+}
+
 // ===== 图片处理：本地上传压缩为base64 =====
 let _purImgBase64 = '';
 let _editImgBase64 = '';
