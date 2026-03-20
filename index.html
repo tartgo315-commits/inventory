@@ -562,6 +562,9 @@ function defaultData() {
   return { settings:{rate:1,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1 };
 }
 
+// 标记：Firebase数据是否已加载完成
+let _firebaseReady = false;
+
 async function initFirebase(cfg) {
   try {
     const app = initializeApp(cfg);
@@ -569,9 +572,26 @@ async function initFirebase(cfg) {
     docRef = doc(db,'inventory','main');
     setSyncStatus('syncing');
     onSnapshot(docRef, snap=>{
-      if(snap.exists()){ D={...defaultData(),...snap.data()}; if(!D.outbounds)D.outbounds=[]; }
-      else { D=defaultData(); pushData(); }
-      render(); setSyncStatus('online');
+      if(snap.exists()){
+        const remote = snap.data();
+        // 只有远程数据比本地数据多，或者本地还未就绪时才更新
+        if(!_firebaseReady || remote.products?.length >= D.products.length){
+          D = {...defaultData(), ...remote};
+          if(!D.outbounds) D.outbounds = [];
+          if(!D.purchases) D.purchases = [];
+          if(!D.sales) D.sales = [];
+          if(!D.products) D.products = [];
+        }
+      } else {
+        // Firebase里没有数据，只有本地也是空的才初始化，不覆盖任何有效数据
+        if(!_firebaseReady){
+          D = defaultData();
+          // 不主动写入，等用户真正录入数据后才写
+        }
+      }
+      _firebaseReady = true;
+      render();
+      setSyncStatus('online');
     }, ()=>setSyncStatus('error'));
   } catch(e){ setSyncStatus('error'); }
 }
@@ -581,9 +601,38 @@ function setSyncStatus(s){
   dot.className='sync-dot'+(s==='error'?' error':s==='syncing'?' syncing':'');
   txt.textContent=s==='online'?'云端已同步 · 任意设备可用':s==='syncing'?'保存中...':'同步失败';
 }
+
 let _t;
-function save(){ setSyncStatus('syncing'); clearTimeout(_t); _t=setTimeout(pushData,600); }
-async function pushData(){ try{ await setDoc(docRef,JSON.parse(JSON.stringify(D))); setSyncStatus('online'); }catch(e){ setSyncStatus('error'); } }
+function save(){
+  // 只有Firebase已就绪，且有实际数据时才保存
+  if(!_firebaseReady) return;
+  setSyncStatus('syncing');
+  clearTimeout(_t);
+  _t = setTimeout(pushData, 800);
+}
+
+async function pushData() {
+  // 双重保护：空商品列表时绝不覆盖写入
+  if(!D.products || D.products.length === 0){
+    // 先检查Firebase里是否有有效数据
+    try {
+      const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const snap = await getDoc(docRef);
+      if(snap.exists() && snap.data().products?.length > 0){
+        // Firebase有数据，本地是空的，说明可能是读取时序问题，不覆盖
+        D = {...defaultData(), ...snap.data()};
+        if(!D.outbounds) D.outbounds=[];
+        render();
+        setSyncStatus('online');
+        return;
+      }
+    } catch(e){}
+  }
+  try {
+    await setDoc(docRef, JSON.parse(JSON.stringify(D)));
+    setSyncStatus('online');
+  } catch(e){ setSyncStatus('error'); }
+}
 window.resetConfig = ()=>{ if(confirm('重置？')) location.reload(); };
 
 // ===== 库存计算 =====
