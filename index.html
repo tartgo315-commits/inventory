@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v2.0 · 2026-03-20 15:30</div>
+      <div>v2.1 · 2026-03-20 16:00</div>
       <div>数据保护 · FIFO成本 · 云同步</div>
     </div>
   </div>
@@ -277,8 +277,29 @@ input::placeholder{color:var(--text3)}
 
   <div class="card">
     <div class="card-title">新建采购单</div>
-    <div class="form-grid form-grid-4">
-      <div class="fg"><label>选择商品</label><select id="pur-product"></select></div>
+
+    <!-- 商品选择或新建 -->
+    <div class="form-grid" style="margin-bottom:10px">
+      <div class="fg">
+        <label>选择已有商品</label>
+        <select id="pur-product" onchange="toggleNewProduct()"></select>
+      </div>
+      <div class="fg" style="justify-content:flex-end;padding-top:22px">
+        <button class="btn btn-ghost btn-sm" onclick="toggleNewProduct('new')" id="btn-new-product" style="color:var(--primary);border-color:var(--primary)">＋ 这是新品，直接创建</button>
+      </div>
+    </div>
+
+    <!-- 新品信息（默认隐藏） -->
+    <div id="new-product-fields" style="display:none;background:var(--primary-bg);border:1.5px solid var(--primary-light);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px">📦 新商品信息</div>
+      <div class="form-grid form-grid-3">
+        <div class="fg"><label>商品名称 *</label><input type="text" id="new-p-name" placeholder="从书签自动填入或手动填写"></div>
+        <div class="fg"><label>SKU编码（可选）</label><input type="text" id="new-p-sku" placeholder="CASE-001"></div>
+        <div class="fg"><label>Temu售价（¥）</label><input type="number" id="new-p-price" placeholder="65.00" step="0.01"></div>
+      </div>
+    </div>
+
+    <div class="form-grid form-grid-3">
       <div class="fg"><label>采购数量</label><input type="number" id="pur-qty" placeholder="100" min="1" oninput="updateCostPreview()"></div>
       <div class="fg"><label>单件进价（¥）</label><input type="number" id="pur-price" placeholder="21.85" step="0.01" min="0" oninput="updateCostPreview()"></div>
       <div class="fg"><label>这批总运费（¥，自动均摊）</label><input type="number" id="pur-ship-total" placeholder="50.00" step="0.01" min="0" oninput="updateCostPreview()"></div>
@@ -286,16 +307,25 @@ input::placeholder{color:var(--text3)}
     <div class="form-grid form-grid-3">
       <div class="fg"><label>快递单号（可选）</label><input type="text" id="pur-tracking" placeholder="SF1234567890123"></div>
       <div class="fg"><label>1688订单号（可选）</label><input type="text" id="pur-order" placeholder="1688-xxxxxxxx"></div>
-      <div class="fg"><label>1688商品链接（可选，下次补货用）</label><input type="text" id="pur-link" placeholder="https://detail.1688.com/offer/..."></div>
+      <div class="fg"><label>1688商品链接</label><input type="text" id="pur-link" placeholder="https://detail.1688.com/offer/..."></div>
     </div>
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-      <div id="pur-img-preview" style="width:60px;height:60px;border-radius:8px;border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text3);overflow:hidden;flex-shrink:0;background:var(--bg)">📷</div>
-      <label class="btn btn-ghost btn-sm" style="cursor:pointer">
-        📁 上传商品图片（可选）
-        <input type="file" id="pur-img-file" accept="image/*" style="display:none" onchange="handlePurImg(this)">
-      </label>
-      <span style="font-size:11px;color:var(--text3)">图片存在本地，无需网络链接</span>
+
+    <!-- 图片上传区：更明显 -->
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:700;color:var(--text2);display:block;margin-bottom:8px">商品图片</label>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div id="pur-img-preview" onclick="document.getElementById('pur-img-file').click()" style="width:90px;height:90px;border-radius:var(--radius-sm);border:2px dashed var(--primary-light);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:24px;color:var(--primary);overflow:hidden;flex-shrink:0;background:var(--primary-bg);cursor:pointer;transition:all .15s" title="点击上传或Ctrl+V粘贴">
+          📷
+          <span style="font-size:10px;margin-top:4px;color:var(--primary)">点击上传</span>
+        </div>
+        <div style="font-size:12px;color:var(--text2);line-height:2">
+          <div>📁 <label style="color:var(--primary);cursor:pointer;text-decoration:underline">选择图片文件<input type="file" id="pur-img-file" accept="image/*" style="display:none" onchange="handlePurImg(this)"></label></div>
+          <div>📋 在1688右键主图 → 复制图片 → <strong>Ctrl+V</strong> 粘贴</div>
+          <div style="color:var(--text3)">图片会压缩存储，不依赖外部链接</div>
+        </div>
+      </div>
     </div>
+
     <div class="btns">
       <button class="btn btn-primary" onclick="addPurchase()">确认下单（在途）</button>
       <div class="cost-preview" id="pur-cost-preview" style="flex:1;max-width:320px">填写数量+进价+运费后显示单件成本</div>
@@ -992,7 +1022,14 @@ function handleBookmarkParams() {
       const matched = D.products.find(p =>
         p.name.includes(bName.slice(0,6)) || bName.includes(p.name.slice(0,6))
       );
-      if (matched) document.getElementById('pur-product').value = matched.id;
+      if (matched) {
+        document.getElementById('pur-product').value = matched.id;
+      } else {
+        // 没有匹配商品，自动切换到新品模式并填入名称
+        window.toggleNewProduct('new');
+        const nameEl = document.getElementById('new-p-name');
+        if(nameEl) nameEl.value = bName;
+      }
     }
     // 显示提示
     const resultEl = document.getElementById('parse-result');
@@ -1137,8 +1174,43 @@ window.deleteProduct = function(id){
   D.products=D.products.filter(p=>p.id!=id); save(); render();
 };
 
+window.toggleNewProduct = function(force) {
+  const fields = document.getElementById('new-product-fields');
+  const sel = document.getElementById('pur-product');
+  const btn = document.getElementById('btn-new-product');
+  if(!fields||!sel||!btn) return;
+  const showNew = force==='new' || (force===undefined && fields.style.display==='none');
+  if(showNew){
+    fields.style.display='block';
+    sel.disabled=true; sel.style.opacity='.4';
+    btn.textContent='← 选择已有商品';
+    btn.onclick=()=>window.toggleNewProduct('existing');
+  } else {
+    fields.style.display='none';
+    sel.disabled=false; sel.style.opacity='1';
+    btn.textContent='＋ 这是新品，直接创建';
+    btn.onclick=()=>window.toggleNewProduct('new');
+  }
+};
+
 window.addPurchase = function(){
-  const pid=parseInt(document.getElementById('pur-product').value);
+  const isNew = document.getElementById('new-product-fields') &&
+                document.getElementById('new-product-fields').style.display !== 'none';
+  let pid;
+
+  if(isNew){
+    const name = document.getElementById('new-p-name').value.trim();
+    const sku = document.getElementById('new-p-sku').value.trim();
+    const price = parseFloat(document.getElementById('new-p-price').value)||0;
+    if(!name){ alert('请填写商品名称'); return; }
+    const np = {id:D.nextId++, name, sku:sku||'', price, stock:0};
+    D.products.push(np);
+    pid = np.id;
+  } else {
+    pid = parseInt(document.getElementById('pur-product').value);
+    if(!pid){ alert('请选择商品'); return; }
+  }
+
   const qty=parseInt(document.getElementById('pur-qty').value);
   const price=parseFloat(document.getElementById('pur-price').value);
   const shipTotal=parseFloat(document.getElementById('pur-ship-total').value)||0;
@@ -1150,15 +1222,16 @@ window.addPurchase = function(){
   const img=_purImgBase64||'';
   D.purchases.push({date:today(),pid,qty,price,shipPerUnit,shipTotal,tracking,order,link,img,status:'transit'});
   save();
-  ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link'].forEach(id=>document.getElementById(id).value='');
+  ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link',
+   'new-p-name','new-p-sku','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('pur-img-file').value='';
   _purImgBase64='';
   setPreviewEl('pur-img-preview','');
-  document.getElementById('pur-cost-preview').textContent='填写后自动显示';
+  document.getElementById('pur-cost-preview').textContent='填写数量+进价+运费后显示单件成本';
+  window.toggleNewProduct('existing');
   render();
   const p=gp(pid);
-  alert(`下单成功！${p?p.name:''} ${qty}件，单件成本¥${(price+shipPerUnit).toFixed(2)}，状态：在途${tracking?'\n已记录快递单号，将自动查询物流':''}`);
-  if(tracking){ setTimeout(()=>refreshOneTracking(D.purchases.length-1),1000); }
+  alert(`下单成功！${p?p.name:''} ${qty}件，单件成本¥${(price+shipPerUnit).toFixed(2)}，状态：在途`);
 };
 
 window.confirmReceive = function(idx){
