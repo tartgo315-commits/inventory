@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v2.1 · 2026-03-20 16:00</div>
+      <div>v2.2 · 2026-03-20 16:20</div>
       <div>数据保护 · FIFO成本 · 云同步</div>
     </div>
   </div>
@@ -310,19 +310,21 @@ input::placeholder{color:var(--text3)}
       <div class="fg"><label>1688商品链接</label><input type="text" id="pur-link" placeholder="https://detail.1688.com/offer/..."></div>
     </div>
 
-    <!-- 图片上传区：更明显 -->
+    <!-- 图片上传区 -->
     <div style="margin-bottom:14px">
       <label style="font-size:12px;font-weight:700;color:var(--text2);display:block;margin-bottom:8px">商品图片</label>
-      <div style="display:flex;align-items:center;gap:12px">
-        <div id="pur-img-preview" onclick="document.getElementById('pur-img-file').click()" style="width:90px;height:90px;border-radius:var(--radius-sm);border:2px dashed var(--primary-light);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:24px;color:var(--primary);overflow:hidden;flex-shrink:0;background:var(--primary-bg);cursor:pointer;transition:all .15s" title="点击上传或Ctrl+V粘贴">
-          📷
-          <span style="font-size:10px;margin-top:4px;color:var(--primary)">点击上传</span>
+      <div id="pur-img-drop" onclick="document.getElementById('pur-img-file').click()"
+        style="width:100%;min-height:100px;border-radius:var(--radius-sm);border:2px dashed var(--primary-light);display:flex;align-items:center;justify-content:center;gap:20px;background:var(--primary-bg);cursor:pointer;transition:all .15s;padding:16px"
+        ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
+        ondragleave="this.style.borderColor='var(--primary-light)'"
+        ondrop="handleImgDrop(event)">
+        <div id="pur-img-preview" style="width:80px;height:80px;border-radius:var(--radius-sm);border:1px solid var(--border);overflow:hidden;flex-shrink:0;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px">📷</div>
+        <div style="font-size:13px;color:var(--text2);line-height:2.2">
+          <div style="font-weight:600;color:var(--primary);font-size:14px">点这里上传 / 拖拽图片到这里</div>
+          <div>📋 或者：1688右键主图 → 复制图片 → <strong>Ctrl+V</strong> 粘贴</div>
+          <div style="color:var(--text3);font-size:12px">支持 JPG、PNG，图片自动压缩存储</div>
         </div>
-        <div style="font-size:12px;color:var(--text2);line-height:2">
-          <div>📁 <label style="color:var(--primary);cursor:pointer;text-decoration:underline">选择图片文件<input type="file" id="pur-img-file" accept="image/*" style="display:none" onchange="handlePurImg(this)"></label></div>
-          <div>📋 在1688右键主图 → 复制图片 → <strong>Ctrl+V</strong> 粘贴</div>
-          <div style="color:var(--text3)">图片会压缩存储，不依赖外部链接</div>
-        </div>
+        <input type="file" id="pur-img-file" accept="image/*" style="display:none" onchange="handlePurImg(this)">
       </div>
     </div>
 
@@ -1084,6 +1086,19 @@ function setPreviewEl(elId, base64) {
     el.textContent = '📷';
   }
 }
+
+window.handleImgDrop = function(e) {
+  e.preventDefault();
+  const drop = document.getElementById('pur-img-drop');
+  if(drop) drop.style.borderColor = 'var(--primary-light)';
+  const file = e.dataTransfer.files[0];
+  if(file && file.type.startsWith('image/')) {
+    compressImage(file, 600, function(base64){
+      _purImgBase64 = base64;
+      setPreviewEl('pur-img-preview', base64);
+    });
+  }
+};
 
 window.handlePurImg = function(input) {
   const file = input.files[0]; if(!file) return;
