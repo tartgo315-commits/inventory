@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v2.2 · 2026-03-20 16:20</div>
+      <div>v2.3 · 2026-03-20 17:00</div>
       <div>数据保护 · FIFO成本 · 云同步</div>
     </div>
   </div>
@@ -1003,43 +1003,85 @@ window.smartParse = function() {
 // ===== 书签脚本：接收URL参数自动填表 =====
 function handleBookmarkParams() {
   const params = new URLSearchParams(window.location.search);
+  const source = params.get('source');
   const bName = params.get('name');
   const bPrice = params.get('price');
   const bLink = params.get('link');
-  if (!bName && !bPrice) return;
+  const bQty = params.get('qty');
+  const bShipTotal = params.get('shipTotal');
+  const bPaid = params.get('paid');
+  const bOrderId = params.get('orderId');
 
-  // 跳转到进货页面
+  if (!bName && !bPrice) return;
   showPage('purchase');
 
   setTimeout(() => {
-    if (bPrice) {
-      document.getElementById('pur-price').value = bPrice;
-      updateCostPreview();
-    }
-    if (bLink) {
-      document.getElementById('pur-link').value = bLink;
-    }
+    const qty = parseInt(bQty)||1;
+    const paid = parseFloat(bPaid)||0;
+    const shipTotal = parseFloat(bShipTotal)||0;
+    const unitPrice = parseFloat(bPrice)||0;
+    const unitShip = qty > 0 ? shipTotal/qty : 0;
+    const totalCost = unitPrice + unitShip;
+
+    if (bPrice) document.getElementById('pur-price').value = unitPrice.toFixed(2);
+    if (bShipTotal) document.getElementById('pur-ship-total').value = shipTotal.toFixed(2);
+    if (bQty) document.getElementById('pur-qty').value = qty;
+    if (bLink) document.getElementById('pur-link').value = bLink;
+    if (bOrderId) document.getElementById('pur-order').value = bOrderId;
+    updateCostPreview();
+
     if (bName) {
-      // 尝试匹配已有商品
       const matched = D.products.find(p =>
         p.name.includes(bName.slice(0,6)) || bName.includes(p.name.slice(0,6))
       );
       if (matched) {
         document.getElementById('pur-product').value = matched.id;
+        window.toggleNewProduct('existing');
       } else {
-        // 没有匹配商品，自动切换到新品模式并填入名称
         window.toggleNewProduct('new');
         const nameEl = document.getElementById('new-p-name');
         if(nameEl) nameEl.value = bName;
       }
     }
-    // 显示提示
+
     const resultEl = document.getElementById('parse-result');
-    if (resultEl) resultEl.innerHTML = `
-      <div style="padding:10px 12px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:13px">
+    if (resultEl && source === 'order') {
+      resultEl.innerHTML = `
+        <div style="padding:14px 16px;background:#fff;border-radius:8px;border:1px solid var(--border)">
+          <div style="font-weight:700;color:var(--primary);margin-bottom:10px;font-size:14px">✅ 从1688订单自动填入 — 请确认后点「确认下单」</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+            <div style="background:var(--bg);border-radius:6px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">采购数量</div>
+              <div style="font-size:20px;font-weight:800">${qty}件</div>
+            </div>
+            <div style="background:var(--bg);border-radius:6px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">单件进价</div>
+              <div style="font-size:20px;font-weight:800">¥${unitPrice.toFixed(2)}</div>
+            </div>
+            <div style="background:var(--bg);border-radius:6px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">总运费</div>
+              <div style="font-size:20px;font-weight:800">¥${shipTotal.toFixed(2)}</div>
+            </div>
+            <div style="background:var(--bg);border-radius:6px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">单件运费</div>
+              <div style="font-size:20px;font-weight:800">¥${unitShip.toFixed(2)}</div>
+            </div>
+            <div style="background:var(--primary-bg);border-radius:6px;padding:10px;text-align:center;border:1.5px solid var(--primary-light)">
+              <div style="font-size:11px;color:var(--primary);margin-bottom:4px">单件总成本</div>
+              <div style="font-size:20px;font-weight:800;color:var(--primary)">¥${totalCost.toFixed(2)}</div>
+            </div>
+            <div style="background:var(--bg);border-radius:6px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">实付总额</div>
+              <div style="font-size:20px;font-weight:800">¥${paid.toFixed(2)}</div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--text3)">💡 图片：回到1688订单页右键商品图 → 复制图片 → 回来 Ctrl+V 粘贴</div>
+        </div>`;
+    } else if (resultEl) {
+      resultEl.innerHTML = `<div style="padding:10px 12px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:13px">
         ✅ 书签自动填入：${bName?`<strong>${bName.slice(0,30)}</strong>`:''}${bPrice?` · ¥${bPrice}`:''}
       </div>`;
-    // 清理URL参数
+    }
     window.history.replaceState({}, '', window.location.pathname);
   }, 800);
 }
