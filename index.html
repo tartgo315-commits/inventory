@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v3.8 · 2026-03-21 15:00</div>
+      <div>v3.9 · 2026-03-21 15:20</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
   </div>
@@ -483,6 +483,30 @@ input::placeholder{color:var(--text3)}
 
 </div>
 </div><!-- /main-wrap -->
+
+<!-- 添加型号入库弹窗 -->
+<div id="add-spec-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span id="add-spec-title">添加型号入库</span>
+      <button class="modal-close" onclick="document.getElementById('add-spec-modal').style.display='none'">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="fg"><label>型号名称 *</label><input type="text" id="as-spec-name" placeholder="如：530型-20mm内径大孔-17齿"></div>
+      <div class="fg"><label>采购数量 *</label><input type="number" id="as-qty" placeholder="5" min="1"></div>
+      <div class="fg"><label>单件进价（¥）*</label><input type="number" id="as-price" placeholder="8.00" step="0.01" min="0"></div>
+      <div class="fg"><label>这批总运费（¥）</label><input type="number" id="as-ship" placeholder="0.00" step="0.01" min="0"></div>
+      <div class="fg"><label>快递单号（可选）</label><input type="text" id="as-tracking" placeholder="SF1234567890"></div>
+      <div class="fg"><label>1688订单号（可选）</label><input type="text" id="as-order"></div>
+    </div>
+    <input type="hidden" id="as-pid">
+    <div class="btns">
+      <button class="btn btn-success" onclick="saveAddSpecPurchase('received')">货已到 直接入库</button>
+      <button class="btn btn-primary" onclick="saveAddSpecPurchase('transit')">确认下单（在途）</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('add-spec-modal').style.display='none'">取消</button>
+    </div>
+  </div>
+</div>
 
 <!-- 编辑进货弹窗 -->
 <div id="edit-modal" class="modal-mask" style="display:none" onclick="closeEditModal(event)">
@@ -912,6 +936,7 @@ function renderPurchaseTable(){
           <span style="font-size:13px;font-weight:700">${productLink('',p?p.name:'已删除商品')}</span>
           <span style="font-size:12px;color:var(--text3)">${records.length}个型号 · 共${totalQty}件 · ¥${totalAmt.toFixed(2)}</span>
           ${statusBadge}
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openAddSpecPurchase(${pid})" style="margin-left:8px">+ 添加型号入库</button>
           <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="${groupId}-arrow">▼ 展开</span>
         </div>
       </td>
@@ -947,6 +972,51 @@ function renderPurchaseTable(){
   });
   tbody.innerHTML=html;
 }
+
+window.openAddSpecPurchase = function(pid) {
+  const p = gp(pid); if(!p) return;
+  document.getElementById('as-pid').value = pid;
+  document.getElementById('add-spec-title').textContent = '添加型号入库 — ' + p.name.slice(0,20)+'...';
+  ['as-spec-name','as-qty','as-price','as-ship','as-tracking','as-order'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('add-spec-modal').style.display='flex';
+  setTimeout(()=>document.getElementById('as-spec-name').focus(),100);
+};
+
+window.saveAddSpecPurchase = function(status) {
+  const pid = parseInt(document.getElementById('as-pid').value);
+  const p = gp(pid); if(!p) return;
+  const specName = document.getElementById('as-spec-name').value.trim();
+  const qty = parseInt(document.getElementById('as-qty').value);
+  const price = parseFloat(document.getElementById('as-price').value);
+  const shipTotal = parseFloat(document.getElementById('as-ship').value)||0;
+  const tracking = document.getElementById('as-tracking').value.trim();
+  const order = document.getElementById('as-order').value.trim();
+
+  if(!specName){alert('请填写型号名称');return;}
+  if(!qty||isNaN(price)||price<0){alert('请填写数量和进价');return;}
+
+  // 找或建型号
+  if(!p.specs) p.specs=[];
+  if(!D.nextSid) D.nextSid=100;
+  let spec = p.specs.find(s=>s.name===specName);
+  if(!spec){
+    spec = {sid:D.nextSid++, name:specName, price:0, sku:''};
+    p.specs.push(spec);
+  }
+
+  const shipPerUnit = qty>0?shipTotal/qty:0;
+  const record = {
+    date:today(), pid, sid:spec.sid, qty, price, shipPerUnit, shipTotal,
+    tracking, order, link:'', img:'', status
+  };
+  if(status==='received'){ record.receivedQty=qty; record.receivedDate=today(); }
+  D.purchases.push(record);
+  save(); render();
+  document.getElementById('add-spec-modal').style.display='none';
+  alert(`✅ ${status==='received'?'入库':'下单'}成功！${p.name.slice(0,15)} · ${specName} ${qty}件`);
+};
 
 window.togglePurchaseGroup = function(groupId){
   const rows=document.querySelectorAll('.'+groupId+'-row');
