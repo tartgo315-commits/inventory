@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v3.0 · 2026-03-21 11:30</div>
+      <div>v3.1 · 2026-03-21 12:00</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
   </div>
@@ -1115,20 +1115,31 @@ window.smartParse = function() {
     if (goods.length===1) {
       fillFromGoods(goods[0]);
     } else {
-      // 多商品：显示选择卡片
-      resultEl.innerHTML=`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px">
-        <div style="font-weight:700;color:var(--primary);margin-bottom:10px">识别到 ${goods.length} 个商品，点击选择要导入的：</div>
-        ${goods.map((g,i)=>`
-          <div onclick="fillFromGoods(window._parsedGoods[${i}])" style="padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .15s"
-            onmouseover="this.style.borderColor='var(--primary)';this.style.background='var(--primary-bg)'"
-            onmouseout="this.style.borderColor='var(--border)';this.style.background=''">
-            <div style="font-weight:600;font-size:13px">${g.name.slice(0,50)}</div>
-            ${g.spec?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${g.spec}</div>`:''}
-            <div style="font-size:14px;font-weight:800;color:var(--primary);margin-top:4px">¥${g.price.toFixed(2)} × ${g.qty}件</div>
-          </div>`).join('')}
-        <button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
-      </div>`;
+      // 多商品：全部显示，支持批量导入
       window._parsedGoods = goods;
+      resultEl.innerHTML=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-weight:700;color:var(--primary);font-size:14px">✅ 识别到 ${goods.length} 个商品</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="importAllGoods()">📦 全部导入（${goods.length}个）</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
+          </div>
+        </div>
+        <div style="display:grid;gap:8px">
+          ${goods.map((g,i)=>`
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name.slice(0,50)}</div>
+                ${g.spec?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${g.spec}</div>`:''}
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-weight:800;color:var(--primary)">¥${g.price.toFixed(2)} × ${g.qty}件</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="fillFromGoods(window._parsedGoods[${i}])">单独导入</button>
+            </div>`).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:10px">「全部导入」会直接建立库存记录，运费按订单总运费均摊</div>
+      </div>`;
     }
 
   } else {
@@ -1156,6 +1167,50 @@ window.smartParse = function() {
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
     </div>`;
   }
+};
+
+window.importAllGoods = function() {
+  const goods = window._parsedGoods;
+  if(!goods||!goods.length) return;
+  let imported=0;
+  goods.forEach(g=>{
+    // 匹配已有产品
+    let pid, sid=0;
+    const matched = D.products.find(p=>p.name.includes(g.name.slice(0,6))||g.name.includes(p.name.slice(0,6)));
+    if(matched){
+      pid=matched.id;
+      // 匹配型号
+      if(g.spec&&matched.specs){
+        const ms=matched.specs.find(s=>s.name.includes(g.spec.slice(0,4))||g.spec.includes(s.name.slice(0,4)));
+        if(ms) sid=ms.sid;
+      }
+    } else {
+      // 新建产品
+      if(!D.nextSid) D.nextSid=100;
+      const np={id:D.nextId++,name:g.name,sku:'',price:0,specs:[]};
+      if(g.spec){
+        np.specs.push({sid:D.nextSid++,name:g.spec,price:0,sku:''});
+        sid=np.specs[0].sid;
+      }
+      D.products.push(np);
+      pid=np.id;
+    }
+    const shipPerUnit=g.qty>0?(g.ship||0)/g.qty:0;
+    const record={
+      date:today(),pid,sid,qty:g.qty,price:g.price,
+      shipPerUnit,shipTotal:g.ship||0,
+      tracking:'',order:g.orderId||'',link:'',img:'',
+      status:'received',receivedQty:g.qty,receivedDate:today()
+    };
+    D.purchases.push(record);
+    imported++;
+  });
+  save(); render();
+  document.getElementById('paste-input').value='';
+  document.getElementById('parse-result').innerHTML=`
+    <div style="padding:12px 14px;background:var(--green-bg);border:1px solid var(--green-light);border-radius:8px;font-size:13px;color:var(--green);font-weight:600">
+      ✅ 成功导入 ${imported} 个商品并直接入库！请去「商品管理」补充Temu售价和图片。
+    </div>`;
 };
 
 window.fillFromGoods = function(g) {
