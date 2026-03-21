@@ -211,6 +211,9 @@ input::placeholder{color:var(--text3)}
     <button class="nav-item" onclick="showPage('sales')"><span class="nav-icon">💰</span><span>Temu销售</span></button>
     <div class="nav-section">管理</div>
     <button class="nav-item" onclick="showPage('products')"><span class="nav-icon">🏷️</span><span>商品管理</span></button>
+    <button class="nav-item" onclick="showPage('supplier')"><span class="nav-icon">🏭</span><span>供应商</span></button>
+    <button class="nav-item" onclick="showPage('stocktake')"><span class="nav-icon">📋</span><span>库存盘点</span></button>
+    <button class="nav-item" onclick="showPage('returns')"><span class="nav-icon">↩️</span><span>退货记录</span></button>
     <button class="nav-item" onclick="showPage('backup')"><span class="nav-icon">💾</span><span>备份/恢复</span></button>
     <button class="nav-item" onclick="showPage('settings')"><span class="nav-icon">⚙️</span><span>设置</span></button>
   </nav>
@@ -220,8 +223,8 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v4.0 · 2026-03-21 16:00</div>
-      <div>产品型号图片 · 型号编辑 · 全面完善</div>
+      <div>v4.1 · 2026-03-21 16:30</div>
+      <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
   </div>
@@ -439,6 +442,78 @@ input::placeholder{color:var(--text3)}
       </div>
     </div>
     <div id="products-list"></div>
+  </div>
+</div>
+
+<!-- 供应商管理 -->
+<div id="page-supplier" class="page">
+  <div class="card">
+    <div class="card-title">新增供应商</div>
+    <div class="form-grid form-grid-3">
+      <div class="fg"><label>供应商名称 *</label><input type="text" id="sup-name" placeholder="永康市三毅贸易有限公司"></div>
+      <div class="fg"><label>联系人</label><input type="text" id="sup-contact" placeholder="张三"></div>
+      <div class="fg"><label>联系电话</label><input type="text" id="sup-phone" placeholder="13800138000"></div>
+      <div class="fg"><label>1688店铺链接</label><input type="text" id="sup-link" placeholder="https://shop.1688.com/..."></div>
+      <div class="fg"><label>主营品类</label><input type="text" id="sup-category" placeholder="摩托车配件"></div>
+      <div class="fg"><label>备注</label><input type="text" id="sup-note" placeholder="合作备注"></div>
+    </div>
+    <div class="btns"><button class="btn btn-primary" onclick="addSupplier()">保存供应商</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">供应商列表 <span class="c-muted" style="font-size:12px;font-weight:400" id="sup-total"></span></div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>供应商名称</th><th>联系人</th><th>电话</th><th>主营品类</th><th>采购次数</th><th>采购总额(¥)</th><th>1688链接</th><th>备注</th><th>操作</th>
+    </tr></thead><tbody id="supplier-table"></tbody></table></div>
+  </div>
+</div>
+
+<!-- 库存盘点 -->
+<div id="page-stocktake" class="page">
+  <div class="card">
+    <div class="card-title">库存盘点</div>
+    <div class="alert alert-info">📋 盘点时填写实际库存数量，系统会自动计算差异并调整库存记录。</div>
+    <div id="stocktake-table-wrap">
+      <div class="tbl-wrap"><table><thead><tr>
+        <th>商品/型号</th><th>系统库存</th><th>实际数量</th><th>差异</th><th>备注</th>
+      </tr></thead><tbody id="stocktake-table"></tbody></table></div>
+      <div class="btns" style="margin-top:14px">
+        <button class="btn btn-primary" onclick="confirmStocktake()">确认盘点并调整库存</button>
+        <button class="btn btn-ghost" onclick="renderStocktakeTable()">重置</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">盘点历史</div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>日期</th><th>商品/型号</th><th>调整前</th><th>调整后</th><th>差异</th><th>备注</th>
+    </tr></thead><tbody id="stocktake-history"></tbody></table></div>
+  </div>
+</div>
+
+<!-- 退货记录 -->
+<div id="page-returns" class="page">
+  <div class="card">
+    <div class="card-title">录入退货</div>
+    <div class="form-grid form-grid-4">
+      <div class="fg"><label>退货类型</label>
+        <select id="ret-type">
+          <option value="purchase_return">采购退货（退给供应商）</option>
+          <option value="sales_return">销售退货（Temu买家退回）</option>
+        </select>
+      </div>
+      <div class="fg"><label>商品/型号</label><select id="ret-product"></select></div>
+      <div class="fg"><label>退货数量</label><input type="number" id="ret-qty" placeholder="1" min="1"></div>
+      <div class="fg"><label>退款金额(¥)</label><input type="number" id="ret-amount" placeholder="0.00" step="0.01"></div>
+      <div class="fg"><label>原因</label><input type="text" id="ret-reason" placeholder="质量问题/尺寸不对..."></div>
+      <div class="fg"><label>备注</label><input type="text" id="ret-note" placeholder="可选"></div>
+    </div>
+    <div class="btns"><button class="btn btn-amber" onclick="addReturn()">确认退货</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">退货记录 <span class="c-muted" style="font-size:12px;font-weight:400" id="ret-total"></span></div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>日期</th><th>类型</th><th>商品/型号</th><th>数量</th><th>退款金额(¥)</th><th>原因</th><th>备注</th><th>操作</th>
+    </tr></thead><tbody id="returns-table"></tbody></table></div>
   </div>
 </div>
 
@@ -711,7 +786,7 @@ let db, docRef;
 let D = defaultData();
 
 function defaultData() {
-  return { settings:{rate:1,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1, nextSid:1 };
+  return { settings:{rate:1,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1, nextSid:1, suppliers:[], returns:[], stockAdjustments:[] };
 }
 
 // 标记：Firebase数据是否已加载完成
@@ -877,8 +952,8 @@ function today(){ return new Date().toISOString().slice(0,10); }
 function calcProfitFifo(p){ const c=getFifoCostPerUnit(p.id),rv=p.price*D.settings.rate; return rv?(rv-c)/rv*100:0; }
 
 // ===== 页面切换 =====
-const PAGES=['dashboard','purchase','outbound','sales','products','backup','settings'];
-const PAGE_TITLES={'dashboard':'总览','purchase':'进货 / 入库','outbound':'出库到Temu','sales':'Temu销售','products':'商品管理','backup':'备份/恢复','settings':'设置'};
+const PAGES=['dashboard','purchase','outbound','sales','products','supplier','stocktake','returns','backup','settings'];
+const PAGE_TITLES={'dashboard':'总览','purchase':'进货 / 入库','outbound':'出库到Temu','sales':'Temu销售','products':'商品管理','supplier':'供应商管理','stocktake':'库存盘点','returns':'退货记录','backup':'备份/恢复','settings':'设置'};
 window.showPage = function(name){
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
@@ -891,10 +966,12 @@ window.showPage = function(name){
 
 // ===== 渲染 =====
 function render(){
-  renderFlow(); renderArrivedAlerts(); renderMetrics();
+  renderFlow(); renderArrivedAlerts(); renderMetrics(); renderMonthlyMetrics();
   renderTransitTable(); renderPurchaseTable(); renderCostStats();
   renderOutboundTable(); renderSalesTable(); renderStockTable(); renderProductsTable();
-  populateSelects();
+  renderSupplierTable(); renderStocktakeTable(); renderReturnsTable();
+  renderSalesChart();
+  populateSelects(); populateReturnSelect();
 }
 
 function renderFlow(){
@@ -2027,6 +2104,244 @@ window.deleteSale = function(idx){ if(!confirm('删除？'))return; D.sales.spli
 window.saveSettings = function(){
   const low=parseInt(document.getElementById('s-lowstock').value);
   D.settings.lowStock=low||10; save(); render(); alert('已保存');
+};
+
+// ===== 本月指标 =====
+function renderMonthlyMetrics(){
+  const el=document.getElementById('monthly-metrics'); if(!el) return;
+  const now=new Date(), ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const mSales=D.sales.filter(r=>r.date&&r.date.startsWith(ym));
+  const mPur=D.purchases.filter(r=>r.date&&r.date.startsWith(ym));
+  const mRev=mSales.reduce((s,r)=>s+r.qty*r.price,0);
+  const mCost=mSales.reduce((s,r,i)=>{ const fi=getSaleFifoCost(D.sales.indexOf(r)); return s+fi; },0);
+  const mProfit=mRev-mCost;
+  const mPurAmt=mPur.reduce((s,r)=>s+r.qty*(r.price+(r.shipPerUnit||0)),0);
+  el.innerHTML=`
+    <div class="metric"><div class="metric-label">本月销售额</div><div class="metric-val">¥${mRev.toFixed(0)}</div><div class="metric-sub">${mSales.length}笔</div></div>
+    <div class="metric"><div class="metric-label">本月毛利</div><div class="metric-val ${mProfit>=0?'c-green':'c-red'}">${mProfit>=0?'+':''}¥${mProfit.toFixed(0)}</div><div class="metric-sub">毛利率${mRev>0?(mProfit/mRev*100).toFixed(1)+'%':'-'}</div></div>
+    <div class="metric"><div class="metric-label">本月采购额</div><div class="metric-val">¥${mPurAmt.toFixed(0)}</div><div class="metric-sub">${mPur.length}批次</div></div>
+    <div class="metric"><div class="metric-label">退货次数</div><div class="metric-val">${(D.returns||[]).filter(r=>r.date&&r.date.startsWith(ym)).length}</div><div class="metric-sub">本月</div></div>`;
+}
+
+// ===== 销售趋势图 =====
+function renderSalesChart(){
+  const canvas=document.getElementById('sales-chart'); if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  // 近30天
+  const days=[];
+  const now=new Date();
+  for(let i=29;i>=0;i--){
+    const d=new Date(now); d.setDate(d.getDate()-i);
+    days.push(d.toISOString().slice(0,10));
+  }
+  const data=days.map(d=>D.sales.filter(r=>r.date===d).reduce((s,r)=>s+r.qty*r.price,0));
+  const maxVal=Math.max(...data,1);
+  const w=canvas.offsetWidth||800, h=80;
+  canvas.width=w; canvas.height=h;
+  ctx.clearRect(0,0,w,h);
+  const barW=Math.floor(w/30)-2;
+  data.forEach((v,i)=>{
+    const barH=Math.max(2,Math.round(v/maxVal*(h-20)));
+    const x=i*(barW+2)+2;
+    ctx.fillStyle=v>0?'#4f46e5':'#e8eaed';
+    ctx.fillRect(x,h-barH-15,barW,barH);
+    if(i%5===0){
+      ctx.fillStyle='#9ca3af'; ctx.font='10px sans-serif';
+      ctx.fillText(days[i].slice(5),x,h-2);
+    }
+  });
+}
+
+// ===== 供应商管理 =====
+window.addSupplier = function(){
+  const name=document.getElementById('sup-name').value.trim();
+  if(!name){alert('请填写供应商名称');return;}
+  if(!D.suppliers) D.suppliers=[];
+  D.suppliers.push({
+    id:D.nextId++,
+    name,
+    contact:document.getElementById('sup-contact').value.trim(),
+    phone:document.getElementById('sup-phone').value.trim(),
+    link:document.getElementById('sup-link').value.trim(),
+    category:document.getElementById('sup-category').value.trim(),
+    note:document.getElementById('sup-note').value.trim(),
+    date:today()
+  });
+  save();
+  ['sup-name','sup-contact','sup-phone','sup-link','sup-category','sup-note'].forEach(id=>document.getElementById(id).value='');
+  render();
+};
+
+function renderSupplierTable(){
+  if(!D.suppliers) D.suppliers=[];
+  const el=document.getElementById('sup-total'); if(el) el.textContent=`共${D.suppliers.length}家`;
+  const tbody=document.getElementById('supplier-table'); if(!tbody) return;
+  tbody.innerHTML=D.suppliers.map((s,i)=>{
+    // 统计该供应商的采购次数和总额（匹配订单号或链接）
+    const purCount=D.purchases.filter(r=>r.order&&s.name&&r.order.includes(s.name.slice(0,4))).length;
+    return `<tr>
+      <td style="font-weight:600">${s.name}</td>
+      <td>${s.contact||'-'}</td><td>${s.phone||'-'}</td>
+      <td>${s.category||'-'}</td>
+      <td>${purCount}</td><td>-</td>
+      <td>${s.link?`<a href="${s.link}" target="_blank" style="color:var(--primary)">查看店铺↗</a>`:'-'}</td>
+      <td class="c-muted">${s.note||'-'}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSupplier(${i})">删除</button></td>
+    </tr>`;
+  }).join('');
+}
+
+window.deleteSupplier = function(i){
+  if(!confirm('确认删除此供应商？'))return;
+  D.suppliers.splice(i,1); save(); render();
+};
+
+// ===== 库存盘点 =====
+function renderStocktakeTable(){
+  const tbody=document.getElementById('stocktake-table'); if(!tbody) return;
+  let rows='';
+  D.products.forEach(p=>{
+    const specs=p.specs||[];
+    if(specs.length===0){
+      const stock=getLocalStock(p.id);
+      rows+=`<tr>
+        <td>${p.name}</td>
+        <td>${stock}</td>
+        <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="0" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
+        <td class="st-diff" id="std-${p.id}-0" style="font-weight:600">0</td>
+        <td><input type="text" class="st-note" data-pid="${p.id}" data-sid="0" placeholder="盘点备注" style="width:120px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:12px"></td>
+      </tr>`;
+    } else {
+      specs.forEach(sp=>{
+        const stock=getLocalStockSpec(p.id,sp.sid);
+        rows+=`<tr>
+          <td>${p.name} <span style="color:var(--primary);font-size:12px">· ${sp.name}</span></td>
+          <td>${stock}</td>
+          <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
+          <td class="st-diff" id="std-${p.id}-${sp.sid}" style="font-weight:600">0</td>
+          <td><input type="text" class="st-note" data-pid="${p.id}" data-sid="${sp.sid}" placeholder="盘点备注" style="width:120px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:12px"></td>
+        </tr>`;
+      });
+    }
+  });
+  tbody.innerHTML=rows||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>';
+  // 监听输入变化
+  document.querySelectorAll('.st-input').forEach(inp=>{
+    inp.oninput=function(){
+      const pid=this.dataset.pid, sid=this.dataset.sid;
+      const sys=sid=='0'?getLocalStock(pid):getLocalStockSpec(pid,sid);
+      const actual=parseInt(this.value)||0;
+      const diff=actual-sys;
+      const diffEl=document.getElementById(`std-${pid}-${sid}`);
+      if(diffEl){ diffEl.textContent=(diff>0?'+':'')+diff; diffEl.style.color=diff===0?'var(--text3)':diff>0?'var(--green)':'var(--red)'; }
+    };
+  });
+}
+
+window.confirmStocktake = function(){
+  const inputs=document.querySelectorAll('.st-input');
+  const notes=document.querySelectorAll('.st-note');
+  const adjustments=[];
+  inputs.forEach((inp,i)=>{
+    const pid=inp.dataset.pid, sid=parseInt(inp.dataset.sid)||0;
+    const actual=parseInt(inp.value)||0;
+    const sys=sid===0?getLocalStock(pid):getLocalStockSpec(pid,sid);
+    if(actual!==sys){
+      const diff=actual-sys;
+      const note=notes[i]?notes[i].value:'';
+      adjustments.push({pid,sid,sys,actual,diff,note,date:today()});
+      // 用一条库存调整记录修正
+      D.purchases.push({
+        date:today(),pid,sid:sid||0,qty:Math.abs(diff),
+        price:0,shipPerUnit:0,shipTotal:0,
+        tracking:'',order:'盘点调整',link:'',img:'',
+        status:'received',receivedQty:Math.abs(diff),receivedDate:today(),
+        isAdjustment:true,adjustDiff:diff
+      });
+    }
+  });
+  if(!adjustments.length){ alert('没有需要调整的库存'); return; }
+  if(!D.stockAdjustments) D.stockAdjustments=[];
+  D.stockAdjustments.push(...adjustments);
+  save(); render();
+  alert(`✅ 盘点完成，共调整 ${adjustments.length} 个商品库存`);
+};
+
+function renderStocktakeHistory(){
+  const tbody=document.getElementById('stocktake-history'); if(!tbody) return;
+  const adj=D.stockAdjustments||[];
+  tbody.innerHTML=adj.slice().reverse().map(a=>{
+    const p=gp(a.pid), sp=gs(a.pid,a.sid);
+    const name=p?(sp?p.name+' · '+sp.name:p.name):'已删除';
+    return `<tr>
+      <td>${a.date}</td><td>${name}</td>
+      <td>${a.sys}</td><td>${a.actual}</td>
+      <td style="color:${a.diff>0?'var(--green)':'var(--red)';font-weight:600}">${a.diff>0?'+':''}${a.diff}</td>
+      <td class="c-muted">${a.note||'-'}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">暂无盘点记录</td></tr>';
+}
+
+// ===== 退货管理 =====
+function populateReturnSelect(){
+  const sel=document.getElementById('ret-product'); if(!sel) return;
+  let opts='';
+  D.products.forEach(p=>{
+    const specs=p.specs||[];
+    if(!specs.length) opts+=`<option value="${p.id}|0">${p.name}</option>`;
+    else specs.forEach(sp=>opts+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}</option>`);
+  });
+  sel.innerHTML=opts;
+}
+
+window.addReturn = function(){
+  const type=document.getElementById('ret-type').value;
+  const val=document.getElementById('ret-product').value;
+  const parts=val.split('|');
+  const pid=parseInt(parts[0]), sid=parseInt(parts[1])||0;
+  const qty=parseInt(document.getElementById('ret-qty').value);
+  const amount=parseFloat(document.getElementById('ret-amount').value)||0;
+  const reason=document.getElementById('ret-reason').value.trim();
+  const note=document.getElementById('ret-note').value.trim();
+  if(!qty||qty<=0){alert('请填写退货数量');return;}
+  if(!D.returns) D.returns=[];
+  D.returns.push({id:D.nextId++,date:today(),type,pid,sid,qty,amount,reason,note});
+  // 退货自动调整库存
+  if(type==='sales_return'){
+    // 销售退货：Temu退回，增加Temu库存（减少销售记录）
+    D.sales.push({date:today(),pid,sid,qty:-qty,price:amount/qty||0,order:'退货退回',isReturn:true});
+  } else {
+    // 采购退货：退给供应商，减少本地库存
+    D.purchases.push({date:today(),pid,sid,qty:qty,price:0,shipPerUnit:0,shipTotal:0,
+      tracking:'',order:'采购退货',link:'',img:'',
+      status:'received',receivedQty:-qty,receivedDate:today(),isReturn:true});
+  }
+  save();
+  ['ret-qty','ret-amount','ret-reason','ret-note'].forEach(id=>document.getElementById(id).value='');
+  render();
+  alert(`✅ 退货记录已保存，库存已自动调整`);
+};
+
+function renderReturnsTable(){
+  if(!D.returns) D.returns=[];
+  const el=document.getElementById('ret-total'); if(el) el.textContent=`共${D.returns.length}条`;
+  const tbody=document.getElementById('returns-table'); if(!tbody) return;
+  tbody.innerHTML=D.returns.slice().reverse().map((r,i)=>{
+    const p=gp(r.pid), sp=gs(r.pid,r.sid);
+    const name=p?(sp?p.name+' · '+sp.name:p.name):'已删除';
+    const typeLabel=r.type==='sales_return'?'<span class="badge badge-info">销售退货</span>':'<span class="badge badge-warn">采购退货</span>';
+    return `<tr>
+      <td>${r.date}</td><td>${typeLabel}</td><td>${name}</td>
+      <td>${r.qty}</td><td>¥${(r.amount||0).toFixed(2)}</td>
+      <td>${r.reason||'-'}</td><td class="c-muted">${r.note||'-'}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteReturn(${D.returns.length-1-i})">删除</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">暂无退货记录</td></tr>';
+}
+
+window.deleteReturn = function(i){
+  if(!confirm('删除退货记录？注意：库存调整不会自动撤销。'))return;
+  D.returns.splice(i,1); save(); render();
 };
 
 window.clearAll = function(){
