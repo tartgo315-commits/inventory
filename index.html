@@ -220,8 +220,8 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v2.5 · 2026-03-21 10:00</div>
-      <div>数据保护 · FIFO成本 · 云同步</div>
+      <div>v3.0 · 2026-03-21 11:30</div>
+      <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
   </div>
 </div>
@@ -333,7 +333,8 @@ input::placeholder{color:var(--text3)}
     </div>
 
     <div class="btns">
-      <button class="btn btn-primary" onclick="addPurchase()">确认下单（在途）</button>
+      <button class="btn btn-primary" onclick="addPurchase('transit')">确认下单（在途）</button>
+      <button class="btn btn-success" onclick="addPurchase('received')">货已到 直接入库</button>
       <div class="cost-preview" id="pur-cost-preview" style="flex:1;max-width:320px">填写数量+进价+运费后显示单件成本</div>
     </div>
   </div>
@@ -369,17 +370,20 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">发货到Temu仓库</div>
     <div class="form-grid form-grid-4">
-      <div class="fg"><label>选择商品</label><select id="out-product"></select></div>
+      <div class="fg"><label>选择商品/型号</label><select id="out-product"></select></div>
       <div class="fg"><label>发出数量</label><input type="number" id="out-qty" placeholder="50" min="1"></div>
+      <div class="fg"><label>头程运费（¥，整批）</label><input type="number" id="out-ship" placeholder="0.00" step="0.01" min="0" oninput="updateOutCostPreview()"></div>
       <div class="fg"><label>快递/运单号（可选）</label><input type="text" id="out-tracking" placeholder="YT1234567890"></div>
-      <div class="fg"><label>备注（可选）</label><input type="text" id="out-note" placeholder="第一批发货"></div>
     </div>
-    <div class="btns"><button class="btn btn-purple" onclick="addOutbound()">确认出库发往Temu</button></div>
+    <div class="btns">
+      <button class="btn btn-purple" onclick="addOutbound()">确认出库发往Temu</button>
+      <div class="cost-preview" id="out-cost-preview" style="flex:1;max-width:320px">填写头程运费后显示单件分摊</div>
+    </div>
   </div>
   <div class="card">
     <div class="card-title">出库记录 <span class="c-muted" style="font-size:12px;font-weight:400" id="out-total"></span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>日期</th><th>商品</th><th>发出数量</th><th>运单号</th><th>备注</th><th>操作</th>
+      <th>日期</th><th>商品/型号</th><th>发出数量</th><th>头程运费</th><th>运单号</th><th>操作</th>
     </tr></thead><tbody id="outbound-table"></tbody></table></div>
   </div>
 </div>
@@ -407,20 +411,20 @@ input::placeholder{color:var(--text3)}
 <!-- 商品管理 -->
 <div id="page-products" class="page">
   <div class="card">
-    <div class="card-title">新增商品</div>
-    <div class="form-grid form-grid-4">
-      <div class="fg"><label>商品名称 *</label><input type="text" id="np-name" placeholder="428型链轮 适合越野摩托车"></div>
-      <div class="fg"><label>规格/型号</label><input type="text" id="np-spec" placeholder="428-48mm-32T"></div>
-      <div class="fg"><label>SKU编码</label><input type="text" id="np-sku" placeholder="F1002"></div>
-      <div class="fg"><label>Temu参考售价（¥）*</label><input type="number" id="np-price" placeholder="65.00" step="0.01"></div>
+    <div class="card-title">新增产品</div>
+    <div class="form-grid form-grid-3">
+      <div class="fg"><label>产品名称 *</label><input type="text" id="np-name" placeholder="420型链条套装 适合越野摩托车"></div>
+      <div class="fg"><label>SKU编码（可选）</label><input type="text" id="np-sku" placeholder="CHAIN-420"></div>
+      <div class="fg"><label>Temu参考售价（¥，可在型号里单独设置）</label><input type="number" id="np-price" placeholder="65.00" step="0.01"></div>
     </div>
-    <div class="btns"><button class="btn btn-primary" onclick="addProduct()">保存商品</button></div>
+    <div class="btns">
+      <button class="btn btn-primary" onclick="addProduct()">创建产品</button>
+      <span style="font-size:12px;color:var(--text3)">创建后在下方添加具体型号</span>
+    </div>
   </div>
   <div class="card">
-    <div class="card-title">所有商品</div>
-    <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>SKU</th><th>Temu售价(¥)</th><th>FIFO成本/件(¥)</th><th>历史均价/件(¥)</th><th>本地库存</th><th>Temu库存</th><th>利润率</th><th>操作</th>
-    </tr></thead><tbody id="products-table"></tbody></table></div>
+    <div class="card-title">所有产品</div>
+    <div id="products-list"></div>
   </div>
 </div>
 
@@ -613,7 +617,7 @@ let db, docRef;
 let D = defaultData();
 
 function defaultData() {
-  return { settings:{rate:1,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1 };
+  return { settings:{rate:1,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1, nextSid:1 };
 }
 
 // 标记：Firebase数据是否已加载完成
@@ -692,10 +696,16 @@ async function pushData() {
 }
 window.resetConfig = ()=>{ if(confirm('重置？')) location.reload(); };
 
-// ===== 库存计算 =====
+// ===== 库存计算（支持型号）=====
 function getLocalStock(pid){
   const recv=D.purchases.filter(r=>r.pid==pid&&r.status==='received').reduce((s,r)=>s+(r.receivedQty||r.qty),0);
   const sent=D.outbounds.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
+  return Math.max(0,recv-sent);
+}
+function getLocalStockSpec(pid,sid){
+  if(!sid||sid==0) return getLocalStock(pid);
+  const recv=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received').reduce((s,r)=>s+(r.receivedQty||r.qty),0);
+  const sent=D.outbounds.filter(r=>r.pid==pid&&r.sid==sid).reduce((s,r)=>s+r.qty,0);
   return Math.max(0,recv-sent);
 }
 function getTemuStock(pid){
@@ -703,13 +713,44 @@ function getTemuStock(pid){
   const sold=D.sales.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
   return Math.max(0,sent-sold);
 }
+function getTemuStockSpec(pid,sid){
+  if(!sid||sid==0) return getTemuStock(pid);
+  const sent=D.outbounds.filter(r=>r.pid==pid&&r.sid==sid).reduce((s,r)=>s+r.qty,0);
+  const sold=D.sales.filter(r=>r.pid==pid&&r.sid==sid).reduce((s,r)=>s+r.qty,0);
+  return Math.max(0,sent-sold);
+}
 function getTransitQty(pid){ return D.purchases.filter(r=>r.pid==pid&&r.status==='transit').reduce((s,r)=>s+r.qty,0); }
+function getFifoCostPerUnitSpec(pid,sid){
+  if(!sid||sid==0) return getFifoCostPerUnit(pid);
+  const q=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received').slice()
+    .sort((a,b)=>((a.receivedDate||a.date)<(b.receivedDate||b.date)?-1:1))
+    .map(r=>({qty:r.receivedQty||r.qty,unitCost:(r.price||0)+(r.shipPerUnit||0)}));
+  if(!q.length) return 0;
+  const used=D.outbounds.filter(r=>r.pid==pid&&r.sid==sid).reduce((s,r)=>s+r.qty,0);
+  let rem=used;
+  for(const b of q){ if(rem<=0)return b.unitCost; if(rem>=b.qty)rem-=b.qty; else return b.unitCost; }
+  return q[q.length-1].unitCost;
+}
 
 // ===== FIFO =====
 function buildFifoQueue(pid){
-  return D.purchases.filter(r=>r.pid==pid&&r.status==='received').slice()
+  return D.purchases.filter(r=>r.pid==pid&&!r.sid&&r.status==='received').slice()
     .sort((a,b)=>((a.receivedDate||a.date)<(b.receivedDate||b.date)?-1:1))
     .map(r=>({qty:r.receivedQty||r.qty,unitCost:(r.price||0)+(r.shipPerUnit||0)}));
+}
+function buildFifoQueueSpec(pid,sid){
+  if(!sid||sid==0) return buildFifoQueue(pid);
+  return D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received').slice()
+    .sort((a,b)=>((a.receivedDate||a.date)<(b.receivedDate||b.date)?-1:1))
+    .map(r=>({qty:r.receivedQty||r.qty,unitCost:(r.price||0)+(r.shipPerUnit||0)}));
+}
+// 头程运费分摊：出库到Temu时的运费按件计入
+function getOutboundShipPerUnit(pid,sid){
+  const obs=D.outbounds.filter(r=>r.pid==pid&&(!sid||r.sid==sid)&&r.shipPerUnit);
+  if(!obs.length) return 0;
+  const totalQty=obs.reduce((s,r)=>s+r.qty,0);
+  const totalShip=obs.reduce((s,r)=>s+(r.shipTotal||0),0);
+  return totalQty>0?totalShip/totalQty:0;
 }
 function getFifoCostPerUnit(pid){
   const q=buildFifoQueue(pid); if(!q.length) return 0;
@@ -733,6 +774,11 @@ function getWeightedAvgCost(pid){
 
 // ===== 工具 =====
 function gp(id){ return D.products.find(p=>p.id==id); }
+function gs(pid,sid){ const p=gp(pid); if(!p||!sid) return null; return (p.specs||[]).find(s=>s.sid==sid); }
+// 获取有效售价：型号售价 > 产品售价
+function getPrice(pid,sid){ const s=gs(pid,sid); if(s&&s.price>0) return s.price; const p=gp(pid); return p?p.price:0; }
+// 获取显示名称
+function getDisplayName(pid,sid){ const p=gp(pid); const s=gs(pid,sid); if(!p) return '已删除'; return s?p.name+' · '+s.name:p.name; }
 function today(){ return new Date().toISOString().slice(0,10); }
 function calcProfitFifo(p){ const c=getFifoCostPerUnit(p.id),rv=p.price*D.settings.rate; return rv?(rv-c)/rv*100:0; }
 
@@ -806,7 +852,7 @@ function renderTransitTable(){
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
     return `<tr>
       <td style="width:130px">${imgThumb(r.pid)}</td>
-      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除',p?p.spec:'')}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}${r.order?' · '+r.order:''}</div></td>
+      <td><div style="font-weight:600">${productLink(r.link,getDisplayName(r.pid,r.sid))}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}${r.order?' · '+r.order:''}</div></td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
       <td>${trackingLink(r.tracking)}</td>
@@ -831,7 +877,7 @@ function renderPurchaseTable(){
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
       <td style="width:130px">${imgThumb(r.pid)}</td>
-      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除',p?p.spec:'')}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}</div></td>
+      <td><div style="font-weight:600">${productLink(r.link,getDisplayName(r.pid,r.sid))}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}</div></td>
       <td>${r.qty}</td><td>${rqty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
@@ -887,9 +933,10 @@ function renderOutboundTable(){
   const tbody=document.getElementById('outbound-table'); if(!tbody) return;
   tbody.innerHTML=D.outbounds.slice().reverse().map((r,i)=>{
     const p=gp(r.pid),idx=D.outbounds.length-1-i;
-    return `<tr><td>${r.date}</td><td>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</td>
-      <td><strong>${r.qty}</strong></td><td class="c-muted">${r.tracking||'-'}</td>
-      <td class="c-muted">${r.note||'-'}</td>
+    return `<tr><td>${r.date}</td><td>${productLink(getProductLink(r.pid),getDisplayName(r.pid,r.sid))}</td>
+      <td><strong>${r.qty}</strong></td>
+      <td>${r.shipTotal?'¥'+r.shipTotal.toFixed(2):'<span class="c-muted">-</span>'}</td>
+      <td class="c-muted">${r.tracking||'-'}</td>
       <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteOutbound(${idx})">删除</button></td></tr>`;
   }).join('');
 }
@@ -900,8 +947,8 @@ function renderSalesTable(){
   const tbody=document.getElementById('sales-table'); if(!tbody) return;
   tbody.innerHTML=D.sales.slice().reverse().map((r,i)=>{
     const p=gp(r.pid),ri=D.sales.length-1-i,fc=getSaleFifoCost(ri),g=r.qty*r.price-fc/D.settings.rate;
-    return `<tr><td>${r.date}</td><td>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</td>
-      <td>${r.qty}</td><td>$${r.price}</td>
+    return `<tr><td>${r.date}</td><td>${productLink(getProductLink(r.pid),getDisplayName(r.pid,r.sid))}</td>
+      <td>${r.qty}</td><td>¥${r.price}</td>
       <td>¥${fc.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
       <td class="${g>=0?'c-green':'c-red'}">${g>=0?'+':''}¥${g.toFixed(2)}</td>
       <td class="c-muted">${r.order||'-'}</td>
@@ -924,22 +971,91 @@ function renderStockTable(){
 }
 
 function renderProductsTable(){
-  const tbody=document.getElementById('products-table'); if(!tbody) return;
-  tbody.innerHTML=D.products.map(p=>{
-    const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td><div class="prod-cell">${imgThumb(p.id)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.spec||'-'}</td><td class="c-muted">${p.sku||'-'}</td><td>¥${p.price}</td>
-      <td>¥${fifo.toFixed(2)}</td><td>¥${wavg.toFixed(2)}</td>
-      <td>${getLocalStock(p.id)}</td><td>${getTemuStock(p.id)}</td>
-      <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="editProduct(${p.id})">编辑</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProduct(${p.id})">删除</button></td></tr>`;
+  const el=document.getElementById('products-list'); if(!el) return;
+  if(!D.products.length){
+    el.innerHTML='<div style="text-align:center;color:var(--text3);padding:30px">还没有产品，先在上方创建</div>';
+    return;
+  }
+  el.innerHTML=D.products.map(p=>{
+    const specs=p.specs||[];
+    const totalLocal=specs.length?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
+    const totalTemu=specs.length?specs.reduce((s,sp)=>s+getTemuStockSpec(p.id,sp.sid),0):getTemuStock(p.id);
+    const specsHtml=specs.map(sp=>{
+      const local=getLocalStockSpec(p.id,sp.sid),temu=getTemuStockSpec(p.id,sp.sid);
+      const fifo=getFifoCostPerUnitSpec(p.id,sp.sid);
+      const spPrice=sp.price||p.price||0;
+      const profit=spPrice>0?((spPrice-fifo)/spPrice*100):0;
+      return `<tr style="background:#fafbfc">
+        <td style="padding-left:32px;color:var(--text2)">↳ ${sp.name}</td>
+        <td class="c-muted">${sp.sku||'-'}</td>
+        <td>${spPrice?'¥'+spPrice:'-'}</td>
+        <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+        <td><strong>${local}</strong></td><td>${temu}</td>
+        <td class="${profit>20?'c-green':'c-red'}">${spPrice?profit.toFixed(1)+'%':'-'}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSpec(${p.id},${sp.sid})">删除</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    const addSpecRow=`<tr style="background:#f0f4ff">
+      <td style="padding-left:32px" colspan="2">
+        <input type="text" id="spec-name-${p.id}" placeholder="型号名称，如 428-32T" style="width:160px;height:30px;font-size:12px;padding:0 8px;border:1px solid var(--border2);border-radius:4px">
+        <input type="number" id="spec-price-${p.id}" placeholder="售价(¥)" style="width:90px;height:30px;font-size:12px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;margin-left:6px" step="0.01" min="0">
+        <input type="text" id="spec-sku-${p.id}" placeholder="SKU" style="width:80px;height:30px;font-size:12px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;margin-left:6px">
+      </td>
+      <td colspan="6"><button class="btn btn-primary btn-sm" onclick="addSpec(${p.id})">＋ 添加型号</button></td>
+    </tr>`;
+
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:14px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border)">
+        ${imgThumb(p.id)}
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:14px">${productLink(getProductLink(p.id),p.name)}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">SKU: ${p.sku||'-'} · 默认售价: ${p.price?'¥'+p.price:'-'} · 本地库存: ${totalLocal} · Temu库存: ${totalTemu}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="editProduct(${p.id})">编辑产品</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProduct(${p.id})">删除</button>
+        </div>
+      </div>
+      ${specs.length||true?`<table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:#f5f6fa">
+          <th style="padding:8px 16px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">型号</th>
+          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">SKU</th>
+          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">售价</th>
+          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">成本</th>
+          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">本地库存</th>
+          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">Temu库存</th>
+          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">利润率</th>
+          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">操作</th>
+        </tr></thead>
+        <tbody>${specsHtml}${addSpecRow}</tbody>
+      </table>`:''}
+    </div>`;
   }).join('');
 }
 
 function populateSelects(){
-  const purO=D.products.map(p=>`<option value="${p.id}">${p.name}${p.spec?' · '+p.spec:''}</option>`).join('');
-  const outO=D.products.map(p=>`<option value="${p.id}">${p.name}${p.spec?' · '+p.spec:''}（本地${getLocalStock(p.id)}件）</option>`).join('');
-  const salO=D.products.map(p=>`<option value="${p.id}">${p.name}${p.spec?' · '+p.spec:''}（Temu${getTemuStock(p.id)}件）</option>`).join('');
+  // 展开产品+型号到选项
+  let purO='', outO='', salO='';
+  D.products.forEach(p=>{
+    const specs=p.specs||[];
+    if(specs.length===0){
+      // 无型号，直接用产品
+      purO+=`<option value="${p.id}|0">${p.name}</option>`;
+      outO+=`<option value="${p.id}|0">${p.name}（本地${getLocalStock(p.id)}件）</option>`;
+      salO+=`<option value="${p.id}|0">${p.name}（Temu${getTemuStock(p.id)}件）</option>`;
+    } else {
+      // 有型号，展开各型号
+      specs.forEach(sp=>{
+        const local=getLocalStockSpec(p.id,sp.sid), temu=getTemuStockSpec(p.id,sp.sid);
+        purO+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}</option>`;
+        outO+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}（本地${local}件）</option>`;
+        salO+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}（Temu${temu}件）</option>`;
+      });
+    }
+  });
   [['pur-product',purO],['out-product',outO],['sale-product',salO]].forEach(([id,o])=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});
 }
 
@@ -1272,20 +1388,42 @@ window.updateCostPreview = function(){
 
 window.addProduct = function(){
   const name=document.getElementById('np-name').value.trim();
-  const spec=document.getElementById('np-spec').value.trim();
   const sku=document.getElementById('np-sku').value.trim();
-  const price=parseFloat(document.getElementById('np-price').value);
-  if(!name||isNaN(price)){alert('请填写商品名和售价');return;}
-  D.products.push({id:D.nextId++,name,spec:spec||'',sku:sku||'',price});
-  save(); ['np-name','np-spec','np-sku','np-price'].forEach(id=>document.getElementById(id).value='');
-  alert('商品已添加！'); showPage('products');
+  const price=parseFloat(document.getElementById('np-price').value)||0;
+  if(!name){alert('请填写产品名称');return;}
+  D.products.push({id:D.nextId++,name,sku:sku||'',price,specs:[]});
+  save();
+  ['np-name','np-sku','np-price'].forEach(id=>document.getElementById(id).value='');
+  render(); showPage('products');
+};
+
+// 添加型号
+window.addSpec = function(pid){
+  const p=gp(pid); if(!p) return;
+  const nameEl=document.getElementById('spec-name-'+pid);
+  const priceEl=document.getElementById('spec-price-'+pid);
+  const skuEl=document.getElementById('spec-sku-'+pid);
+  const sname=(nameEl?nameEl.value.trim():'');
+  const sprice=parseFloat(priceEl?priceEl.value:'')||0;
+  const ssku=(skuEl?skuEl.value.trim():'');
+  if(!sname){alert('请填写型号名称');return;}
+  if(!p.specs) p.specs=[];
+  if(!D.nextSid) D.nextSid=100;
+  p.specs.push({sid:D.nextSid++,name:sname,price:sprice,sku:ssku});
+  save(); render();
+};
+
+window.deleteSpec = function(pid,sid){
+  const p=gp(pid); if(!p||!p.specs) return;
+  if(!confirm('确认删除此型号？'))return;
+  p.specs=p.specs.filter(s=>s.sid!=sid); save(); render();
 };
 
 window.openEditProduct = window.editProduct = function(id){
   const p=gp(id); if(!p) return;
   document.getElementById('pe-id').value = id;
   document.getElementById('pe-name').value = p.name||'';
-  document.getElementById('pe-spec').value = p.spec||'';
+  document.getElementById('pe-spec').value = '';
   document.getElementById('pe-sku').value = p.sku||'';
   document.getElementById('pe-price').value = p.price||'';
   document.getElementById('pe-temu-link').value = p.temuLink||'';
@@ -1296,19 +1434,17 @@ window.saveEditProduct = function(){
   const id = parseInt(document.getElementById('pe-id').value);
   const p = gp(id); if(!p) return;
   const name = document.getElementById('pe-name').value.trim();
-  const spec = document.getElementById('pe-spec').value.trim();
-  const price = parseFloat(document.getElementById('pe-price').value);
+  const price = parseFloat(document.getElementById('pe-price').value)||0;
   const sku = document.getElementById('pe-sku').value.trim();
   const temuLink = document.getElementById('pe-temu-link').value.trim();
-  if(!name){alert('请填写商品名称');return;}
-  if(isNaN(price)||price<=0){alert('请填写正确的Temu售价');return;}
-  Object.assign(p,{name,spec,price,sku,temuLink});
+  if(!name){alert('请填写产品名称');return;}
+  Object.assign(p,{name,price,sku,temuLink});
   document.getElementById('product-edit-modal').style.display='none';
-  save(); render(); alert('商品信息已保存！');
+  save(); render();
 };
 
 window.deleteProduct = function(id){
-  if(!confirm('确认删除？'))return;
+  if(!confirm('确认删除此产品及其所有型号？'))return;
   D.products=D.products.filter(p=>p.id!=id); save(); render();
 };
 
@@ -1331,10 +1467,11 @@ window.toggleNewProduct = function(force) {
   }
 };
 
-window.addPurchase = function(){
+window.addPurchase = function(status){
+  status = status || 'transit';
   const isNew = document.getElementById('new-product-fields') &&
                 document.getElementById('new-product-fields').style.display !== 'none';
-  let pid;
+  let pid, sid=0;
 
   if(isNew){
     const name = document.getElementById('new-p-name').value.trim();
@@ -1342,11 +1479,19 @@ window.addPurchase = function(){
     const sku = document.getElementById('new-p-sku').value.trim();
     const price = parseFloat(document.getElementById('new-p-price').value)||0;
     if(!name){ alert('请填写商品名称'); return; }
-    const np = {id:D.nextId++, name, spec:spec||'', sku:sku||'', price, stock:0};
+    if(!D.nextSid) D.nextSid=100;
+    const np = {id:D.nextId++, name, sku:sku||'', price, specs:[]};
+    if(spec){
+      np.specs.push({sid:D.nextSid++, name:spec, price:price, sku:sku||''});
+      sid = np.specs[0].sid;
+    }
     D.products.push(np);
     pid = np.id;
   } else {
-    pid = parseInt(document.getElementById('pur-product').value);
+    const val = document.getElementById('pur-product').value;
+    const parts = val.split('|');
+    pid = parseInt(parts[0]);
+    sid = parseInt(parts[1])||0;
     if(!pid){ alert('请选择商品'); return; }
   }
 
@@ -1359,8 +1504,15 @@ window.addPurchase = function(){
   const shipPerUnit=qty>0?shipTotal/qty:0;
   const link=document.getElementById('pur-link').value.trim();
   const img=_purImgBase64||'';
-  D.purchases.push({date:today(),pid,qty,price,shipPerUnit,shipTotal,tracking,order,link,img,status:'transit'});
+
+  const record = {date:today(),pid,sid,qty,price,shipPerUnit,shipTotal,tracking,order,link,img,status};
+  if(status==='received'){
+    record.receivedQty=qty;
+    record.receivedDate=today();
+  }
+  D.purchases.push(record);
   save();
+
   ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link',
    'new-p-name','new-p-spec','new-p-sku','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('pur-img-file').value='';
@@ -1370,7 +1522,8 @@ window.addPurchase = function(){
   window.toggleNewProduct('existing');
   render();
   const p=gp(pid);
-  alert(`下单成功！${p?p.name:''} ${qty}件，单件成本¥${(price+shipPerUnit).toFixed(2)}，状态：在途`);
+  const statusTxt = status==='received'?'已直接入库':'在途';
+  alert(`录入成功！${getDisplayName(pid,sid)} ${qty}件，单件成本¥${(price+shipPerUnit).toFixed(2)}，状态：${statusTxt}`);
 };
 
 window.confirmReceive = function(idx){
@@ -1426,29 +1579,44 @@ window.closeEditModal = function(e) {
 window.deletePurchase = function(idx){ if(!confirm('删除此进货记录？'))return; D.purchases.splice(idx,1); save(); render(); };
 
 window.addOutbound = function(){
-  const pid=parseInt(document.getElementById('out-product').value);
+  const val=document.getElementById('out-product').value;
+  const parts=val.split('|');
+  const pid=parseInt(parts[0]), sid=parseInt(parts[1])||0;
   const qty=parseInt(document.getElementById('out-qty').value);
+  const shipTotal=parseFloat(document.getElementById('out-ship').value)||0;
   const tracking=document.getElementById('out-tracking').value.trim();
-  const note=document.getElementById('out-note').value.trim();
   if(!qty){alert('请填写发出数量');return;}
-  const ls=getLocalStock(pid);
+  const ls=sid?getLocalStockSpec(pid,sid):getLocalStock(pid);
   if(qty>ls){alert(`本地库存不足！当前：${ls}件`);return;}
-  D.outbounds.push({date:today(),pid,qty,tracking,note});
-  save(); ['out-qty','out-tracking','out-note'].forEach(id=>document.getElementById(id).value='');
-  render(); alert(`出库成功！${gp(pid)?gp(pid).name:''} 发出${qty}件，剩余本地库存：${getLocalStock(pid)}件`);
+  const shipPerUnit=qty>0?shipTotal/qty:0;
+  D.outbounds.push({date:today(),pid,sid,qty,shipTotal,shipPerUnit,tracking});
+  save();
+  ['out-qty','out-ship','out-tracking'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('out-cost-preview').textContent='填写头程运费后显示单件分摊';
+  render();
+  alert(`出库成功！${getDisplayName(pid,sid)} 发出${qty}件${shipTotal?`，头程运费¥${shipTotal}（单件分摊¥${shipPerUnit.toFixed(2)}）`:''}，剩余本地库存：${sid?getLocalStockSpec(pid,sid):getLocalStock(pid)}件`);
 };
 
 window.deleteOutbound = function(idx){ if(!confirm('删除？'))return; D.outbounds.splice(idx,1); save(); render(); };
 
+window.updateOutCostPreview = function(){
+  const qty=parseInt(document.getElementById('out-qty').value)||0;
+  const ship=parseFloat(document.getElementById('out-ship').value)||0;
+  const el=document.getElementById('out-cost-preview');
+  if(el) el.textContent=ship&&qty?`¥${(ship/qty).toFixed(2)}/件（总¥${ship}÷${qty}件）`:'填写头程运费后显示单件分摊';
+};
+
 window.addSale = function(){
-  const pid=parseInt(document.getElementById('sale-product').value);
+  const val=document.getElementById('sale-product').value;
+  const parts=val.split('|');
+  const pid=parseInt(parts[0]), sid=parseInt(parts[1])||0;
   const qty=parseInt(document.getElementById('sale-qty').value);
   const price=parseFloat(document.getElementById('sale-price').value);
   const order=document.getElementById('sale-order').value.trim();
   if(!qty||isNaN(price)||price<=0){alert('请填写数量和售价');return;}
-  const ts=getTemuStock(pid);
+  const ts=sid?getTemuStockSpec(pid,sid):getTemuStock(pid);
   if(qty>ts){alert(`Temu库存不足！当前：${ts}件`);return;}
-  D.sales.push({date:today(),pid,qty,price,order});
+  D.sales.push({date:today(),pid,sid,qty,price,order});
   save(); ['sale-qty','sale-price','sale-order'].forEach(id=>document.getElementById(id).value='');
   render(); alert('销售已记录！');
 };
