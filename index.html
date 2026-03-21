@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v3.2 · 2026-03-21 12:30</div>
+      <div>v3.3 · 2026-03-21 13:00</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
   </div>
@@ -852,7 +852,7 @@ function renderTransitTable(){
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
     return `<tr>
       <td style="width:130px">${imgThumb(r.pid)}</td>
-      <td><div style="font-weight:600">${productLink(r.link,getDisplayName(r.pid,r.sid))}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}${r.order?' · '+r.order:''}</div></td>
+      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style="font-size:12px;color:var(--primary);margin-top:2px;font-weight:600">↳ ${gs(r.pid,r.sid).name}</div>`:''}<div style="font-size:11px;color:var(--text3);margin-top:2px">${r.date}${r.order?' · '+r.order:''}</div></td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
       <td>${trackingLink(r.tracking)}</td>
@@ -877,7 +877,7 @@ function renderPurchaseTable(){
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
       <td style="width:130px">${imgThumb(r.pid)}</td>
-      <td><div style="font-weight:600">${productLink(r.link,getDisplayName(r.pid,r.sid))}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}</div></td>
+      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style="font-size:12px;color:var(--primary);font-weight:600;margin-top:2px">↳ ${gs(r.pid,r.sid).name}</div>`:''}<div style="font-size:11px;color:var(--text3);margin-top:2px">${r.date}</div></td>
       <td>${r.qty}</td><td>${rqty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
@@ -933,7 +933,7 @@ function renderOutboundTable(){
   const tbody=document.getElementById('outbound-table'); if(!tbody) return;
   tbody.innerHTML=D.outbounds.slice().reverse().map((r,i)=>{
     const p=gp(r.pid),idx=D.outbounds.length-1-i;
-    return `<tr><td>${r.date}</td><td>${productLink(getProductLink(r.pid),getDisplayName(r.pid,r.sid))}</td>
+    return `<tr><td>${r.date}</td><td><div style='font-weight:600'>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style='font-size:12px;color:var(--primary);font-weight:600'>↳ ${gs(r.pid,r.sid).name}</div>`:''}</td>
       <td><strong>${r.qty}</strong></td>
       <td>${r.shipTotal?'¥'+r.shipTotal.toFixed(2):'<span class="c-muted">-</span>'}</td>
       <td class="c-muted">${r.tracking||'-'}</td>
@@ -947,7 +947,7 @@ function renderSalesTable(){
   const tbody=document.getElementById('sales-table'); if(!tbody) return;
   tbody.innerHTML=D.sales.slice().reverse().map((r,i)=>{
     const p=gp(r.pid),ri=D.sales.length-1-i,fc=getSaleFifoCost(ri),g=r.qty*r.price-fc/D.settings.rate;
-    return `<tr><td>${r.date}</td><td>${productLink(getProductLink(r.pid),getDisplayName(r.pid,r.sid))}</td>
+    return `<tr><td>${r.date}</td><td><div style='font-weight:600'>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style='font-size:12px;color:var(--primary);font-weight:600'>↳ ${gs(r.pid,r.sid).name}</div>`:''}</td>
       <td>${r.qty}</td><td>¥${r.price}</td>
       <td>¥${fc.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
       <td class="${g>=0?'c-green':'c-red'}">${g>=0?'+':''}¥${g.toFixed(2)}</td>
@@ -1091,7 +1091,11 @@ window.smartParse = function() {
       let rawName='', spec='', qty=1;
       for (let j=i-1; j>=Math.max(0,i-20); j--) {
         const l = lines[j];
-        if (/^规格[：:]\s*/.test(l) && !spec) { spec=l.replace(/^规格[：:]\s*/,'').trim(); continue; }
+        // 规格行直接作为型号
+        if (/^规格[：:]\s*/.test(l) && !spec) {
+          spec=l.replace(/^规格[：:]\s*/,'').trim();
+          continue;
+        }
         if (/^货号[：:]\s*/.test(l)) continue;
         if (l.length>=6&&l.length<=120&&!rawName&&
           !/^(规格|货号|数量|优惠|运费|单价|原价|实付|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|跨境|极速|48|退款|投诉|闪电|超时)/.test(l)&&
@@ -1104,60 +1108,16 @@ window.smartParse = function() {
         if (/^\d+$/.test(lines[k])) { const v=parseInt(lines[k]); if(v>=1&&v<=9999){qty=v;break;} }
       }
 
-      // 智能拆分：从商品名里提取规格
-      // 规格通常是：尺寸(如530型/428型)、齿数(如13齿/32T)、孔径等
-      let productName = rawName;
-      if (!spec && rawName) {
-        // 尝试从名字里识别规格部分（通常在后半段，含数字+单位）
-        // 格式1：名字里有"规格："
-        const inlineSpec = rawName.match(/[，,]\s*([\d\w][\w\d\-\.mm齿T孔径内外（）()带螺丝垫片型号]+.{0,30})$/);
-        if (inlineSpec) {
-          spec = inlineSpec[1].trim();
-          productName = rawName.slice(0, rawName.length - inlineSpec[0].length).trim();
-        }
-      }
-
-      // 如果已有规格行，用规格行；产品名去掉末尾多余内容
-      if (spec) {
-        // 产品名如果包含规格内容就截短
-        const specShort = spec.slice(0,4);
-        if (productName.includes(specShort)) {
-          const idx2 = productName.indexOf(specShort);
-          if (idx2 > 10) productName = productName.slice(0, idx2).replace(/[，,\s]+$/, '').trim();
-        }
-      }
+      // 产品名就是商品标题，不做拆分
+      // 规格已经从「规格:xxx」行提取
+      const productName = rawName;
 
       if (rawName && price>0) goods.push({
-        name: productName||rawName,
+        name: productName,
+        productName: productName,
         spec, price, qty, ship, paid, orderId
       });
     }
-
-    // 合并相同产品名的不同型号
-    const grouped = {};
-    goods.forEach(g => {
-      const key = g.name.slice(0,15); // 用前15字符做key
-      if (!grouped[key]) grouped[key] = {baseName: g.name, items: []};
-      grouped[key].items.push(g);
-    });
-    // 如果同一产品有多个型号，共用一个产品名
-    const finalGoods = goods.map(g => ({...g}));
-    Object.values(grouped).forEach(grp => {
-      if (grp.items.length > 1) {
-        // 找最短的公共前缀作为产品名
-        const names = grp.items.map(g => g.name);
-        let commonLen = names[0].length;
-        for (let i=1; i<names.length; i++) {
-          let cl=0;
-          while(cl<commonLen && cl<names[i].length && names[0][cl]===names[i][cl]) cl++;
-          commonLen=cl;
-        }
-        const commonName = names[0].slice(0, commonLen).replace(/[，,\s\-]+$/, '').trim() || grp.baseName;
-        grp.items.forEach(g => { g.productName = commonName || g.name; });
-      } else {
-        grp.items[0].productName = grp.items[0].name;
-      }
-    });
 
     if (!goods.length) {
       resultEl.innerHTML=`<div style="padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e">
