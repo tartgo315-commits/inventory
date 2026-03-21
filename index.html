@@ -220,7 +220,8 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v3.9 · 2026-03-21 15:20</div>
+      <div>v4.0 · 2026-03-21 16:00</div>
+      <div>产品型号图片 · 型号编辑 · 全面完善</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
   </div>
@@ -550,20 +551,67 @@ input::placeholder{color:var(--text3)}
 <div id="product-edit-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal-box">
     <div class="modal-title">
-      <span>编辑商品信息</span>
+      <span>编辑产品信息</span>
       <button class="modal-close" onclick="document.getElementById('product-edit-modal').style.display='none'">✕</button>
     </div>
     <div class="form-grid">
-      <div class="fg"><label>商品名称 *</label><input type="text" id="pe-name"></div>
-      <div class="fg"><label>规格/型号</label><input type="text" id="pe-spec" placeholder="428-48mm-32T"></div>
+      <div class="fg"><label>产品名称 *</label><input type="text" id="pe-name"></div>
       <div class="fg"><label>SKU编码</label><input type="text" id="pe-sku"></div>
-      <div class="fg"><label>Temu售价（$）*</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
-      <div class="fg"><label>Temu商品链接（可选）</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
+      <div class="fg"><label>默认售价（¥）</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
+      <div class="fg"><label>Temu商品链接</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
+    </div>
+    <div class="fg" style="margin-bottom:14px">
+      <label>产品图片</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+        <div id="pe-img-preview" style="width:80px;height:80px;border-radius:8px;border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3);overflow:hidden;flex-shrink:0;background:var(--bg);cursor:pointer" onclick="document.getElementById('pe-img-file').click()">📷</div>
+        <div>
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex">
+            📁 选择图片
+            <input type="file" id="pe-img-file" accept="image/*" style="display:none" onchange="handleProductImg(this)">
+          </label>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">也可以 Ctrl+V 粘贴截图</div>
+        </div>
+      </div>
     </div>
     <input type="hidden" id="pe-id">
     <div class="btns">
       <button class="btn btn-primary" onclick="saveEditProduct()">保存</button>
       <button class="btn btn-ghost" onclick="document.getElementById('product-edit-modal').style.display='none'">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 型号编辑弹窗 -->
+<div id="spec-edit-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>编辑型号</span>
+      <button class="modal-close" onclick="document.getElementById('spec-edit-modal').style.display='none'">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="fg"><label>型号名称 *</label><input type="text" id="se-name"></div>
+      <div class="fg"><label>售价（¥，不填则用产品默认售价）</label><input type="number" id="se-price" step="0.01" min="0" placeholder="65.00"></div>
+      <div class="fg"><label>SKU编码</label><input type="text" id="se-sku"></div>
+      <div class="fg"><label>1688商品链接</label><input type="text" id="se-link" placeholder="https://detail.1688.com/..."></div>
+    </div>
+    <div class="fg" style="margin-bottom:14px">
+      <label>型号图片</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+        <div id="se-img-preview" style="width:80px;height:80px;border-radius:8px;border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3);overflow:hidden;flex-shrink:0;background:var(--bg);cursor:pointer" onclick="document.getElementById('se-img-file').click()">📷</div>
+        <div>
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex">
+            📁 选择图片
+            <input type="file" id="se-img-file" accept="image/*" style="display:none" onchange="handleSpecImg(this)">
+          </label>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">也可以 Ctrl+V 粘贴截图</div>
+        </div>
+      </div>
+    </div>
+    <input type="hidden" id="se-pid">
+    <input type="hidden" id="se-sid">
+    <div class="btns">
+      <button class="btn btn-primary" onclick="saveEditSpec()">保存</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('spec-edit-modal').style.display='none'">取消</button>
     </div>
   </div>
 </div>
@@ -629,13 +677,22 @@ function productLink(link, label, spec) {
 }
 
 // 从进货记录取最新图片
-function getProductImg(pid) {
-  const records = D.purchases.filter(r=>r.pid==pid&&r.img).sort((a,b)=>b.date.localeCompare(a.date));
+function getProductImg(pid, sid) {
+  const p = gp(pid);
+  // 优先从产品/型号本身取图片
+  if (sid) {
+    const sp = gs(pid, sid);
+    if (sp && sp.img) return sp.img;
+  }
+  if (p && p.img) return p.img;
+  // 兜底：从进货记录取
+  const records = D.purchases.filter(r=>r.pid==pid&&((!sid&&!r.sid)||r.sid==sid)&&r.img)
+    .sort((a,b)=>b.date.localeCompare(a.date));
   return records.length ? records[0].img : '';
 }
 
-function imgThumb(pid) {
-  const img = getProductImg(pid);
+function imgThumb(pid, sid) {
+  const img = getProductImg(pid, sid);
   if (!img) return `<div class="prod-placeholder">📦</div>`;
   return `<img src="${img}" class="prod-thumb" onerror="this.style.display='none'">`;
 }
@@ -1118,15 +1175,23 @@ function renderProductsTable(){
       const fifo=getFifoCostPerUnitSpec(p.id,sp.sid);
       const spPrice=sp.price||p.price||0;
       const profit=spPrice>0?((spPrice-fifo)/spPrice*100):0;
+      const spImg=getProductImg(p.id,sp.sid);
       return `<tr style="background:#fafbfc">
-        <td style="padding-left:32px;color:var(--text2)">↳ ${sp.name}</td>
+        <td style="padding-left:16px;width:60px">
+          ${spImg
+            ? `<img src="${spImg}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer" onclick="openEditSpec(${p.id},${sp.sid})">`
+            : `<div style="width:50px;height:50px;background:var(--bg);border:1.5px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer" onclick="openEditSpec(${p.id},${sp.sid})">📷</div>`
+          }
+        </td>
+        <td style="color:var(--text2)">↳ ${sp.name}</td>
         <td class="c-muted">${sp.sku||'-'}</td>
         <td>${spPrice?'¥'+spPrice:'-'}</td>
         <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
         <td><strong>${local}</strong></td><td>${temu}</td>
         <td class="${profit>20?'c-green':'c-red'}">${spPrice?profit.toFixed(1)+'%':'-'}</td>
-        <td>
-          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSpec(${p.id},${sp.sid})">删除</button>
+        <td style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" onclick="openEditSpec(${p.id},${sp.sid})">编辑</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-left:4px" onclick="deleteSpec(${p.id},${sp.sid})">删除</button>
         </td>
       </tr>`;
     }).join('');
@@ -1155,7 +1220,7 @@ function renderProductsTable(){
       </div>
       ${specs.length||true?`<table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="background:#f5f6fa">
-          <th style="padding:8px 16px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">型号</th>
+          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left;width:60px">图片</th><th style="padding:8px 16px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">型号</th>
           <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">SKU</th>
           <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">售价</th>
           <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">成本</th>
@@ -1598,21 +1663,22 @@ window.handleEditImg = function(input) {
 
 // 支持粘贴截图
 document.addEventListener('paste', function(e) {
-  const modal = document.getElementById('edit-modal');
-  const isEditOpen = modal && modal.style.display !== 'none';
+  const editModal = document.getElementById('edit-modal');
+  const prodModal = document.getElementById('product-edit-modal');
+  const specModal = document.getElementById('spec-edit-modal');
+  const isEditOpen = editModal && editModal.style.display !== 'none';
+  const isProdOpen = prodModal && prodModal.style.display !== 'none';
+  const isSpecOpen = specModal && specModal.style.display !== 'none';
   const items = e.clipboardData && e.clipboardData.items;
   if(!items) return;
   for(const item of items) {
     if(item.type.startsWith('image/')) {
       const file = item.getAsFile();
       compressImage(file, 600, function(base64) {
-        if(isEditOpen) {
-          _editImgBase64 = base64;
-          setPreviewEl('edit-img-preview', base64);
-        } else {
-          _purImgBase64 = base64;
-          setPreviewEl('pur-img-preview', base64);
-        }
+        if(isEditOpen) { _editImgBase64=base64; setPreviewEl('edit-img-preview',base64); }
+        else if(isProdOpen) { _productImgBase64=base64; setPreviewEl('pe-img-preview',base64); }
+        else if(isSpecOpen) { _specImgBase64=base64; setPreviewEl('se-img-preview',base64); }
+        else { _purImgBase64=base64; setPreviewEl('pur-img-preview',base64); }
       });
       break;
     }
@@ -1663,14 +1729,34 @@ window.deleteSpec = function(pid,sid){
   p.specs=p.specs.filter(s=>s.sid!=sid); save(); render();
 };
 
+let _productImgBase64 = '';
+let _specImgBase64 = '';
+
+window.handleProductImg = function(input) {
+  const file = input.files[0]; if(!file) return;
+  compressImage(file, 600, function(base64) {
+    _productImgBase64 = base64;
+    setPreviewEl('pe-img-preview', base64);
+  });
+};
+
+window.handleSpecImg = function(input) {
+  const file = input.files[0]; if(!file) return;
+  compressImage(file, 600, function(base64) {
+    _specImgBase64 = base64;
+    setPreviewEl('se-img-preview', base64);
+  });
+};
+
 window.openEditProduct = window.editProduct = function(id){
   const p=gp(id); if(!p) return;
   document.getElementById('pe-id').value = id;
   document.getElementById('pe-name').value = p.name||'';
-  document.getElementById('pe-spec').value = '';
   document.getElementById('pe-sku').value = p.sku||'';
   document.getElementById('pe-price').value = p.price||'';
   document.getElementById('pe-temu-link').value = p.temuLink||'';
+  _productImgBase64 = p.img||'';
+  setPreviewEl('pe-img-preview', p.img||'');
   document.getElementById('product-edit-modal').style.display = 'flex';
 };
 
@@ -1682,8 +1768,37 @@ window.saveEditProduct = function(){
   const sku = document.getElementById('pe-sku').value.trim();
   const temuLink = document.getElementById('pe-temu-link').value.trim();
   if(!name){alert('请填写产品名称');return;}
-  Object.assign(p,{name,price,sku,temuLink});
+  Object.assign(p,{name,price,sku,temuLink,img:_productImgBase64});
   document.getElementById('product-edit-modal').style.display='none';
+  save(); render();
+};
+
+window.openEditSpec = function(pid, sid) {
+  const p=gp(pid); if(!p) return;
+  const sp=gs(pid,sid); if(!sp) return;
+  document.getElementById('se-pid').value = pid;
+  document.getElementById('se-sid').value = sid;
+  document.getElementById('se-name').value = sp.name||'';
+  document.getElementById('se-price').value = sp.price||'';
+  document.getElementById('se-sku').value = sp.sku||'';
+  document.getElementById('se-link').value = sp.link||'';
+  _specImgBase64 = sp.img||'';
+  setPreviewEl('se-img-preview', sp.img||'');
+  document.getElementById('spec-edit-modal').style.display='flex';
+};
+
+window.saveEditSpec = function() {
+  const pid=parseInt(document.getElementById('se-pid').value);
+  const sid=parseInt(document.getElementById('se-sid').value);
+  const p=gp(pid); if(!p) return;
+  const sp=gs(pid,sid); if(!sp) return;
+  const name=document.getElementById('se-name').value.trim();
+  const price=parseFloat(document.getElementById('se-price').value)||0;
+  const sku=document.getElementById('se-sku').value.trim();
+  const link=document.getElementById('se-link').value.trim();
+  if(!name){alert('请填写型号名称');return;}
+  Object.assign(sp,{name,price,sku,link,img:_specImgBase64});
+  document.getElementById('spec-edit-modal').style.display='none';
   save(); render();
 };
 
