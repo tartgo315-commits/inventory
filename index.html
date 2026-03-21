@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v3.5 · 2026-03-21 14:00</div>
+      <div>v3.7 · 2026-03-21 14:30</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
   </div>
@@ -1164,7 +1164,7 @@ window.smartParse = function() {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <div style="font-weight:700;color:var(--primary);font-size:14px">✅ 识别到 ${goods.length} 个商品</div>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-primary btn-sm" onclick="importAllGoods()">📦 全部导入（${goods.length}个）</button>
+            <button class="btn btn-primary" onclick="importAllGoods()" style="font-size:14px;height:42px;padding:0 24px">📦 全部导入（${goods.length}个）直接入库</button>
             <button class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
           </div>
         </div>
@@ -1227,14 +1227,10 @@ window.importAllGoods = function() {
     let pid, sid=0;
 
     // 检查是否已有此产品（先检查已有产品，再检查本次新建的）
-    let existProd = D.products.find(p =>
-      p.name === pName ||
-      p.name.slice(0,10) === pName.slice(0,10)
-    );
+    let existProd = D.products.find(p => p.name === pName);
 
-    if (!existProd && productMap[pName.slice(0,10)]) {
-      // 本次批量里已经建过同名产品
-      pid = productMap[pName.slice(0,10)];
+    if (!existProd && productMap[pName]) {
+      pid = productMap[pName];
       existProd = D.products.find(p=>p.id===pid);
     }
 
@@ -1244,7 +1240,7 @@ window.importAllGoods = function() {
         // 找或建型号
         if (!existProd.specs) existProd.specs=[];
         if (!D.nextSid) D.nextSid=100;
-        let existSpec = existProd.specs.find(s=>s.name===specName||s.name.slice(0,4)===specName.slice(0,4));
+        let existSpec = existProd.specs.find(s => s.name === specName);
         if (!existSpec) {
           existSpec = {sid:D.nextSid++, name:specName, price:0, sku:''};
           existProd.specs.push(existSpec);
@@ -1261,7 +1257,7 @@ window.importAllGoods = function() {
       }
       D.products.push(np);
       pid = np.id;
-      productMap[pName.slice(0,10)] = pid;
+      productMap[pName] = pid;
     }
 
     const shipPerUnit = g.qty>0 ? (g.ship||0)/g.qty : 0;
@@ -1280,6 +1276,11 @@ window.importAllGoods = function() {
     <div style="padding:12px 14px;background:var(--green-bg);border:1px solid var(--green-light);border-radius:8px;font-size:13px;color:var(--green);font-weight:600">
       ✅ 成功导入 ${imported} 条记录并直接入库！请去「商品管理」补充Temu售价和图片。
     </div>`;
+  // 自动滚动到进货明细
+  setTimeout(()=>{
+    const el=document.getElementById('purchase-table');
+    if(el) el.closest('.card').scrollIntoView({behavior:'smooth',block:'start'});
+  }, 300);
 };
 
 window.fillFromGoods = function(g) {
