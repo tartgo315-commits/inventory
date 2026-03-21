@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v4.2 · 2026-03-21 16:45</div>
+      <div>v4.3 · 2026-03-21 17:00</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -1067,11 +1067,10 @@ function renderPurchaseTable(){
       <td style="width:130px">${imgThumb(pid)}</td>
       <td colspan="8">
         <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:13px;font-weight:700">${productLink('',p?p.name:'已删除商品')}</span>
+          <span style="font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--border2)" onclick="event.stopPropagation();openEditProduct(${pid})" title="点击编辑产品">${p?p.name:'已删除商品'} ✏️</span>
           <span style="font-size:12px;color:var(--text3)">${records.length}个型号 · 共${totalQty}件 · ¥${totalAmt.toFixed(2)}</span>
           ${statusBadge}
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openEditProduct(${pid})" style="font-size:11px;height:24px;padding:0 8px">编辑产品</button>
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openAddSpecPurchase(${pid})" style="margin-left:4px">+ 添加型号入库</button>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openAddSpecPurchase(${pid})" style="margin-left:8px">+ 添加型号入库</button>
           <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="${groupId}-arrow">▼ 展开</span>
         </div>
       </td>
@@ -1182,10 +1181,10 @@ function renderCostStats(){
       : `<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="color:var(--primary)">+ 填写售价</button>`;
     return `<tr>
       <td style="width:130px;cursor:pointer" onclick="openEditProduct(${p.id})" title="点击编辑产品">${imgThumb(p.id)}</td>
-      <td>
+      <td style="cursor:pointer" onclick="openEditProduct(${p.id})" title="点击编辑产品">
         <div style="display:flex;align-items:center;gap:8px">
-          ${productLink(getProductLink(p.id),p.name)}
-          <button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="font-size:11px;height:24px;padding:0 8px;flex-shrink:0">编辑</button>
+          <span style="font-weight:600;color:var(--text)">${p.name}</span>
+          <span style="font-size:11px;color:var(--text3);opacity:0.6">✏️</span>
         </div>
       </td>
       <td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
