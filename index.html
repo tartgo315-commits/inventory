@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v2.3 · 2026-03-20 17:00</div>
+      <div>v2.4 · 2026-03-20 17:30</div>
       <div>数据保护 · FIFO成本 · 云同步</div>
     </div>
   </div>
@@ -294,7 +294,8 @@ input::placeholder{color:var(--text3)}
       <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px">📦 新商品信息</div>
       <div class="form-grid form-grid-3">
         <div class="fg"><label>商品名称 *</label><input type="text" id="new-p-name" placeholder="从书签自动填入或手动填写"></div>
-        <div class="fg"><label>SKU编码（可选）</label><input type="text" id="new-p-sku" placeholder="CASE-001"></div>
+        <div class="fg"><label>规格/型号（可选）</label><input type="text" id="new-p-spec" placeholder="428-48mm-32T"></div>
+        <div class="fg"><label>SKU编码（可选）</label><input type="text" id="new-p-sku" placeholder="F1002"></div>
         <div class="fg"><label>Temu售价（¥）</label><input type="number" id="new-p-price" placeholder="65.00" step="0.01"></div>
       </div>
     </div>
@@ -404,9 +405,10 @@ input::placeholder{color:var(--text3)}
 <div id="page-products" class="page">
   <div class="card">
     <div class="card-title">新增商品</div>
-    <div class="form-grid form-grid-3">
-      <div class="fg"><label>商品名称 *</label><input type="text" id="np-name" placeholder="硅胶手机壳"></div>
-      <div class="fg"><label>SKU编码</label><input type="text" id="np-sku" placeholder="CASE-001"></div>
+    <div class="form-grid form-grid-4">
+      <div class="fg"><label>商品名称 *</label><input type="text" id="np-name" placeholder="428型链轮 适合越野摩托车"></div>
+      <div class="fg"><label>规格/型号</label><input type="text" id="np-spec" placeholder="428-48mm-32T"></div>
+      <div class="fg"><label>SKU编码</label><input type="text" id="np-sku" placeholder="F1002"></div>
       <div class="fg"><label>Temu参考售价（¥）*</label><input type="number" id="np-price" placeholder="65.00" step="0.01"></div>
     </div>
     <div class="btns"><button class="btn btn-primary" onclick="addProduct()">保存商品</button></div>
@@ -509,6 +511,7 @@ input::placeholder{color:var(--text3)}
     </div>
     <div class="form-grid">
       <div class="fg"><label>商品名称 *</label><input type="text" id="pe-name"></div>
+      <div class="fg"><label>规格/型号</label><input type="text" id="pe-spec" placeholder="428-48mm-32T"></div>
       <div class="fg"><label>SKU编码</label><input type="text" id="pe-sku"></div>
       <div class="fg"><label>Temu售价（$）*</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
       <div class="fg"><label>Temu商品链接（可选）</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
@@ -575,9 +578,10 @@ function trackingLink(no) {
   </div>`;
 }
 
-function productLink(link, label) {
-  if (!link) return `<span>${label||'-'}</span>`;
-  return `<a href="${link}" target="_blank" style="color:var(--blue);text-decoration:underline;text-underline-offset:2px;cursor:pointer" title="点击跳转1688商品页">${label||'查看'}</a>`;
+function productLink(link, label, spec) {
+  const specTag = spec ? `<span style="font-size:11px;color:var(--text3);margin-left:6px;background:var(--bg);padding:1px 6px;border-radius:4px">${spec}</span>` : '';
+  if (!link) return `<span>${label||'-'}${specTag}</span>`;
+  return `<a href="${link}" target="_blank" style="color:var(--primary);text-decoration:underline;text-underline-offset:2px;cursor:pointer" title="点击跳转1688商品页">${label||'查看'}</a>${specTag}`;
 }
 
 // 从进货记录取最新图片
@@ -799,7 +803,7 @@ function renderTransitTable(){
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
     return `<tr>
       <td style="width:130px">${imgThumb(r.pid)}</td>
-      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}${r.order?' · '+r.order:''}</div></td>
+      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除',p?p.spec:'')}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}${r.order?' · '+r.order:''}</div></td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
       <td>${trackingLink(r.tracking)}</td>
@@ -824,7 +828,7 @@ function renderPurchaseTable(){
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
       <td style="width:130px">${imgThumb(r.pid)}</td>
-      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}</div></td>
+      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除',p?p.spec:'')}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">${r.date}</div></td>
       <td>${r.qty}</td><td>${rqty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
@@ -920,7 +924,7 @@ function renderProductsTable(){
   const tbody=document.getElementById('products-table'); if(!tbody) return;
   tbody.innerHTML=D.products.map(p=>{
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td><div class="prod-cell">${imgThumb(p.id)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.sku||'-'}</td><td>¥${p.price}</td>
+    return `<tr><td><div class="prod-cell">${imgThumb(p.id)}${productLink(getProductLink(p.id),p.name)}</div></td><td class="c-muted">${p.spec||'-'}</td><td class="c-muted">${p.sku||'-'}</td><td>¥${p.price}</td>
       <td>¥${fifo.toFixed(2)}</td><td>¥${wavg.toFixed(2)}</td>
       <td>${getLocalStock(p.id)}</td><td>${getTemuStock(p.id)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
@@ -930,9 +934,9 @@ function renderProductsTable(){
 }
 
 function populateSelects(){
-  const purO=D.products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
-  const outO=D.products.map(p=>`<option value="${p.id}">${p.name}（本地${getLocalStock(p.id)}件）</option>`).join('');
-  const salO=D.products.map(p=>`<option value="${p.id}">${p.name}（Temu${getTemuStock(p.id)}件）</option>`).join('');
+  const purO=D.products.map(p=>`<option value="${p.id}">${p.name}${p.spec?' · '+p.spec:''}</option>`).join('');
+  const outO=D.products.map(p=>`<option value="${p.id}">${p.name}${p.spec?' · '+p.spec:''}（本地${getLocalStock(p.id)}件）</option>`).join('');
+  const salO=D.products.map(p=>`<option value="${p.id}">${p.name}${p.spec?' · '+p.spec:''}（Temu${getTemuStock(p.id)}件）</option>`).join('');
   [['pur-product',purO],['out-product',outO],['sale-product',salO]].forEach(([id,o])=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});
 }
 
@@ -1005,6 +1009,7 @@ function handleBookmarkParams() {
   const params = new URLSearchParams(window.location.search);
   const source = params.get('source');
   const bName = params.get('name');
+  const bSpec = params.get('spec');
   const bPrice = params.get('price');
   const bLink = params.get('link');
   const bQty = params.get('qty');
@@ -1041,6 +1046,8 @@ function handleBookmarkParams() {
         window.toggleNewProduct('new');
         const nameEl = document.getElementById('new-p-name');
         if(nameEl) nameEl.value = bName;
+        const specEl = document.getElementById('new-p-spec');
+        if(specEl && bSpec) specEl.value = bSpec;
       }
     }
 
@@ -1194,11 +1201,12 @@ window.updateCostPreview = function(){
 
 window.addProduct = function(){
   const name=document.getElementById('np-name').value.trim();
+  const spec=document.getElementById('np-spec').value.trim();
   const sku=document.getElementById('np-sku').value.trim();
   const price=parseFloat(document.getElementById('np-price').value);
   if(!name||isNaN(price)){alert('请填写商品名和售价');return;}
-  D.products.push({id:D.nextId++,name,sku:sku||'',price});
-  save(); ['np-name','np-sku','np-price'].forEach(id=>document.getElementById(id).value='');
+  D.products.push({id:D.nextId++,name,spec:spec||'',sku:sku||'',price});
+  save(); ['np-name','np-spec','np-sku','np-price'].forEach(id=>document.getElementById(id).value='');
   alert('商品已添加！'); showPage('products');
 };
 
@@ -1206,6 +1214,7 @@ window.openEditProduct = window.editProduct = function(id){
   const p=gp(id); if(!p) return;
   document.getElementById('pe-id').value = id;
   document.getElementById('pe-name').value = p.name||'';
+  document.getElementById('pe-spec').value = p.spec||'';
   document.getElementById('pe-sku').value = p.sku||'';
   document.getElementById('pe-price').value = p.price||'';
   document.getElementById('pe-temu-link').value = p.temuLink||'';
@@ -1216,12 +1225,13 @@ window.saveEditProduct = function(){
   const id = parseInt(document.getElementById('pe-id').value);
   const p = gp(id); if(!p) return;
   const name = document.getElementById('pe-name').value.trim();
+  const spec = document.getElementById('pe-spec').value.trim();
   const price = parseFloat(document.getElementById('pe-price').value);
   const sku = document.getElementById('pe-sku').value.trim();
   const temuLink = document.getElementById('pe-temu-link').value.trim();
   if(!name){alert('请填写商品名称');return;}
   if(isNaN(price)||price<=0){alert('请填写正确的Temu售价');return;}
-  Object.assign(p,{name,price,sku,temuLink});
+  Object.assign(p,{name,spec,price,sku,temuLink});
   document.getElementById('product-edit-modal').style.display='none';
   save(); render(); alert('商品信息已保存！');
 };
@@ -1257,10 +1267,11 @@ window.addPurchase = function(){
 
   if(isNew){
     const name = document.getElementById('new-p-name').value.trim();
+    const spec = document.getElementById('new-p-spec').value.trim();
     const sku = document.getElementById('new-p-sku').value.trim();
     const price = parseFloat(document.getElementById('new-p-price').value)||0;
     if(!name){ alert('请填写商品名称'); return; }
-    const np = {id:D.nextId++, name, sku:sku||'', price, stock:0};
+    const np = {id:D.nextId++, name, spec:spec||'', sku:sku||'', price, stock:0};
     D.products.push(np);
     pid = np.id;
   } else {
@@ -1280,7 +1291,7 @@ window.addPurchase = function(){
   D.purchases.push({date:today(),pid,qty,price,shipPerUnit,shipTotal,tracking,order,link,img,status:'transit'});
   save();
   ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link',
-   'new-p-name','new-p-sku','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+   'new-p-name','new-p-spec','new-p-sku','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('pur-img-file').value='';
   _purImgBase64='';
   setPreviewEl('pur-img-preview','');
