@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v2.4 · 2026-03-20 17:30</div>
+      <div>v2.5 · 2026-03-21 10:00</div>
       <div>数据保护 · FIFO成本 · 云同步</div>
     </div>
   </div>
@@ -267,12 +267,15 @@ input::placeholder{color:var(--text3)}
 
   <!-- 智能解析区 -->
   <div class="card" style="border:1.5px solid var(--primary);background:var(--primary-bg)">
-    <div class="card-title" style="color:var(--primary);margin-bottom:10px">
-      ✨ 智能识别 — 粘贴1688页面文字自动填写
-      <span style="font-size:11px;font-weight:400;color:var(--text3)">在1688商品页 Ctrl+A 全选 → Ctrl+C 复制 → 粘贴到下方</span>
+    <div class="card-title" style="color:var(--primary);margin-bottom:6px">
+      ✨ 智能识别 — 粘贴1688文字自动填写
     </div>
-    <textarea id="paste-input" rows="4" placeholder="将1688商品页面的文字粘贴到这里，自动识别商品名和价格..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;resize:vertical;background:#fff" oninput="smartParse()"></textarea>
-    <div id="parse-result" style="margin-top:8px;font-size:13px;color:var(--text2)"></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.8">
+      <strong>方式一（订单页）：</strong>在1688订单详情页 Ctrl+A 全选 → Ctrl+C 复制 → 粘贴到下方，自动识别所有商品<br>
+      <strong>方式二（商品页）：</strong>在1688商品详情页 Ctrl+A 全选 → Ctrl+C 复制 → 粘贴
+    </div>
+    <textarea id="paste-input" rows="5" placeholder="把1688订单页或商品页的文字粘贴到这里..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;resize:vertical;background:#fff" oninput="smartParse()"></textarea>
+    <div id="parse-result" style="margin-top:8px"></div>
   </div>
 
   <div class="card">
@@ -945,62 +948,130 @@ function populateSelects(){
 window.smartParse = function() {
   const text = document.getElementById('paste-input').value;
   const resultEl = document.getElementById('parse-result');
-  if (!text.trim()) { resultEl.innerHTML = ''; return; }
+  if (!text.trim()) { resultEl.innerHTML=''; return; }
 
-  let name = '', price = 0;
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l);
+  const isOrder = /订单号|实付款|待发货|已发货|等待买家|买家已付款/.test(text);
 
-  // 提取商品名：找第一个长度合适、有实际内容的行
-  for (const line of lines) {
-    if (line.length >= 6 && line.length <= 100 &&
-        !/^[\d\s¥￥元,，。.\/\-\+\*]+$/.test(line) &&
-        !/^(收藏|加购|立即|联系|发货|评价|店铺|优惠|满减|活动|运费|快递|查看|更多|图片|规格|数量|备注|留言|登录|注册|首页|分类|搜索|购物车|客服|关注|分享|举报|复制|粘贴)/.test(line)) {
-      name = line;
-      break;
+  if (isOrder) {
+    // ===== 订单模式：解析完整订单文字 =====
+    let ship=0, paid=0, orderId='';
+
+    const sM = text.match(/运费[\s\n]*[¥￥]?\s*(\d+\.?\d*)/);
+    if(sM) ship=parseFloat(sM[1]);
+    const pM = text.match(/实付款?[\s\n]*[¥￥]\s*(\d+\.?\d*)/);
+    if(pM) paid=parseFloat(pM[1]);
+    const oM = text.match(/订单号[\s：:]*(\d{10,25})/);
+    if(oM) orderId=oM[1];
+
+    // 找所有"优惠后xx元"行，每个代表一个商品
+    const goods = [];
+    for (let i=0; i<lines.length; i++) {
+      const priceM = lines[i].match(/优惠后\s*(\d+\.?\d*)/);
+      if (!priceM) continue;
+      const price = parseFloat(priceM[1]);
+
+      // 往前找商品名和规格
+      let name='', spec='', qty=1;
+      for (let j=i-1; j>=Math.max(0,i-20); j--) {
+        const l = lines[j];
+        if (/^规格[：:]\s*/.test(l) && !spec) spec=l.replace(/^规格[：:]\s*/,'').trim();
+        if (/^货号[：:]\s*/.test(l)) continue;
+        if (l.length>=6&&l.length<=100&&!name&&
+          !/^(规格|货号|数量|优惠|运费|单价|原价|实付|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|跨境|极速|48|品质|交期|退款|投诉|破损|延期|快递|闪电|集品|交期|跨境|超时)/.test(l)&&
+          !/^[\d\s¥￥元\.\/×x,，。]+$/.test(l)) {
+          name=l;
+        }
+      }
+      // 往后找数量
+      for (let k=i+1; k<Math.min(lines.length,i+6); k++) {
+        if (/^\d+$/.test(lines[k])) { const v=parseInt(lines[k]); if(v>=1&&v<=9999){qty=v;break;} }
+      }
+      if (name && price>0) goods.push({name, spec, price, qty, ship, paid, orderId});
     }
-  }
 
-  // 提取价格：按优先级匹配
-  const pricePatterns = [
-    /起批价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,
-    /批发价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,
-    /单价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,
-    /价格[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,
-    /[¥￥]\s*(\d+\.?\d*)/,
-    /(\d+\.?\d*)\s*元[\/每件起]/,
-    /(\d{1,5}\.\d{2})/,
-  ];
-  for (const p of pricePatterns) {
-    const m = text.match(p);
-    if (m) {
-      const val = parseFloat(m[1]);
-      if (val >= 0.1 && val < 99999) { price = val; break; }
+    if (!goods.length) {
+      resultEl.innerHTML=`<div style="padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e">
+        ⚠️ 未识别到商品。请确认复制了完整订单页文字，且能看到「优惠后xx元」字样。</div>`;
+      return;
     }
-  }
 
-  if (!name && !price) {
-    resultEl.innerHTML = '<span style="color:var(--amber)">未能识别，请确认复制了完整的商品页面文字</span>';
-    return;
-  }
-
-  // 自动填入表单
-  if (name) {
-    // 检查是否有匹配商品，没有则提示新建
-    const matched = D.products.find(p => p.name.includes(name.slice(0,6)) || name.includes(p.name.slice(0,6)));
-    if (matched) {
-      document.getElementById('pur-product').value = matched.id;
+    if (goods.length===1) {
+      fillFromGoods(goods[0]);
+    } else {
+      // 多商品：显示选择卡片
+      resultEl.innerHTML=`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px">
+        <div style="font-weight:700;color:var(--primary);margin-bottom:10px">识别到 ${goods.length} 个商品，点击选择要导入的：</div>
+        ${goods.map((g,i)=>`
+          <div onclick="fillFromGoods(window._parsedGoods[${i}])" style="padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .15s"
+            onmouseover="this.style.borderColor='var(--primary)';this.style.background='var(--primary-bg)'"
+            onmouseout="this.style.borderColor='var(--border)';this.style.background=''">
+            <div style="font-weight:600;font-size:13px">${g.name.slice(0,50)}</div>
+            ${g.spec?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${g.spec}</div>`:''}
+            <div style="font-size:14px;font-weight:800;color:var(--primary);margin-top:4px">¥${g.price.toFixed(2)} × ${g.qty}件</div>
+          </div>`).join('')}
+        <button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
+      </div>`;
+      window._parsedGoods = goods;
     }
-  }
-  if (price) {
-    document.getElementById('pur-price').value = price;
-    updateCostPreview();
-  }
 
-  resultEl.innerHTML = `
-    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:#fff;border-radius:8px;border:1px solid var(--border)">
-      ${name ? `<span>📦 商品名：<strong>${name.slice(0,30)}${name.length>30?'...':''}</strong></span>` : ''}
-      ${price ? `<span>💰 识别价格：<strong>¥${price}</strong>（已填入进价）</span>` : ''}
+  } else {
+    // ===== 商品页模式：识别商品名和价格 =====
+    let name='', price=0;
+    for (const line of lines) {
+      if (line.length>=6&&line.length<=100&&!name&&
+        !/^[\d\s¥￥元,，。.\/\-\+\*]+$/.test(line)&&
+        !/^(收藏|加购|立即|联系|发货|评价|店铺|优惠|满减|活动|运费|快递|查看|更多|图片|规格|数量|备注|留言|登录|注册)/.test(line)) {
+        name=line; break;
+      }
+    }
+    for (const p of [/起批价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,/批发价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,/优惠后\s*(\d+\.?\d*)/,/[¥￥]\s*(\d+\.?\d*)/,/(\d{1,5}\.\d{2})/]) {
+      const m=text.match(p); if(m){const v=parseFloat(m[1]);if(v>=0.1&&v<99999){price=v;break;}}
+    }
+    if (!name&&!price) { resultEl.innerHTML=`<span style="color:var(--amber)">未能识别，请确认复制了完整页面文字</span>`; return; }
+    if (price) { document.getElementById('pur-price').value=price; updateCostPreview(); }
+    if (name) {
+      const matched=D.products.find(p=>p.name.includes(name.slice(0,6))||name.includes(p.name.slice(0,6)));
+      if(matched) document.getElementById('pur-product').value=matched.id;
+    }
+    resultEl.innerHTML=`<div style="padding:10px 12px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:13px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      ${name?`<span>📦 <strong>${name.slice(0,30)}${name.length>30?'...':''}</strong></span>`:''}
+      ${price?`<span>💰 <strong>¥${price}</strong></span>`:''}
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
+    </div>`;
+  }
+};
+
+window.fillFromGoods = function(g) {
+  if(!g) return;
+  // 切换新品模式并填写
+  const matched = D.products.find(p=>p.name.includes(g.name.slice(0,6))||g.name.includes(p.name.slice(0,6)));
+  if(matched) {
+    window.toggleNewProduct('existing');
+    document.getElementById('pur-product').value=matched.id;
+  } else {
+    window.toggleNewProduct('new');
+    const nEl=document.getElementById('new-p-name'); if(nEl) nEl.value=g.name;
+    const sEl=document.getElementById('new-p-spec'); if(sEl) sEl.value=g.spec||'';
+  }
+  document.getElementById('pur-price').value=g.price.toFixed(2);
+  document.getElementById('pur-qty').value=g.qty;
+  if(g.ship) document.getElementById('pur-ship-total').value=g.ship.toFixed(2);
+  if(g.orderId) document.getElementById('pur-order').value=g.orderId;
+  updateCostPreview();
+
+  const ship=g.ship||0, qty=g.qty||1;
+  const unitShip=qty>0?ship/qty:0;
+  const total=g.price+unitShip;
+  document.getElementById('parse-result').innerHTML=`
+    <div style="padding:12px 14px;background:#fff;border:1px solid var(--border);border-radius:8px">
+      <div style="font-weight:700;color:var(--primary);margin-bottom:8px">✅ 已填入：${g.name.slice(0,30)}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:13px">
+        <div style="background:var(--bg);border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:var(--text3)">数量</div><div style="font-weight:800">${qty}件</div></div>
+        <div style="background:var(--bg);border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:var(--text3)">单件进价</div><div style="font-weight:800">¥${g.price.toFixed(2)}</div></div>
+        <div style="background:var(--primary-bg);border-radius:6px;padding:8px;text-align:center;border:1px solid var(--primary-light)"><div style="font-size:10px;color:var(--primary)">单件总成本</div><div style="font-weight:800;color:var(--primary)">¥${total.toFixed(2)}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">图片：右键1688订单页商品图 → 复制图片 → Ctrl+V 粘贴</div>
     </div>`;
 };
 
