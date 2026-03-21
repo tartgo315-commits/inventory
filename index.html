@@ -2276,7 +2276,7 @@ function renderStocktakeHistory(){
     return `<tr>
       <td>${a.date}</td><td>${name}</td>
       <td>${a.sys}</td><td>${a.actual}</td>
-      <td style="color:${a.diff>0?'var(--green)':'var(--red)';font-weight:600}">${a.diff>0?'+':''}${a.diff}</td>
+      <td style="font-weight:600;color:${a.diff>0?'var(--green)':'var(--red)'}">${a.diff>0?'+':''}${a.diff}</td>
       <td class="c-muted">${a.note||'-'}</td>
     </tr>`;
   }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">暂无盘点记录</td></tr>';
