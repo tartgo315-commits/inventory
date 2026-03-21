@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v3.3 · 2026-03-21 13:00</div>
+      <div>v3.5 · 2026-03-21 14:00</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
   </div>
@@ -357,8 +357,15 @@ input::placeholder{color:var(--text3)}
 
   <div class="section-sep">进货全记录</div>
   <div class="card">
-    <div class="card-title">进货明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="pur-total"></span></div>
+    <div class="card-title">
+      进货明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="pur-total"></span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="pur-selected-count" style="font-size:12px;color:var(--text3);display:none"></span>
+        <button class="btn btn-danger btn-sm" id="pur-batch-del" style="display:none" onclick="batchDeletePurchase()">删除所选</button>
+      </div>
+    </div>
     <div class="tbl-wrap"><table><thead><tr>
+      <th style="width:36px"><input type="checkbox" id="pur-check-all" onchange="toggleAllPurchase(this)" style="width:16px;height:16px;cursor:pointer"></th>
       <th>图片</th><th>商品 / 日期</th><th>采购量</th><th>入库量</th><th>进价(¥)</th><th>运费(¥)</th><th>总成本(¥)</th><th>批次金额(¥)</th><th>状态</th><th>快递单号</th><th>操作</th>
     </tr></thead><tbody id="purchase-table"></tbody></table></div>
     <p style="font-size:12px;color:var(--text3);margin-top:8px">点「编辑」可修改数量、进价、运费、快递单号等信息</p>
@@ -423,7 +430,13 @@ input::placeholder{color:var(--text3)}
     </div>
   </div>
   <div class="card">
-    <div class="card-title">所有产品</div>
+    <div class="card-title">
+      所有产品
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="prod-selected-count" style="font-size:12px;color:var(--text3);display:none"></span>
+        <button class="btn btn-danger btn-sm" id="prod-batch-del" style="display:none" onclick="batchDeleteProduct()">删除所选产品</button>
+      </div>
+    </div>
     <div id="products-list"></div>
   </div>
 </div>
@@ -876,6 +889,7 @@ function renderPurchaseTable(){
     const rqty=r.status==='received'?(r.receivedQty||r.qty):'-';
     const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
     return `<tr>
+      <td style="width:36px;text-align:center"><input type="checkbox" class="pur-cb" data-idx="${idx}" onchange="onPurCheckChange()" style="width:16px;height:16px;cursor:pointer"></td>
       <td style="width:130px">${imgThumb(r.pid)}</td>
       <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style="font-size:12px;color:var(--primary);font-weight:600;margin-top:2px">↳ ${gs(r.pid,r.sid).name}</div>`:''}<div style="font-size:11px;color:var(--text3);margin-top:2px">${r.date}</div></td>
       <td>${r.qty}</td><td>${rqty}</td>
@@ -1009,6 +1023,7 @@ function renderProductsTable(){
 
     return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:14px;overflow:hidden">
       <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border)">
+        <input type="checkbox" class="prod-cb" data-pid="${p.id}" onchange="onProdCheckChange()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
         ${imgThumb(p.id)}
         <div style="flex:1">
           <div style="font-weight:700;font-size:14px">${productLink(getProductLink(p.id),p.name)}</div>
@@ -1080,43 +1095,58 @@ window.smartParse = function() {
     const oM = text.match(/订单号[\s：:]*(\d{10,25})/);
     if(oM) orderId=oM[1];
 
-    // 找所有"优惠后xx元"行，每个代表一个商品
+    // 精准解析：结构是「商品名 → 规格行 → 货号行 → 标签行 → 优惠后xx元 → 原价 → 数量」
     const goods = [];
     for (let i=0; i<lines.length; i++) {
       const priceM = lines[i].match(/优惠后\s*(\d+\.?\d*)/);
       if (!priceM) continue;
       const price = parseFloat(priceM[1]);
 
-      // 往前找商品名和规格
-      let rawName='', spec='', qty=1;
-      for (let j=i-1; j>=Math.max(0,i-20); j--) {
+      let spec='', name='', qty=1;
+      let specFound=false;
+
+      // 从价格行往前扫，找最近的规格行，规格行正上方就是商品名
+      for (let j=i-1; j>=Math.max(0,i-30); j--) {
         const l = lines[j];
-        // 规格行直接作为型号
-        if (/^规格[：:]\s*/.test(l) && !spec) {
-          spec=l.replace(/^规格[：:]\s*/,'').trim();
-          continue;
-        }
+
+        // 跳过标签行
+        if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请)/.test(l)) continue;
+        // 跳过货号行
         if (/^货号[：:]\s*/.test(l)) continue;
-        if (l.length>=6&&l.length<=120&&!rawName&&
-          !/^(规格|货号|数量|优惠|运费|单价|原价|实付|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|跨境|极速|48|退款|投诉|闪电|超时)/.test(l)&&
-          !/^[\d\s¥￥元\.\/×x,，。]+$/.test(l)) {
-          rawName=l;
+
+        // 找到规格行
+        if (/^规格[：:]\s*/.test(l)) {
+          spec = l.replace(/^规格[：:]\s*/,'').trim();
+          specFound = true;
+          // 规格行的正上方（跳过空行）就是商品名
+          for (let k=j-1; k>=Math.max(0,j-5); k--) {
+            const nl = lines[k];
+            if (nl.length>=6 && nl.length<=120 &&
+              !/^[\d\s¥￥元\.\/×x,，。]+$/.test(nl) &&
+              !/^(规格|货号|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请)/.test(nl)) {
+              name = nl;
+              break;
+            }
+          }
+          break; // 找到规格就停，不再往前找
+        }
+
+        // 如果没有规格行，用遇到的第一个合适行作为商品名
+        if (!specFound && !name && l.length>=6 && l.length<=120 &&
+          !/^[\d\s¥￥元\.\/×x,，。]+$/.test(l) &&
+          !/^(规格|货号|数量|优惠|运费|单价|原价|实付|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|收货|配送|手机|电话|地址)/.test(l)) {
+          name = l;
         }
       }
+
       // 往后找数量
-      for (let k=i+1; k<Math.min(lines.length,i+6); k++) {
-        if (/^\d+$/.test(lines[k])) { const v=parseInt(lines[k]); if(v>=1&&v<=9999){qty=v;break;} }
+      for (let k=i+1; k<Math.min(lines.length,i+8); k++) {
+        if (/^\d+$/.test(lines[k])) {
+          const v=parseInt(lines[k]); if(v>=1&&v<=9999){qty=v;break;}
+        }
       }
 
-      // 产品名就是商品标题，不做拆分
-      // 规格已经从「规格:xxx」行提取
-      const productName = rawName;
-
-      if (rawName && price>0) goods.push({
-        name: productName,
-        productName: productName,
-        spec, price, qty, ship, paid, orderId
-      });
+      if (name && price>0) goods.push({name, productName:name, spec, price, qty, ship, paid, orderId});
     }
 
     if (!goods.length) {
@@ -1540,6 +1570,48 @@ window.saveEditProduct = function(){
 window.deleteProduct = function(id){
   if(!confirm('确认删除此产品及其所有型号？'))return;
   D.products=D.products.filter(p=>p.id!=id); save(); render();
+};
+window.toggleAllPurchase = function(cb) {
+  document.querySelectorAll('.pur-cb').forEach(el=>el.checked=cb.checked);
+  onPurCheckChange();
+};
+
+window.onPurCheckChange = function() {
+  const all=document.querySelectorAll('.pur-cb');
+  const checked=document.querySelectorAll('.pur-cb:checked');
+  const allCb=document.getElementById('pur-check-all');
+  const countEl=document.getElementById('pur-selected-count');
+  const delBtn=document.getElementById('pur-batch-del');
+  if(allCb) allCb.indeterminate = checked.length>0&&checked.length<all.length;
+  if(allCb) allCb.checked = checked.length===all.length&&all.length>0;
+  if(countEl) { countEl.textContent=checked.length>0?`已选 ${checked.length} 条`:''; countEl.style.display=checked.length>0?'inline':'none'; }
+  if(delBtn) delBtn.style.display=checked.length>0?'inline-flex':'none';
+};
+
+window.batchDeletePurchase = function() {
+  const checked=[...document.querySelectorAll('.pur-cb:checked')];
+  if(!checked.length) return;
+  if(!confirm(`确认删除选中的 ${checked.length} 条进货记录？`)) return;
+  const idxs=checked.map(cb=>parseInt(cb.dataset.idx)).sort((a,b)=>b-a);
+  idxs.forEach(idx=>D.purchases.splice(idx,1));
+  save(); render();
+};
+
+window.onProdCheckChange = function() {
+  const checked=document.querySelectorAll('.prod-cb:checked');
+  const countEl=document.getElementById('prod-selected-count');
+  const delBtn=document.getElementById('prod-batch-del');
+  if(countEl) { countEl.textContent=checked.length>0?`已选 ${checked.length} 个产品`:''; countEl.style.display=checked.length>0?'inline':'none'; }
+  if(delBtn) delBtn.style.display=checked.length>0?'inline-flex':'none';
+};
+
+window.batchDeleteProduct = function() {
+  const checked=[...document.querySelectorAll('.prod-cb:checked')];
+  if(!checked.length) return;
+  const pids=checked.map(cb=>parseInt(cb.dataset.pid));
+  if(!confirm(`确认删除选中的 ${pids.length} 个产品？相关进货记录不会删除。`)) return;
+  D.products=D.products.filter(p=>!pids.includes(p.id));
+  save(); render();
 };
 
 window.toggleNewProduct = function(force) {
