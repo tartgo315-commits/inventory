@@ -220,7 +220,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v3.7 · 2026-03-21 14:30</div>
+      <div>v3.8 · 2026-03-21 15:00</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
   </div>
@@ -884,28 +884,77 @@ function renderPurchaseTable(){
   const total=D.purchases.filter(r=>r.status==='received').reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.shipPerUnit||0)),0);
   const el=document.getElementById('pur-total'); if(el) el.textContent=`共${D.purchases.length}条，已入库合计¥${total.toFixed(2)}`;
   const tbody=document.getElementById('purchase-table'); if(!tbody) return;
-  tbody.innerHTML=D.purchases.slice().reverse().map((r,i)=>{
-    const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.length-1-i;
-    const rqty=r.status==='received'?(r.receivedQty||r.qty):'-';
-    const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
-    return `<tr>
-      <td style="width:36px;text-align:center"><input type="checkbox" class="pur-cb" data-idx="${idx}" onchange="onPurCheckChange()" style="width:16px;height:16px;cursor:pointer"></td>
-      <td style="width:130px">${imgThumb(r.pid)}</td>
-      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style="font-size:12px;color:var(--primary);font-weight:600;margin-top:2px">↳ ${gs(r.pid,r.sid).name}</div>`:''}<div style="font-size:11px;color:var(--text3);margin-top:2px">${r.date}</div></td>
-      <td>${r.qty}</td><td>${rqty}</td>
-      <td>¥${(r.price||0).toFixed(2)}</td>
-      <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
-      <td><strong>¥${uc.toFixed(2)}</strong></td>
-      <td>¥${(r.status==='received'?(r.receivedQty||r.qty)*uc:r.qty*uc).toFixed(2)}</td>
-      <td>${sb}</td>
-      <td>${trackingLink(r.tracking)}</td>
-      <td>
-        <button class="btn btn-ghost btn-sm" onclick="openEditPurchase(${idx})">编辑</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-left:4px" onclick="deletePurchase(${idx})">删除</button>
+
+  // 按产品分组
+  const groups = {}; // pid -> {product, records:[{r,idx}]}
+  const order = []; // 保持产品顺序
+  D.purchases.forEach((r,idx)=>{
+    if(!groups[r.pid]){ groups[r.pid]={p:gp(r.pid),records:[]}; order.push(r.pid); }
+    groups[r.pid].records.push({r,idx});
+  });
+
+  let html='';
+  order.forEach(pid=>{
+    const {p, records} = groups[pid];
+    const totalQty = records.reduce((s,{r})=>s+r.qty,0);
+    const totalAmt = records.reduce((s,{r})=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.shipPerUnit||0)),0);
+    const allReceived = records.every(({r})=>r.status==='received');
+    const hasTransit = records.some(({r})=>r.status==='transit');
+    const statusBadge = hasTransit ? '<span class="badge badge-transit">含在途</span>' : '<span class="badge badge-received">全部入库</span>';
+    const groupId = 'pg-'+pid;
+
+    // 产品汇总行
+    html+=`<tr style="background:#f5f6fa;cursor:pointer" onclick="togglePurchaseGroup('${groupId}')">
+      <td style="width:36px;text-align:center"><input type="checkbox" class="pur-cb-group" data-pid="${pid}" onclick="event.stopPropagation();onPurCheckChange()" style="width:16px;height:16px;cursor:pointer"></td>
+      <td style="width:130px">${imgThumb(pid)}</td>
+      <td colspan="8">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:700">${productLink('',p?p.name:'已删除商品')}</span>
+          <span style="font-size:12px;color:var(--text3)">${records.length}个型号 · 共${totalQty}件 · ¥${totalAmt.toFixed(2)}</span>
+          ${statusBadge}
+          <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="${groupId}-arrow">▼ 展开</span>
+        </div>
       </td>
+      <td></td>
     </tr>`;
-  }).join('');
+
+    // 型号子行（默认展开）
+    records.slice().reverse().forEach(({r,idx})=>{
+      const sp=gs(r.pid,r.sid);
+      const uc=(r.price||0)+(r.shipPerUnit||0);
+      const rqty=r.status==='received'?(r.receivedQty||r.qty):'-';
+      const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
+      html+=`<tr class="${groupId}-row" style="background:#fafbfe">
+        <td style="text-align:center"><input type="checkbox" class="pur-cb" data-idx="${idx}" onchange="onPurCheckChange()" style="width:16px;height:16px;cursor:pointer"></td>
+        <td></td>
+        <td style="padding-left:28px">
+          <div style="font-size:12px;color:var(--primary);font-weight:600">↳ ${sp?sp.name:'（无型号）'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:1px">${r.date}${r.order?' · '+r.order:''}</div>
+        </td>
+        <td>${r.qty}</td><td>${rqty}</td>
+        <td>¥${(r.price||0).toFixed(2)}</td>
+        <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
+        <td><strong>¥${uc.toFixed(2)}</strong></td>
+        <td>¥${(r.status==='received'?(r.receivedQty||r.qty)*uc:r.qty*uc).toFixed(2)}</td>
+        <td>${sb}</td>
+        <td>${trackingLink(r.tracking)}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="openEditPurchase(${idx})">编辑</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-left:4px" onclick="deletePurchase(${idx})">删除</button>
+        </td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML=html;
 }
+
+window.togglePurchaseGroup = function(groupId){
+  const rows=document.querySelectorAll('.'+groupId+'-row');
+  const arrow=document.getElementById(groupId+'-arrow');
+  const hidden=rows.length&&rows[0].style.display==='none';
+  rows.forEach(r=>r.style.display=hidden?'':'none');
+  if(arrow) arrow.textContent=hidden?'▼ 展开':'▶ 折叠';
+};
 
 function renderCostStats(){
   const el=document.getElementById('cost-stats-table'); if(!el) return;
