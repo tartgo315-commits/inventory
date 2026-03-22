@@ -85,8 +85,8 @@ td{padding:14px 16px;border-bottom:1px solid var(--border);color:var(--text);ver
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#fafbfe}
 .prod-cell{display:flex;align-items:center;gap:14px}
-.prod-thumb{width:110px;height:110px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);flex-shrink:0;background:var(--bg)}
-.prod-placeholder{width:110px;height:110px;background:#f3f4f6;border:1.5px dashed var(--border2);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:36px;flex-shrink:0;color:var(--text3)}
+.prod-thumb{width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0;background:var(--bg)}
+.prod-placeholder{width:56px;height:56px;background:#f3f4f6;border:1.5px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;color:var(--text3);cursor:pointer}
 .prod-info{display:flex;flex-direction:column;gap:3px}
 .prod-name-link{font-weight:600;color:var(--text);text-decoration:none;font-size:14px}
 .prod-name-link:hover{color:var(--primary)}
@@ -174,7 +174,7 @@ input::placeholder{color:var(--text3)}
   .main-wrap{margin-left:0}
   .metric-grid,.flow-bar{grid-template-columns:1fr 1fr}
   .form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr}
-  .prod-thumb,.prod-placeholder{width:80px!important;height:80px!important}
+  .prod-thumb,.prod-placeholder{width:56px!important;height:56px!important}
 }
 </style>
 </head>
@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v4.7 · 2026-03-22 10:30</div>
+      <div>v4.8 · 2026-03-22 11:00</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -1047,7 +1047,7 @@ function renderTransitTable(){
   el.innerHTML=items.map(r=>{
     const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
     return `<tr>
-      <td style="width:130px">${imgThumb(r.pid)}</td>
+      <td style="width:64px;padding:4px 6px">${imgThumb(r.pid)}</td>
       <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style="font-size:12px;color:var(--primary);margin-top:2px;font-weight:600">↳ ${gs(r.pid,r.sid).name}</div>`:''}<div style="font-size:11px;color:var(--text3);margin-top:2px">${r.date}${r.order?' · '+r.order:''}</div></td>
       <td>${r.qty}</td>
       <td>¥${uc.toFixed(2)}</td>
@@ -1089,7 +1089,7 @@ function renderPurchaseTable(){
     // 产品汇总行
     html+=`<tr style="background:#f5f6fa;cursor:pointer" onclick="togglePurchaseGroup('${groupId}')">
       <td style="width:36px;text-align:center"><input type="checkbox" class="pur-cb-group" data-pid="${pid}" onclick="event.stopPropagation();onPurCheckChange()" style="width:16px;height:16px;cursor:pointer"></td>
-      <td style="width:130px">${imgThumb(pid)}</td>
+      <td style="width:64px;padding:4px 6px">${imgThumb(pid)}</td>
       <td colspan="8">
         <div style="display:flex;align-items:center;gap:10px">
           <span style="font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--border2)" onclick="event.stopPropagation();openEditProduct(${pid})" title="点击编辑产品">${p?p.name:'已删除商品'} ✏️</span>
@@ -1205,7 +1205,7 @@ function renderCostStats(){
       ? `<div style="display:flex;align-items:center;gap:6px">¥${temuPrice.toFixed(2)}<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="font-size:11px;height:24px;padding:0 8px">编辑</button></div>`
       : `<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="color:var(--primary)">+ 填写售价</button>`;
     return `<tr>
-      <td style="width:130px;cursor:pointer" onclick="openEditProduct(${p.id})" title="点击编辑产品">${imgThumb(p.id)}</td>
+      <td style="width:64px;padding:4px 6px;cursor:pointer" onclick="openEditProduct(${p.id})" title="点击编辑产品">${imgThumb(p.id)}</td>
       <td style="cursor:pointer" onclick="openEditProduct(${p.id})" title="点击编辑产品">
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-weight:600;color:var(--text)">${p.name}</span>
@@ -2336,7 +2336,7 @@ function renderStocktakeTable(){
     if(specs.length===0){
       const stock=getLocalStock(p.id);
       rows+=`<tr>
-        <td style="width:70px">${imgThumb(p.id,0)}</td>
+        <td style="width:64px;padding:4px 6px">${imgThumb(p.id,0)}</td>
         <td>${p.name}</td>
         <td>${stock}</td>
         <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="0" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
@@ -2347,7 +2347,7 @@ function renderStocktakeTable(){
       specs.forEach(sp=>{
         const stock=getLocalStockSpec(p.id,sp.sid);
         rows+=`<tr>
-          <td style="width:70px">${imgThumb(p.id,sp.sid)}</td>
+          <td style="width:64px;padding:4px 6px">${imgThumb(p.id,sp.sid)}</td>
           <td>${p.name} <span style="color:var(--primary);font-size:12px">· ${sp.name}</span></td>
           <td>${stock}</td>
           <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
