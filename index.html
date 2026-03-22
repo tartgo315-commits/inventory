@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v4.6 · 2026-03-22 10:00</div>
+      <div>v4.7 · 2026-03-22 10:30</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -474,7 +474,7 @@ input::placeholder{color:var(--text3)}
     <div class="alert alert-info">📋 盘点时填写实际库存数量，系统会自动计算差异并调整库存记录。</div>
     <div id="stocktake-table-wrap">
       <div class="tbl-wrap"><table><thead><tr>
-        <th>商品/型号</th><th>系统库存</th><th>实际数量</th><th>差异</th><th>备注</th>
+        <th>图片</th><th>商品/型号</th><th>系统库存</th><th>实际数量</th><th>差异</th><th>备注</th>
       </tr></thead><tbody id="stocktake-table"></tbody></table></div>
       <div class="btns" style="margin-top:14px">
         <button class="btn btn-primary" onclick="confirmStocktake()">确认盘点并调整库存</button>
@@ -2336,6 +2336,7 @@ function renderStocktakeTable(){
     if(specs.length===0){
       const stock=getLocalStock(p.id);
       rows+=`<tr>
+        <td style="width:70px">${imgThumb(p.id,0)}</td>
         <td>${p.name}</td>
         <td>${stock}</td>
         <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="0" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
@@ -2346,6 +2347,7 @@ function renderStocktakeTable(){
       specs.forEach(sp=>{
         const stock=getLocalStockSpec(p.id,sp.sid);
         rows+=`<tr>
+          <td style="width:70px">${imgThumb(p.id,sp.sid)}</td>
           <td>${p.name} <span style="color:var(--primary);font-size:12px">· ${sp.name}</span></td>
           <td>${stock}</td>
           <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
@@ -2355,8 +2357,7 @@ function renderStocktakeTable(){
       });
     }
   });
-  tbody.innerHTML=rows||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>';
-  // 监听输入变化
+  tbody.innerHTML=rows||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>';
   document.querySelectorAll('.st-input').forEach(inp=>{
     inp.oninput=function(){
       const pid=this.dataset.pid, sid=this.dataset.sid;
