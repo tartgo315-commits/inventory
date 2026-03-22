@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v4.3 · 2026-03-21 17:00</div>
+      <div>v4.5 · 2026-03-22 09:30</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -1526,10 +1526,11 @@ window.importAllGoods = function() {
     }
 
     const shipPerUnit = g.qty>0 ? (g.ship||0)/g.qty : 0;
+    const img = g.imgB64 ? 'data:image/jpeg;base64,'+g.imgB64 : '';
     D.purchases.push({
       date:today(), pid, sid, qty:g.qty, price:g.price,
       shipPerUnit, shipTotal:g.ship||0,
-      tracking:'', order:g.orderId||'', link:'', img:'',
+      tracking:'', order:g.orderId||'', link:'', img:img,
       status:'received', receivedQty:g.qty, receivedDate:today()
     });
     imported++;
@@ -1585,6 +1586,60 @@ window.fillFromGoods = function(g) {
 function handleBookmarkParams() {
   const params = new URLSearchParams(window.location.search);
   const source = params.get('source');
+  
+  // 新方式：通过localStorage读取含图片的完整数据
+  const importKey = params.get('importKey');
+  if(importKey && importKey !== 'NOIMG') {
+    try {
+      const raw = localStorage.getItem(importKey);
+      if(raw) {
+        localStorage.removeItem(importKey);
+        const data = JSON.parse(raw);
+        if(data.goods && data.goods.length) {
+          showPage('purchase');
+          setTimeout(()=>{
+            window._parsedGoods = data.goods.map(g=>({
+              name:g.name, productName:g.name, spec:g.spec,
+              price:g.price, qty:g.qty, ship:data.ship, paid:data.paid,
+              orderId:data.orderId, imgB64:g.imgB64||''
+            }));
+            const resultEl=document.getElementById('parse-result');
+            if(!resultEl)return;
+            if(data.goods.length===1){
+              fillFromGoods(window._parsedGoods[0]);
+            } else {
+              resultEl.innerHTML=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                  <div style="font-weight:700;color:var(--primary);font-size:14px">✅ 识别到 ${data.goods.length} 个商品（含图片）</div>
+                  <div style="display:flex;gap:8px">
+                    <button class="btn btn-primary" onclick="importAllGoods()" style="font-size:14px;height:42px;padding:0 24px">📦 全部导入（${data.goods.length}个）直接入库</button>
+                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('parse-result').innerHTML=''">清空</button>
+                  </div>
+                </div>
+                <div style="display:grid;gap:8px">
+                  ${data.goods.map((g,i)=>`
+                    <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
+                      ${g.imgB64?`<img src="data:image/jpeg;base64,${g.imgB64}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;flex-shrink:0">`:'<div style="width:50px;height:50px;background:var(--surface);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px">📦</div>'}
+                      <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name.slice(0,50)}</div>
+                        ${g.spec?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${g.spec}</div>`:''}
+                      </div>
+                      <div style="text-align:right;flex-shrink:0">
+                        <div style="font-weight:800;color:var(--primary)">¥${g.price.toFixed(2)} × ${g.qty}件</div>
+                      </div>
+                      <button class="btn btn-ghost btn-sm" onclick="fillFromGoods(window._parsedGoods[${i}])">单独导入</button>
+                    </div>`).join('')}
+                </div>
+              </div>`;
+            }
+          },500);
+          return;
+        }
+      }
+    } catch(e){}
+  }
+  
+  const source2 = params.get('source');
   const bName = params.get('name');
   const bSpec = params.get('spec');
   const bPrice = params.get('price');
@@ -1771,10 +1826,20 @@ window.updateCostPreview = function(){
   const price=parseFloat(document.getElementById('pur-price').value)||0;
   const shipTotal=parseFloat(document.getElementById('pur-ship-total').value)||0;
   const shipPer=qty>0?shipTotal/qty:0;
+  const unitCost=price+shipPer;
+  const totalCost=unitCost*qty;
   const el=document.getElementById('pur-cost-preview');
-  if(el) el.textContent=(price||shipPer)
-    ?`¥${(price+shipPer).toFixed(2)}/件（进价¥${price.toFixed(2)} + 运费¥${shipPer.toFixed(2)}）`
-    :'填写后自动显示';
+  if(!el) return;
+  if(price||shipPer){
+    el.innerHTML=`<span>¥${unitCost.toFixed(2)}/件</span>`
+      +`<span style="color:var(--text3);margin:0 6px">×</span>`
+      +`<span>${qty}件</span>`
+      +`<span style="color:var(--text3);margin:0 6px">=</span>`
+      +`<strong style="color:var(--primary);font-size:15px">¥${totalCost.toFixed(2)}</strong>`
+      +`<span style="font-size:11px;color:var(--text3);margin-left:8px">（进¥${price.toFixed(2)}+运¥${shipPer.toFixed(2)}/件）</span>`;
+  } else {
+    el.textContent='填写数量+进价+运费后显示';
+  }
 };
 
 window.addProduct = function(){
