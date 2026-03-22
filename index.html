@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v4.5 · 2026-03-22 09:30</div>
+      <div>v4.6 · 2026-03-22 10:00</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -584,6 +584,30 @@ input::placeholder{color:var(--text3)}
   </div>
 </div>
 
+<!-- 快速图片上传弹窗 -->
+<div id="quick-img-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">
+      <span id="quick-img-title">上传商品图片</span>
+      <button class="modal-close" onclick="document.getElementById('quick-img-modal').style.display='none'">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:10px 0">
+      <div id="quick-img-preview" style="width:160px;height:160px;border-radius:10px;border:2px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--bg);overflow:hidden;cursor:pointer" onclick="document.getElementById('quick-img-file').click()">📷</div>
+      <div style="font-size:13px;color:var(--text3);text-align:center">点击上传 / 拖拽 / <strong>Ctrl+V 粘贴截图</strong></div>
+      <label class="btn btn-ghost" style="cursor:pointer">
+        📁 选择图片文件
+        <input type="file" id="quick-img-file" accept="image/*" style="display:none" onchange="handleQuickImg(this)">
+      </label>
+    </div>
+    <input type="hidden" id="quick-img-pid">
+    <input type="hidden" id="quick-img-sid">
+    <div class="btns">
+      <button class="btn btn-primary" onclick="saveQuickImg()">保存图片</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('quick-img-modal').style.display='none'">取消</button>
+    </div>
+  </div>
+</div>
+
 <!-- 编辑进货弹窗 -->
 <div id="edit-modal" class="modal-mask" style="display:none" onclick="closeEditModal(event)">
   <div class="modal-box">
@@ -768,8 +792,9 @@ function getProductImg(pid, sid) {
 
 function imgThumb(pid, sid) {
   const img = getProductImg(pid, sid);
-  if (!img) return `<div class="prod-placeholder">📦</div>`;
-  return `<img src="${img}" class="prod-thumb" onerror="this.style.display='none'">`;
+  const clickAttr = `onclick="openQuickImgUpload(${pid},${sid||0})" title="点击上传图片" style="cursor:pointer"`;
+  if (!img) return `<div class="prod-placeholder" ${clickAttr}>📷</div>`;
+  return `<img src="${img}" class="prod-thumb" ${clickAttr} onerror="this.style.display='none'">`;
 }
 
 function getProductLink(pid) {
@@ -1802,16 +1827,19 @@ document.addEventListener('paste', function(e) {
   const editModal = document.getElementById('edit-modal');
   const prodModal = document.getElementById('product-edit-modal');
   const specModal = document.getElementById('spec-edit-modal');
+  const quickModal = document.getElementById('quick-img-modal');
   const isEditOpen = editModal && editModal.style.display !== 'none';
   const isProdOpen = prodModal && prodModal.style.display !== 'none';
   const isSpecOpen = specModal && specModal.style.display !== 'none';
+  const isQuickOpen = quickModal && quickModal.style.display !== 'none';
   const items = e.clipboardData && e.clipboardData.items;
   if(!items) return;
   for(const item of items) {
     if(item.type.startsWith('image/')) {
       const file = item.getAsFile();
       compressImage(file, 600, function(base64) {
-        if(isEditOpen) { _editImgBase64=base64; setPreviewEl('edit-img-preview',base64); }
+        if(isQuickOpen) { _quickImgBase64=base64; setPreviewEl('quick-img-preview',base64); }
+        else if(isEditOpen) { _editImgBase64=base64; setPreviewEl('edit-img-preview',base64); }
         else if(isProdOpen) { _productImgBase64=base64; setPreviewEl('pe-img-preview',base64); }
         else if(isSpecOpen) { _specImgBase64=base64; setPreviewEl('se-img-preview',base64); }
         else { _purImgBase64=base64; setPreviewEl('pur-img-preview',base64); }
@@ -1875,8 +1903,42 @@ window.deleteSpec = function(pid,sid){
   p.specs=p.specs.filter(s=>s.sid!=sid); save(); render();
 };
 
-let _productImgBase64 = '';
-let _specImgBase64 = '';
+let _quickImgBase64 = '';
+
+window.openQuickImgUpload = function(pid, sid) {
+  const p = gp(pid); if(!p) return;
+  const sp = gs(pid, sid);
+  const title = sp ? p.name.slice(0,15)+'... · '+sp.name : p.name.slice(0,20)+'...';
+  document.getElementById('quick-img-title').textContent = '上传图片 — '+title;
+  document.getElementById('quick-img-pid').value = pid;
+  document.getElementById('quick-img-sid').value = sid||0;
+  _quickImgBase64 = getProductImg(pid, sid)||'';
+  setPreviewEl('quick-img-preview', _quickImgBase64);
+  document.getElementById('quick-img-modal').style.display = 'flex';
+};
+
+window.handleQuickImg = function(input) {
+  const file = input.files[0]; if(!file) return;
+  compressImage(file, 600, function(base64) {
+    _quickImgBase64 = base64;
+    setPreviewEl('quick-img-preview', base64);
+  });
+};
+
+window.saveQuickImg = function() {
+  const pid = parseInt(document.getElementById('quick-img-pid').value);
+  const sid = parseInt(document.getElementById('quick-img-sid').value)||0;
+  if(!_quickImgBase64) { alert('请先选择或粘贴图片'); return; }
+  const p = gp(pid); if(!p) return;
+  if(sid) {
+    const sp = gs(pid, sid);
+    if(sp) sp.img = _quickImgBase64;
+  } else {
+    p.img = _quickImgBase64;
+  }
+  document.getElementById('quick-img-modal').style.display = 'none';
+  save(); render();
+};
 
 window.handleProductImg = function(input) {
   const file = input.files[0]; if(!file) return;
