@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v5.7 · 2026-03-23 11:00</div>
+      <div>v5.8 · 2026-03-23 11:30</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -258,7 +258,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品库存状态</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>在途</th><th>本地库存</th><th>已发Temu</th><th>Temu库存</th><th>FIFO成本/件</th><th>历史均价/件</th><th>利润率</th>
+      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>已发Temu</th><th>Temu库存</th><th>FIFO成本/件</th><th>历史均价/件</th><th>利润率</th>
     </tr></thead><tbody id="stock-table"></tbody></table></div>
   </div>
 </div>
@@ -1255,10 +1255,13 @@ function renderStockTable(){
     const local=getLocalStock(p.id),temu=getTemuStock(p.id),transit=getTransitQty(p.id);
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
     return `<tr><td><div class="prod-cell">${imgThumb(p.id)}${editableProductName(p.id, p.name)}</div></td>
+      <td>${getProductLink(p.id)
+        ? `<a href="${getProductLink(p.id)}" target="_blank" style="font-size:13px;color:var(--primary);text-decoration:none;font-weight:600" title="跳转1688货源">🔗 查看</a>`
+        : `<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})" title="点击添加货源链接">+ 添加</span>`}</td>
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
       <td><strong>${local}</strong></td><td>${temu}</td><td>${temu}</td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
-      <td>¥${wavg.toFixed(2)}</td><td>¥${p.price}</td>
+      <td>¥${wavg.toFixed(2)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td></tr>`;
   }).join('');
 }
