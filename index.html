@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v5.8 · 2026-03-23 11:30</div>
+      <div>v5.9 · 2026-03-23 12:00</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -1447,7 +1447,13 @@ window.smartParse = function() {
         }
       }
 
-      if (name && price>0) goods.push({name, productName:name, spec, price, qty, ship, paid, orderId});
+      if (name && price>0) {
+        // 尝试从已有进货记录里找该商品的1688链接
+        const existLink = D.purchases.filter(r=>r.link&&r.pid&&gp(r.pid)&&
+          (gp(r.pid).name===name||gp(r.pid).name.slice(0,10)===name.slice(0,10)))
+          .map(r=>r.link)[0]||'';
+        goods.push({name, productName:name, spec, price, qty, ship, paid, orderId, sourceLink:existLink});
+      }
     }
 
     if (!goods.length) {
@@ -1551,7 +1557,7 @@ window.importAllGoods = function() {
     } else {
       // 新建产品
       if (!D.nextSid) D.nextSid=100;
-      const np = {id:D.nextId++, name:pName, sku:'', price:0, specs:[]};
+      const np = {id:D.nextId++, name:pName, sku:'', price:0, specs:[], sourceLink:g.sourceLink||''};
       if (specName) {
         np.specs.push({sid:D.nextSid++, name:specName, price:0, sku:''});
         sid = np.specs[0].sid;
@@ -2192,6 +2198,12 @@ window.addPurchase = function(status){
   const shipPerUnit=qty>0?shipTotal/qty:0;
   const link=document.getElementById('pur-link').value.trim();
   const img=_purImgBase64||'';
+
+  // 如果填了1688链接，自动保存到产品的货源链接（方便以后直接跳转）
+  if(link && pid) {
+    const pp=gp(pid);
+    if(pp && !pp.sourceLink) pp.sourceLink = link;
+  }
 
   const record = {date:today(),pid,sid,qty,price,shipPerUnit,shipTotal,tracking,order,link,img,status};
   if(status==='received'){
