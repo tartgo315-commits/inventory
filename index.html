@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v4.8 · 2026-03-22 11:00</div>
+      <div>v5.0 · 2026-03-22 12:00</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -394,7 +394,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">出库记录 <span class="c-muted" style="font-size:12px;font-weight:400" id="out-total"></span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>日期</th><th>商品/型号</th><th>发出数量</th><th>头程运费</th><th>运单号</th><th>操作</th>
+      <th>日期</th><th>商品/型号</th><th>发出数量</th><th>Temu售价</th><th>头程运费</th><th>运单号</th><th>操作</th>
     </tr></thead><tbody id="outbound-table"></tbody></table></div>
   </div>
 </div>
@@ -474,7 +474,7 @@ input::placeholder{color:var(--text3)}
     <div class="alert alert-info">📋 盘点时填写实际库存数量，系统会自动计算差异并调整库存记录。</div>
     <div id="stocktake-table-wrap">
       <div class="tbl-wrap"><table><thead><tr>
-        <th>图片</th><th>商品/型号</th><th>系统库存</th><th>实际数量</th><th>差异</th><th>备注</th>
+        <th>图片</th><th>商品/型号</th><th>Temu售价</th><th>系统库存</th><th>实际数量</th><th>差异</th><th>备注</th>
       </tr></thead><tbody id="stocktake-table"></tbody></table></div>
       <div class="btns" style="margin-top:14px">
         <button class="btn btn-primary" onclick="confirmStocktake()">确认盘点并调整库存</button>
@@ -1093,7 +1093,7 @@ function renderPurchaseTable(){
       <td colspan="8">
         <div style="display:flex;align-items:center;gap:10px">
           <span style="font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--border2)" onclick="event.stopPropagation();openEditProduct(${pid})" title="点击编辑产品">${p?p.name:'已删除商品'} ✏️</span>
-          <span style="font-size:12px;color:var(--text3)">${records.length}个型号 · 共${totalQty}件 · ¥${totalAmt.toFixed(2)}</span>
+          <span style="font-size:12px;color:var(--text3)">${records.length}个型号 · 共${totalQty}件 · 采购¥${totalAmt.toFixed(2)}</span>${p&&p.price?`<span style="font-size:12px;color:var(--green);font-weight:600;margin-left:6px">Temu售价 ¥${p.price}</span>`:''}
           ${statusBadge}
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openAddSpecPurchase(${pid})" style="margin-left:8px">+ 添加型号入库</button>
           <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="${groupId}-arrow">▼ 展开</span>
@@ -1114,6 +1114,7 @@ function renderPurchaseTable(){
         <td style="padding-left:28px">
           <div style="font-size:12px;color:var(--primary);font-weight:600">↳ ${sp?sp.name:'（无型号）'}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:1px">${r.date}${r.order?' · '+r.order:''}</div>
+          ${(()=>{const tp=sp&&sp.price?sp.price:(p&&p.price?p.price:0);return tp?`<div style="font-size:11px;color:var(--green);font-weight:600;margin-top:1px">Temu ¥${tp}</div>`:''})()}
         </td>
         <td>${r.qty}</td><td>${rqty}</td>
         <td>¥${(r.price||0).toFixed(2)}</td>
@@ -1229,8 +1230,11 @@ function renderOutboundTable(){
   const tbody=document.getElementById('outbound-table'); if(!tbody) return;
   tbody.innerHTML=D.outbounds.slice().reverse().map((r,i)=>{
     const p=gp(r.pid),idx=D.outbounds.length-1-i;
-    return `<tr><td>${r.date}</td><td><div style='font-weight:600'>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style='font-size:12px;color:var(--primary);font-weight:600'>↳ ${gs(r.pid,r.sid).name}</div>`:''}</td>
+    const sp=gs(r.pid,r.sid);
+    const temuPrice=sp&&sp.price?sp.price:(p&&p.price?p.price:0);
+    return `<tr><td>${r.date}</td><td><div style='font-weight:600'>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</div>${r.sid&&sp?`<div style='font-size:12px;color:var(--primary);font-weight:600'>↳ ${sp.name}</div>`:''}</td>
       <td><strong>${r.qty}</strong></td>
+      <td style="font-weight:700;color:var(--green)">${temuPrice?'¥'+temuPrice:'<span class="c-muted">-</span>'}</td>
       <td>${r.shipTotal?'¥'+r.shipTotal.toFixed(2):'<span class="c-muted">-</span>'}</td>
       <td class="c-muted">${r.tracking||'-'}</td>
       <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteOutbound(${idx})">删除</button></td></tr>`;
@@ -1272,29 +1276,31 @@ function renderProductsTable(){
     el.innerHTML='<div style="text-align:center;color:var(--text3);padding:30px">还没有产品，先在上方创建</div>';
     return;
   }
+  if(!window._prodExpanded) window._prodExpanded={};
   el.innerHTML=D.products.map(p=>{
     const specs=p.specs||[];
     const totalLocal=specs.length?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
-    const totalTemu=specs.length?specs.reduce((s,sp)=>s+getTemuStockSpec(p.id,sp.sid),0):getTemuStock(p.id);
+    const isExpanded=window._prodExpanded[p.id]!==false;
+    const expandBtn=specs.length>0?`<button class="btn btn-ghost btn-sm" onclick="toggleProductSpecs(${p.id})" id="expand-btn-${p.id}" style="min-width:64px">${isExpanded?'▲ 收起':'▼ 展开'}</button>`:'';
+
     const specsHtml=specs.map(sp=>{
-      const local=getLocalStockSpec(p.id,sp.sid),temu=getTemuStockSpec(p.id,sp.sid);
+      const local=getLocalStockSpec(p.id,sp.sid);
       const fifo=getFifoCostPerUnitSpec(p.id,sp.sid);
       const spPrice=sp.price||p.price||0;
       const profit=spPrice>0?((spPrice-fifo)/spPrice*100):0;
       const spImg=getProductImg(p.id,sp.sid);
-      return `<tr style="background:#fafbfc">
-        <td style="padding-left:16px;width:60px">
+      return `<tr class="spec-row-${p.id}" style="background:#fafbfc;${isExpanded?'':'display:none'}">
+        <td style="width:64px;padding:4px 6px">
           ${spImg
-            ? `<img src="${spImg}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer" onclick="openEditSpec(${p.id},${sp.sid})">`
-            : `<div style="width:50px;height:50px;background:var(--bg);border:1.5px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer" onclick="openEditSpec(${p.id},${sp.sid})">📷</div>`
-          }
+            ?`<img src="${spImg}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer" onclick="openQuickImgUpload(${p.id},${sp.sid})">`
+            :`<div style="width:56px;height:56px;background:var(--bg);border:1.5px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer" onclick="openQuickImgUpload(${p.id},${sp.sid})">📷</div>`}
         </td>
-        <td style="color:var(--text2)">↳ ${sp.name}</td>
+        <td style="color:var(--text2);font-weight:600">↳ ${sp.name}</td>
         <td class="c-muted">${sp.sku||'-'}</td>
-        <td>${spPrice?'¥'+spPrice:'-'}</td>
+        <td style="font-weight:700;color:var(--green)">${spPrice?'¥'+spPrice:'<span style=\"color:var(--amber);font-size:11px\">未设置</span>'}</td>
         <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
-        <td><strong>${local}</strong></td><td>${temu}</td>
-        <td class="${profit>20?'c-green':'c-red'}">${spPrice?profit.toFixed(1)+'%':'-'}</td>
+        <td><strong>${local}</strong></td>
+        <td class="${profit>20?'c-green':profit>0?'':'c-red'}">${spPrice?profit.toFixed(1)+'%':'-'}</td>
         <td style="white-space:nowrap">
           <button class="btn btn-ghost btn-sm" onclick="openEditSpec(${p.id},${sp.sid})">编辑</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-left:4px" onclick="deleteSpec(${p.id},${sp.sid})">删除</button>
@@ -1302,44 +1308,53 @@ function renderProductsTable(){
       </tr>`;
     }).join('');
 
-    const addSpecRow=`<tr style="background:#f0f4ff">
-      <td style="padding-left:32px" colspan="2">
+    const addSpecRow=`<tr class="spec-row-${p.id}" style="background:#f0f4ff;${isExpanded?'':'display:none'}">
+      <td style="padding-left:16px" colspan="2">
         <input type="text" id="spec-name-${p.id}" placeholder="型号名称，如 428-32T" style="width:160px;height:30px;font-size:12px;padding:0 8px;border:1px solid var(--border2);border-radius:4px">
-        <input type="number" id="spec-price-${p.id}" placeholder="售价(¥)" style="width:90px;height:30px;font-size:12px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;margin-left:6px" step="0.01" min="0">
+        <input type="number" id="spec-price-${p.id}" placeholder="Temu售价(¥)" style="width:100px;height:30px;font-size:12px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;margin-left:6px" step="0.01" min="0">
         <input type="text" id="spec-sku-${p.id}" placeholder="SKU" style="width:80px;height:30px;font-size:12px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;margin-left:6px">
       </td>
-      <td colspan="6"><button class="btn btn-primary btn-sm" onclick="addSpec(${p.id})">＋ 添加型号</button></td>
+      <td colspan="5"><button class="btn btn-primary btn-sm" onclick="addSpec(${p.id})">＋ 添加型号</button></td>
     </tr>`;
 
-    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:14px;overflow:hidden">
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border)">
+    const collapsedSummary=!isExpanded&&specs.length>0?`<div style="padding:8px 16px;background:#f9fafb;border-top:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap">${specs.map(sp=>{const local=getLocalStockSpec(p.id,sp.sid);const spPrice=sp.price||p.price||0;return `<span style="font-size:12px;color:var(--text2)"><span style="color:var(--primary);font-weight:600">${sp.name}</span> 库存<strong>${local}</strong>${spPrice?` · <span style="color:var(--green)">¥${spPrice}</span>`:''}</span>`;}).join('')}</div>`:'';
+
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:${isExpanded?'1px solid var(--border)':'none'}">
         <input type="checkbox" class="prod-cb" data-pid="${p.id}" onchange="onProdCheckChange()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
-        ${imgThumb(p.id)}
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:14px">${productLink(getProductLink(p.id),p.name)}</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px">SKU: ${p.sku||'-'} · 默认售价: ${p.price?'¥'+p.price:'-'} · 本地库存: ${totalLocal} · Temu库存: ${totalTemu}</div>
+        <div onclick="openEditProduct(${p.id})" style="cursor:pointer;flex-shrink:0">${imgThumb(p.id)}</div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openEditProduct(${p.id})">
+          <div style="font-weight:700;font-size:14px">${p.name} <span style="font-size:11px;color:var(--text3)">✏️</span></div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">总库存: <strong>${totalLocal}</strong>${p.price?` · 售价: <span style="color:var(--green);font-weight:600">¥${p.price}</span>`:''}${p.sku?` · SKU: ${p.sku}`:''}${specs.length>0?` · <span style="color:var(--primary)">${specs.length}个型号</span>`:''}</div>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="editProduct(${p.id})">编辑产品</button>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          ${expandBtn}
           <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProduct(${p.id})">删除</button>
         </div>
       </div>
-      ${specs.length||true?`<table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="background:#f5f6fa">
-          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left;width:60px">图片</th><th style="padding:8px 16px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">型号</th>
-          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">SKU</th>
-          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">售价</th>
-          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">成本</th>
-          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">本地库存</th>
-          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">Temu库存</th>
-          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">利润率</th>
-          <th style="padding:8px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">操作</th>
+      ${collapsedSummary}
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead class="spec-row-${p.id}" style="${isExpanded?'':'display:none'}"><tr style="background:#f5f6fa">
+          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left;width:64px">图片</th>
+          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">型号</th>
+          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">SKU</th>
+          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">Temu售价</th>
+          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">成本(FIFO)</th>
+          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">本地库存</th>
+          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">利润率</th>
+          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">操作</th>
         </tr></thead>
         <tbody>${specsHtml}${addSpecRow}</tbody>
-      </table>`:''}
+      </table>
     </div>`;
   }).join('');
 }
+
+window.toggleProductSpecs = function(pid){
+  if(!window._prodExpanded) window._prodExpanded={};
+  window._prodExpanded[pid]=window._prodExpanded[pid]===false?true:false;
+  renderProductsTable();
+};
 
 function populateSelects(){
   // 展开产品+型号到选项
@@ -2338,6 +2353,7 @@ function renderStocktakeTable(){
       rows+=`<tr>
         <td style="width:64px;padding:4px 6px">${imgThumb(p.id,0)}</td>
         <td>${p.name}</td>
+        <td style="font-weight:700;color:var(--green)">${p.price?'¥'+p.price:'-'}</td>
         <td>${stock}</td>
         <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="0" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
         <td class="st-diff" id="std-${p.id}-0" style="font-weight:600">0</td>
@@ -2349,6 +2365,7 @@ function renderStocktakeTable(){
         rows+=`<tr>
           <td style="width:64px;padding:4px 6px">${imgThumb(p.id,sp.sid)}</td>
           <td>${p.name} <span style="color:var(--primary);font-size:12px">· ${sp.name}</span></td>
+          <td style="font-weight:700;color:var(--green)">${sp.price||p.price?'¥'+(sp.price||p.price):'-'}</td>
           <td>${stock}</td>
           <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
           <td class="st-diff" id="std-${p.id}-${sp.sid}" style="font-weight:600">0</td>
@@ -2357,7 +2374,7 @@ function renderStocktakeTable(){
       });
     }
   });
-  tbody.innerHTML=rows||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>';
+  tbody.innerHTML=rows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>';
   document.querySelectorAll('.st-input').forEach(inp=>{
     inp.oninput=function(){
       const pid=this.dataset.pid, sid=this.dataset.sid;
