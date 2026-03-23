@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v5.1 · 2026-03-23 09:00</div>
+      <div>v5.2 · 2026-03-23 09:30</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -680,40 +680,54 @@ input::placeholder{color:var(--text3)}
   </div>
 </div>
 
-<!-- 型号编辑弹窗 -->
-<div id="spec-edit-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal-box">
+<!-- 统一产品详情弹窗（任何界面都可调用） -->
+<div id="product-edit-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box" style="max-width:680px">
     <div class="modal-title">
-      <span>编辑型号</span>
-      <button class="modal-close" onclick="document.getElementById('spec-edit-modal').style.display='none'">✕</button>
+      <span>编辑产品</span>
+      <button class="modal-close" onclick="document.getElementById('product-edit-modal').style.display='none'">✕</button>
     </div>
-    <div class="form-grid">
-      <div class="fg"><label>型号名称 *</label><input type="text" id="se-name"></div>
-      <div class="fg"><label>售价（¥，不填则用产品默认售价）</label><input type="number" id="se-price" step="0.01" min="0" placeholder="65.00"></div>
-      <div class="fg"><label>SKU编码</label><input type="text" id="se-sku"></div>
-      <div class="fg"><label>1688商品链接</label><input type="text" id="se-link" placeholder="https://detail.1688.com/..."></div>
-    </div>
-    <div class="fg" style="margin-bottom:14px">
-      <label>型号图片</label>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
-        <div id="se-img-preview" style="width:80px;height:80px;border-radius:8px;border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3);overflow:hidden;flex-shrink:0;background:var(--bg);cursor:pointer" onclick="document.getElementById('se-img-file').click()">📷</div>
-        <div>
-          <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex">
-            📁 选择图片
-            <input type="file" id="se-img-file" accept="image/*" style="display:none" onchange="handleSpecImg(this)">
-          </label>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">也可以 Ctrl+V 粘贴截图</div>
+
+    <!-- 产品基本信息 -->
+    <div style="background:var(--bg);border-radius:8px;padding:14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">产品信息</div>
+      <div style="display:flex;gap:14px;align-items:flex-start">
+        <div id="pe-img-preview" style="width:80px;height:80px;border-radius:8px;border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3);overflow:hidden;flex-shrink:0;background:#fff;cursor:pointer" onclick="document.getElementById('pe-img-file').click()" title="点击上传产品图片">📷</div>
+        <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="fg" style="grid-column:1/-1"><label>产品名称 *</label><input type="text" id="pe-name" style="width:100%"></div>
+          <div class="fg"><label>默认售价（¥）</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
+          <div class="fg"><label>SKU编码</label><input type="text" id="pe-sku"></div>
+          <div class="fg" style="grid-column:1/-1"><label>Temu商品链接</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
         </div>
       </div>
+      <input type="file" id="pe-img-file" accept="image/*" style="display:none" onchange="handleProductImg(this)">
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;margin-left:94px">点图片上传 · 或 Ctrl+V 粘贴截图</div>
     </div>
-    <input type="hidden" id="se-pid">
-    <input type="hidden" id="se-sid">
+
+    <!-- 型号列表 -->
+    <div id="pe-specs-list" style="margin-bottom:14px"></div>
+
+    <!-- 添加新型号 -->
+    <div style="background:#f0f4ff;border-radius:8px;padding:12px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px">＋ 添加新型号</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px">
+        <input type="text" id="pe-new-spec-name" placeholder="型号名称，如 428-32T" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+        <input type="number" id="pe-new-spec-price" placeholder="Temu售价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+        <button class="btn btn-primary btn-sm" onclick="addSpecInModal()" style="height:32px">添加</button>
+      </div>
+    </div>
+
+    <input type="hidden" id="pe-id">
     <div class="btns">
-      <button class="btn btn-primary" onclick="saveEditSpec()">保存</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('spec-edit-modal').style.display='none'">取消</button>
+      <button class="btn btn-primary" onclick="saveEditProduct()">保存所有修改</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('product-edit-modal').style.display='none'">取消</button>
     </div>
   </div>
 </div>
+
+<!-- 保留空的型号编辑弹窗占位（兼容旧调用） -->
+<div id="spec-edit-modal" style="display:none"></div>
+
 <script>
 const PWD_KEY = 'inv_pwd_v1';
 function getPassword() { return localStorage.getItem(PWD_KEY) || '1234'; }
@@ -1980,49 +1994,89 @@ window.openEditProduct = window.editProduct = function(id){
   document.getElementById('pe-temu-link').value = p.temuLink||'';
   _productImgBase64 = p.img||'';
   setPreviewEl('pe-img-preview', p.img||'');
+  document.getElementById('pe-new-spec-name').value='';
+  document.getElementById('pe-new-spec-price').value='';
+  renderSpecsInModal(id);
   document.getElementById('product-edit-modal').style.display = 'flex';
 };
 
+function renderSpecsInModal(pid){
+  const p=gp(pid); if(!p) return;
+  const specs=p.specs||[];
+  const el=document.getElementById('pe-specs-list'); if(!el) return;
+  if(!specs.length){ el.innerHTML='<div style="font-size:13px;color:var(--text3);text-align:center;padding:8px">暂无型号，在下方添加</div>'; return; }
+  el.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">型号列表（${specs.length}个）</div>`
+    +specs.map((sp,i)=>{
+      const spImg=sp.img||'';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border-radius:8px;margin-bottom:8px;border:1px solid var(--border)">
+        <div style="cursor:pointer;flex-shrink:0" onclick="document.getElementById('pe-spec-img-file-${sp.sid}').click()" title="点击更换图片">
+          ${spImg?`<img src="${spImg}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`
+            :`<div style="width:56px;height:56px;background:var(--surface);border:1.5px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text3)">📷</div>`}
+          <input type="file" id="pe-spec-img-file-${sp.sid}" accept="image/*" style="display:none" onchange="handleSpecImgInModal(this,${pid},${sp.sid})">
+        </div>
+        <div style="flex:1;display:grid;grid-template-columns:2fr 1fr;gap:8px">
+          <input type="text" id="pe-spec-name-${sp.sid}" value="${sp.name||''}" placeholder="型号名称" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+          <input type="number" id="pe-spec-price-${sp.sid}" value="${sp.price||''}" placeholder="Temu售价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+        </div>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);flex-shrink:0" onclick="deleteSpecInModal(${pid},${sp.sid})">删除</button>
+      </div>`;
+    }).join('');
+}
+
+window.handleSpecImgInModal = function(input, pid, sid){
+  const file=input.files[0]; if(!file) return;
+  compressImage(file, 600, function(base64){
+    const p=gp(pid); if(!p) return;
+    const sp=(p.specs||[]).find(s=>s.sid==sid); if(!sp) return;
+    sp.img=base64;
+    renderSpecsInModal(pid);
+  });
+};
+
+window.deleteSpecInModal = function(pid, sid){
+  const p=gp(pid); if(!p) return;
+  if(!confirm('确认删除此型号？')) return;
+  p.specs=p.specs.filter(s=>s.sid!=sid);
+  renderSpecsInModal(pid);
+};
+
+window.addSpecInModal = function(){
+  const pid=parseInt(document.getElementById('pe-id').value);
+  const p=gp(pid); if(!p) return;
+  const name=document.getElementById('pe-new-spec-name').value.trim();
+  const price=parseFloat(document.getElementById('pe-new-spec-price').value)||0;
+  if(!name){alert('请填写型号名称');return;}
+  if(!p.specs) p.specs=[];
+  if(!D.nextSid) D.nextSid=100;
+  p.specs.push({sid:D.nextSid++, name, price, sku:'', img:''});
+  document.getElementById('pe-new-spec-name').value='';
+  document.getElementById('pe-new-spec-price').value='';
+  renderSpecsInModal(pid);
+};
+
 window.saveEditProduct = function(){
-  const id = parseInt(document.getElementById('pe-id').value);
-  const p = gp(id); if(!p) return;
-  const name = document.getElementById('pe-name').value.trim();
-  const price = parseFloat(document.getElementById('pe-price').value)||0;
-  const sku = document.getElementById('pe-sku').value.trim();
-  const temuLink = document.getElementById('pe-temu-link').value.trim();
+  const id=parseInt(document.getElementById('pe-id').value);
+  const p=gp(id); if(!p) return;
+  const name=document.getElementById('pe-name').value.trim();
+  const price=parseFloat(document.getElementById('pe-price').value)||0;
+  const sku=document.getElementById('pe-sku').value.trim();
+  const temuLink=document.getElementById('pe-temu-link').value.trim();
   if(!name){alert('请填写产品名称');return;}
+  // 保存所有型号的名称和售价
+  (p.specs||[]).forEach(sp=>{
+    const nameEl=document.getElementById('pe-spec-name-'+sp.sid);
+    const priceEl=document.getElementById('pe-spec-price-'+sp.sid);
+    if(nameEl) sp.name=nameEl.value.trim()||sp.name;
+    if(priceEl) sp.price=parseFloat(priceEl.value)||0;
+  });
   Object.assign(p,{name,price,sku,temuLink,img:_productImgBase64});
   document.getElementById('product-edit-modal').style.display='none';
   save(); render();
 };
 
-window.openEditSpec = function(pid, sid) {
-  const p=gp(pid); if(!p) return;
-  const sp=gs(pid,sid); if(!sp) return;
-  document.getElementById('se-pid').value = pid;
-  document.getElementById('se-sid').value = sid;
-  document.getElementById('se-name').value = sp.name||'';
-  document.getElementById('se-price').value = sp.price||'';
-  document.getElementById('se-sku').value = sp.sku||'';
-  document.getElementById('se-link').value = sp.link||'';
-  _specImgBase64 = sp.img||'';
-  setPreviewEl('se-img-preview', sp.img||'');
-  document.getElementById('spec-edit-modal').style.display='flex';
-};
-
-window.saveEditSpec = function() {
-  const pid=parseInt(document.getElementById('se-pid').value);
-  const sid=parseInt(document.getElementById('se-sid').value);
-  const p=gp(pid); if(!p) return;
-  const sp=gs(pid,sid); if(!sp) return;
-  const name=document.getElementById('se-name').value.trim();
-  const price=parseFloat(document.getElementById('se-price').value)||0;
-  const sku=document.getElementById('se-sku').value.trim();
-  const link=document.getElementById('se-link').value.trim();
-  if(!name){alert('请填写型号名称');return;}
-  Object.assign(sp,{name,price,sku,link,img:_specImgBase64});
-  document.getElementById('spec-edit-modal').style.display='none';
-  save(); render();
+// 兼容旧的openEditSpec调用（直接打开产品弹窗）
+window.openEditSpec = function(pid, sid){
+  openEditProduct(pid);
 };
 
 window.deleteProduct = function(id){
