@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v5.5 · 2026-03-23 10:30</div>
+      <div>v5.6 · 2026-03-23 10:45</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -1754,6 +1754,8 @@ function handleBookmarkParams() {
 // ===== 图片处理：本地上传压缩为base64 =====
 let _purImgBase64 = '';
 let _editImgBase64 = '';
+let _productImgBase64 = '';
+let _specImgBase64 = '';
 
 function compressImage(file, maxSize, callback) {
   const reader = new FileReader();
