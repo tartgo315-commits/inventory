@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v5.2 · 2026-03-23 09:30</div>
+      <div>v5.3 · 2026-03-23 09:45</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -647,39 +647,6 @@ input::placeholder{color:var(--text3)}
 </div>
 
 <!-- 商品编辑弹窗 -->
-<div id="product-edit-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal-box">
-    <div class="modal-title">
-      <span>编辑产品信息</span>
-      <button class="modal-close" onclick="document.getElementById('product-edit-modal').style.display='none'">✕</button>
-    </div>
-    <div class="form-grid">
-      <div class="fg"><label>产品名称 *</label><input type="text" id="pe-name"></div>
-      <div class="fg"><label>SKU编码</label><input type="text" id="pe-sku"></div>
-      <div class="fg"><label>默认售价（¥）</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
-      <div class="fg"><label>Temu商品链接</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
-    </div>
-    <div class="fg" style="margin-bottom:14px">
-      <label>产品图片</label>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
-        <div id="pe-img-preview" style="width:80px;height:80px;border-radius:8px;border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3);overflow:hidden;flex-shrink:0;background:var(--bg);cursor:pointer" onclick="document.getElementById('pe-img-file').click()">📷</div>
-        <div>
-          <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex">
-            📁 选择图片
-            <input type="file" id="pe-img-file" accept="image/*" style="display:none" onchange="handleProductImg(this)">
-          </label>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">也可以 Ctrl+V 粘贴截图</div>
-        </div>
-      </div>
-    </div>
-    <input type="hidden" id="pe-id">
-    <div class="btns">
-      <button class="btn btn-primary" onclick="saveEditProduct()">保存</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('product-edit-modal').style.display='none'">取消</button>
-    </div>
-  </div>
-</div>
-
 <!-- 统一产品详情弹窗（任何界面都可调用） -->
 <div id="product-edit-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal-box" style="max-width:680px">
