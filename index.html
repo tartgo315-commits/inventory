@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v5.6 · 2026-03-23 10:45</div>
+      <div>v5.7 · 2026-03-23 11:00</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -665,6 +665,7 @@ input::placeholder{color:var(--text3)}
           <div class="fg"><label>默认售价（¥）</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
           <div class="fg"><label>SKU编码</label><input type="text" id="pe-sku"></div>
           <div class="fg" style="grid-column:1/-1"><label>Temu商品链接</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
+          <div class="fg" style="grid-column:1/-1"><label>1688货源链接 <span style="font-size:11px;color:var(--text3);font-weight:400">（保存后🔗图标直接跳转）</span></label><input type="text" id="pe-source-link" placeholder="https://detail.1688.com/offer/..."></div>
         </div>
       </div>
       <input type="file" id="pe-img-file" accept="image/*" style="display:none" onchange="handleProductImg(this)">
@@ -758,7 +759,11 @@ function productLink(link, label, spec) {
 
 // 产品名可点击编辑版本（不包含链接跳转干扰）
 function editableProductName(pid, label) {
-  return `<span style="cursor:pointer;font-weight:600" onclick="event.stopPropagation();openEditProduct(${pid})" title="点击编辑产品">${label||'-'} <span style="font-size:11px;color:var(--text3)">✏️</span></span>`;
+  const link = getProductLink(pid);
+  const linkBtn = link
+    ? `<a href="${link}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px;color:var(--text3);text-decoration:none;margin-left:4px" title="跳转1688货源">🔗</a>`
+    : '';
+  return `<span style="cursor:pointer;font-weight:600" onclick="event.stopPropagation();openEditProduct(${pid})" title="点击编辑产品">${label||'-'} <span style="font-size:11px;color:var(--text3)">✏️</span></span>${linkBtn}`;
 }
 
 // 从进货记录取最新图片
@@ -784,6 +789,8 @@ function imgThumb(pid, sid) {
 }
 
 function getProductLink(pid) {
+  const p=gp(pid);
+  if(p&&p.sourceLink) return p.sourceLink;
   const records = D.purchases.filter(r=>r.pid==pid&&r.link).sort((a,b)=>b.date.localeCompare(a.date));
   return records.length ? records[0].link : '';
 }
@@ -1966,6 +1973,7 @@ window.openEditProduct = window.editProduct = function(id){
   document.getElementById('pe-sku').value = p.sku||'';
   document.getElementById('pe-price').value = p.price||'';
   document.getElementById('pe-temu-link').value = p.temuLink||'';
+  document.getElementById('pe-source-link').value = p.sourceLink||getProductLink(p.id)||'';
   _productImgBase64 = p.img||'';
   setPreviewEl('pe-img-preview', p.img||'');
   document.getElementById('pe-new-spec-name').value='';
@@ -2060,15 +2068,15 @@ window.saveEditProduct = function(){
   const price=parseFloat(document.getElementById('pe-price').value)||0;
   const sku=document.getElementById('pe-sku').value.trim();
   const temuLink=document.getElementById('pe-temu-link').value.trim();
+  const sourceLink=document.getElementById('pe-source-link').value.trim();
   if(!name){alert('请填写产品名称');return;}
-  // 保存所有型号的名称和售价
   (p.specs||[]).forEach(sp=>{
     const nameEl=document.getElementById('pe-spec-name-'+sp.sid);
     const priceEl=document.getElementById('pe-spec-price-'+sp.sid);
     if(nameEl) sp.name=nameEl.value.trim()||sp.name;
     if(priceEl) sp.price=parseFloat(priceEl.value)||0;
   });
-  Object.assign(p,{name,price,sku,temuLink,img:_productImgBase64});
+  Object.assign(p,{name,price,sku,temuLink,sourceLink,img:_productImgBase64});
   document.getElementById('product-edit-modal').style.display='none';
   save(); render();
 };
