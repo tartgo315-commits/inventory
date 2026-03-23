@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v5.0 · 2026-03-22 12:00</div>
+      <div>v5.1 · 2026-03-23 09:00</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -792,7 +792,7 @@ function getProductImg(pid, sid) {
 
 function imgThumb(pid, sid) {
   const img = getProductImg(pid, sid);
-  const clickAttr = `onclick="openQuickImgUpload(${pid},${sid||0})" title="点击上传图片" style="cursor:pointer"`;
+  const clickAttr = `onclick="event.stopPropagation();openQuickImgUpload(${pid},${sid||0})" title="点击上传/更换图片" style="cursor:pointer"`;
   if (!img) return `<div class="prod-placeholder" ${clickAttr}>📷</div>`;
   return `<img src="${img}" class="prod-thumb" ${clickAttr} onerror="this.style.display='none'">`;
 }
@@ -1206,7 +1206,7 @@ function renderCostStats(){
       ? `<div style="display:flex;align-items:center;gap:6px">¥${temuPrice.toFixed(2)}<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="font-size:11px;height:24px;padding:0 8px">编辑</button></div>`
       : `<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="color:var(--primary)">+ 填写售价</button>`;
     return `<tr>
-      <td style="width:64px;padding:4px 6px;cursor:pointer" onclick="openEditProduct(${p.id})" title="点击编辑产品">${imgThumb(p.id)}</td>
+      <td style="width:64px;padding:4px 6px">${imgThumb(p.id)}</td>
       <td style="cursor:pointer" onclick="openEditProduct(${p.id})" title="点击编辑产品">
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-weight:600;color:var(--text)">${p.name}</span>
@@ -1322,7 +1322,7 @@ function renderProductsTable(){
     return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
       <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:${isExpanded?'1px solid var(--border)':'none'}">
         <input type="checkbox" class="prod-cb" data-pid="${p.id}" onchange="onProdCheckChange()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
-        <div onclick="openEditProduct(${p.id})" style="cursor:pointer;flex-shrink:0">${imgThumb(p.id)}</div>
+        <div style="flex-shrink:0">${imgThumb(p.id)}</div>
         <div style="flex:1;min-width:0;cursor:pointer" onclick="openEditProduct(${p.id})">
           <div style="font-weight:700;font-size:14px">${p.name} <span style="font-size:11px;color:var(--text3)">✏️</span></div>
           <div style="font-size:12px;color:var(--text3);margin-top:2px">总库存: <strong>${totalLocal}</strong>${p.price?` · 售价: <span style="color:var(--green);font-weight:600">¥${p.price}</span>`:''}${p.sku?` · SKU: ${p.sku}`:''}${specs.length>0?` · <span style="color:var(--primary)">${specs.length}个型号</span>`:''}</div>
