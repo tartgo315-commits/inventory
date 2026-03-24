@@ -1041,6 +1041,12 @@ function getWeightedAvgCost(pid){
   return bs.reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.shipPerUnit||0)),0)/tq;
 }
 
+function getWeightedAvgCostSpec(pid,sid){
+  const bs=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received');
+  const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0); if(!tq) return 0;
+  return bs.reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.shipPerUnit||0)),0)/tq;
+}
+
 // ===== 工具 =====
 function gp(id){ return D.products.find(p=>p.id==id); }
 function gs(pid,sid){ const p=gp(pid); if(!p||!sid) return null; return (p.specs||[]).find(s=>s.sid==sid); }
@@ -1323,7 +1329,11 @@ window.togglePurchaseGroup = function(groupId){
 
 function renderCostStats(){
   const el=document.getElementById('cost-stats-table'); if(!el) return;
-  el.innerHTML=D.products.map(p=>{
+  if(!window._costExpanded) window._costExpanded={};
+  let html='';
+  D.products.map(p=>{
+    const specs=p.specs||[];
+    const hasSpecs=specs.length>0;
     const all=D.purchases.filter(r=>r.pid==p.id);
     const recv=all.filter(r=>r.status==='received');
     const tOrd=all.reduce((s,r)=>s+r.qty,0);
@@ -1340,12 +1350,17 @@ function renderCostStats(){
     const temuPriceCell = temuPrice
       ? `<div style="display:flex;align-items:center;gap:6px">¥${temuPrice.toFixed(2)}<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="font-size:11px;height:24px;padding:0 8px">编辑</button></div>`
       : `<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="color:var(--primary)">+ 填写售价</button>`;
-    return `<tr>
+    const isExp = window._costExpanded[p.id]===true;
+    const expandBtn = hasSpecs
+      ? `<button onclick="toggleCostRow(${p.id})" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 8px;border-radius:4px;white-space:nowrap;margin-left:6px">${isExp?'▲ 收起':'▼ '+specs.length+'个型号'}</button>`
+      : '';
+    html+=`<tr>
       <td style="width:64px;padding:4px 6px">${imgThumb(p.id)}</td>
       <td style="cursor:pointer" onclick="openEditProduct(${p.id})" title="点击编辑产品">
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-weight:600;color:var(--text)">${p.name}</span>
           <span style="font-size:11px;color:var(--text3);opacity:0.6">✏️</span>
+          ${expandBtn}
         </div>
       </td>
       <td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
@@ -1356,8 +1371,48 @@ function renderCostStats(){
       <td class="${profitColor}">${temuPriceRmb ? (profitPerUnit>=0?'+':'')+'¥'+profitPerUnit.toFixed(2) : '-'}</td>
       <td class="${rateColor}">${temuPriceRmb ? profitRate.toFixed(1)+'%' : '-'}</td>
     </tr>`;
-  }).join('');
+
+    // 型号子行
+    if(hasSpecs && isExp){
+      specs.forEach(sp=>{
+        const spAll=D.purchases.filter(r=>r.pid==p.id&&r.sid==sp.sid);
+        const spRecv=spAll.filter(r=>r.status==='received');
+        const spTOrd=spAll.reduce((s,r)=>s+r.qty,0);
+        const spTRecv=spRecv.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
+        const spFifo=getFifoCostPerUnitSpec(p.id,sp.sid);
+        const spWavg=getWeightedAvgCostSpec(p.id,sp.sid);
+        const spLast=spRecv.slice().sort((a,b)=>(b.receivedDate||b.date).localeCompare(a.receivedDate||a.date))[0];
+        const spLc=spLast?((spLast.price||0)+(spLast.shipPerUnit||0)):0;
+        const spPrice=sp.price||p.price||0;
+        const spPriceRmb=spPrice*D.settings.rate;
+        const spProfit=spPriceRmb-spFifo;
+        const spRate=spPriceRmb>0?(spProfit/spPriceRmb*100):0;
+        const spImg=getProductImg(p.id,sp.sid);
+        html+=`<tr style="background:#f7f8fc">
+          <td style="padding:6px 6px 6px 20px">
+            ${spImg?`<img src="${spImg}" style="width:40px;height:40px;object-fit:cover;border-radius:5px;border:1px solid var(--border)">`
+                   :`<div style="width:40px;height:40px;background:var(--bg);border:1px dashed var(--border2);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text3)">📷</div>`}
+          </td>
+          <td><span style="font-size:13px;color:var(--primary);font-weight:600;padding-left:10px">↳ ${sp.name}</span>${sp.cost?`<span style="font-size:11px;color:var(--amber);margin-left:6px">成本¥${sp.cost}</span>`:''}</td>
+          <td>${spAll.length}</td><td>${spTOrd}</td><td>${spTRecv}</td>
+          <td><strong>¥${spWavg.toFixed(2)}</strong></td>
+          <td>${spLc?'¥'+spLc.toFixed(2):'<span class="c-muted">-</span>'}<span class="c-muted" style="font-size:11px;margin-left:4px">${spLast?spLast.receivedDate||spLast.date:''}</span></td>
+          <td>¥${spFifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+          <td>${spPrice?`¥${spPrice.toFixed(2)}`:'<span class="c-muted">-</span>'}</td>
+          <td class="${spProfit>=0?'c-green':'c-red'}">${spPriceRmb?(spProfit>=0?'+':'')+'¥'+spProfit.toFixed(2):'-'}</td>
+          <td class="${spRate>=20?'c-green':spRate>=0?'':'c-red'}">${spPriceRmb?spRate.toFixed(1)+'%':'-'}</td>
+        </tr>`;
+      });
+    }
+  });
+  el.innerHTML=html||'<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>';
 }
+
+window.toggleCostRow = function(pid){
+  if(!window._costExpanded) window._costExpanded={};
+  window._costExpanded[pid]=!window._costExpanded[pid];
+  renderCostStats();
+};
 
 function renderOutboundTable(){
   const tot=D.outbounds.reduce((s,r)=>s+r.qty,0);
