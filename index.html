@@ -2324,6 +2324,7 @@ async function pasteSpecImg(pid, sid, btn){
             const p=gp(pid); if(!p) return;
             const sp=(p.specs||[]).find(s=>s.sid==sid); if(!sp) return;
             sp.img=base64;
+            save();
             renderSpecsInModal(pid);
           });
           return;
@@ -2342,6 +2343,7 @@ window.handleSpecImgInModal = function(input, pid, sid){
     const p=gp(pid); if(!p) return;
     const sp=(p.specs||[]).find(s=>s.sid==sid); if(!sp) return;
     sp.img=base64;
+    save();
     renderSpecsInModal(pid);
   });
 };
