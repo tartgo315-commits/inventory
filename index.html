@@ -1056,12 +1056,12 @@ window.showPage = function(name){
 
 // ===== 渲染 =====
 function render(){
-  const fns=[renderFlow,renderArrivedAlerts,renderMetrics,renderMonthlyMetrics,
-    renderTransitTable,renderPurchaseTable,renderCostStats,
-    renderOutboundTable,renderSalesTable,renderStockTable,renderProductsTable,
-    renderSupplierTable,renderStocktakeTable,renderReturnsTable,renderMonthlySales,renderCostTrend,
-    renderSalesChart,renderAnalysis,populateSelects,populateReturnSelect];
-  fns.forEach(fn=>{ try{fn();}catch(e){console.warn(fn.name,e);} });
+  renderFlow(); renderArrivedAlerts(); renderMetrics(); renderMonthlyMetrics();
+  renderTransitTable(); renderPurchaseTable(); renderCostStats();
+  renderOutboundTable(); renderSalesTable(); renderStockTable(); renderProductsTable();
+  renderSupplierTable(); renderStocktakeTable(); renderReturnsTable(); renderMonthlySales(); renderCostTrend();
+  renderSalesChart(); renderAnalysis();
+  populateSelects(); populateReturnSelect();
 }
 
 function renderFlow(){
@@ -1116,7 +1116,7 @@ function renderArrivedAlerts(){
         specs.forEach(sp=>{
           const stockVal=getLocalStockSpec(p.id,sp.sid);
           const thr=sp.reorderPoint||globalLow;
-          if(stock<thr) items.push(`${p.name}·${sp.name}（${stock}件，补货点${thr}）`);
+          if(stockVal<thr) items.push(`${p.name}·${sp.name}（${stockVal}件，补货点${thr}）`);
         });
       }
     });
@@ -2618,8 +2618,8 @@ function renderStocktakeTable(){
           <td style="width:64px;padding:4px 6px">${imgThumb(p.id,sp.sid)}</td>
           <td>${p.name} <span style="color:var(--primary);font-size:12px">· ${sp.name}</span></td>
           <td style="font-weight:700;color:var(--green)">${sp.price||p.price?'¥'+(sp.price||p.price):'-'}</td>
-          <td>${stock}</td>
-          <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
+          <td>${stock2}</td>
+          <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock2}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
           <td class="st-diff" id="std-${p.id}-${sp.sid}" style="font-weight:600">0</td>
           <td><input type="text" class="st-note" data-pid="${p.id}" data-sid="${sp.sid}" placeholder="盘点备注" style="width:120px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:12px"></td>
         </tr>`;
