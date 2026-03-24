@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v6.2 · 2026-03-24 09:45</div>
+      <div>v6.3 · 2026-03-24 10:00</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -242,22 +242,23 @@ input::placeholder{color:var(--text3)}
 
 <!-- 总览 -->
 <div id="page-dashboard" class="page active">
-  <div style="display:flex;gap:14px;margin-bottom:24px">
-    <div class="flow-step amber" style="flex:0 0 auto;min-width:160px;padding:14px 20px">
+  <div style="display:flex;gap:14px;margin-bottom:24px;align-items:stretch;flex-wrap:wrap">
+    <div class="flow-step amber" style="flex:0 0 auto;min-width:140px;padding:14px 18px">
       <div class="fs-label">在途（已下单）</div>
-      <div class="fs-val amber" id="f-transit" style="font-size:28px">0</div>
+      <div class="fs-val amber" id="f-transit" style="font-size:28px;line-height:1.1">0</div>
       <div id="f-transit-items" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
     </div>
     <div style="display:flex;align-items:center;color:var(--text3);font-size:18px">→</div>
-    <div class="flow-step green" style="flex:0 0 auto;min-width:160px;padding:14px 20px">
+    <div class="flow-step green" style="flex:0 0 auto;min-width:140px;padding:14px 18px">
       <div class="fs-label">已入库批次</div>
-      <div class="fs-val green" id="f-local" style="font-size:28px">0</div>
+      <div class="fs-val green" id="f-local" style="font-size:28px;line-height:1.1">0</div>
       <div id="f-local-items" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
     </div>
+    <div style="width:1px;background:var(--border);margin:0 4px;align-self:stretch"></div>
+    <div id="metrics" style="display:contents"></div>
   </div>
   <div id="arrived-alerts"></div>
   <div id="pending-alerts"></div>
-  <div class="metric-grid" id="metrics"></div>
   <div id="low-stock-alert"></div>
   <div class="card">
     <div class="card-title">各商品库存状态</div>
@@ -1041,27 +1042,29 @@ function renderArrivedAlerts(){
 }
 
 function renderMetrics(){
-  // 本地库存成本：所有产品（含型号）的FIFO成本合计
   let lv=0;
   D.products.forEach(p=>{
     const specs=p.specs||[];
     if(specs.length===0){
       lv+=getLocalStock(p.id)*getFifoCostPerUnit(p.id);
     } else {
-      specs.forEach(sp=>{
-        lv+=getLocalStockSpec(p.id,sp.sid)*getFifoCostPerUnitSpec(p.id,sp.sid);
-      });
+      specs.forEach(sp=>{ lv+=getLocalStockSpec(p.id,sp.sid)*getFifoCostPerUnitSpec(p.id,sp.sid); });
     }
   });
   const tr=D.sales.reduce((s,r)=>s+r.qty*r.price,0);
   const tc=D.sales.reduce((s,r,i)=>s+getSaleFifoCost(i)/D.settings.rate,0);
   const gv=tr-tc;
   const mel=document.getElementById('metrics'); if(!mel) return;
-  mel.innerHTML=`
-    <div class="metric"><div class="metric-label">本地库存成本(FIFO)</div><div class="metric-val">¥${lv.toFixed(0)}</div><div class="metric-sub">已入库未发Temu</div></div>
-    <div class="metric"><div class="metric-label">累计销售额</div><div class="metric-val">¥${tr.toFixed(2)}</div><div class="metric-sub">${D.sales.length} 笔</div></div>
-    <div class="metric"><div class="metric-label">累计毛利(FIFO)</div><div class="metric-val ${gv>=0?'c-green':'c-red'}">${gv>=0?'+':''}¥${gv.toFixed(2)}</div><div class="metric-sub">未含Temu头程运费</div></div>
-    <div class="metric"><div class="metric-label">SKU数量</div><div class="metric-val">${D.products.length}</div><div class="metric-sub">在售</div></div>`;
+  const card=(label,val,sub,cls='')=>`<div class="flow-step" style="flex:1;min-width:130px;padding:14px 18px">
+    <div class="fs-label">${label}</div>
+    <div class="metric-val ${cls}" style="font-size:22px;font-weight:800;margin:4px 0">${val}</div>
+    <div class="metric-sub">${sub}</div>
+  </div>`;
+  mel.innerHTML=
+    card('本地库存成本','¥'+lv.toFixed(0),'已入库未发Temu')+
+    card('累计销售额','¥'+tr.toFixed(2),D.sales.length+' 笔')+
+    card('累计毛利(FIFO)',(gv>=0?'+':'')+'¥'+gv.toFixed(2),'未含Temu头程运费',gv>=0?'c-green':'c-red')+
+    card('SKU数量',D.products.length+'','在售');
 }
 
 function renderTransitTable(){
