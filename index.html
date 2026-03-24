@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v5.9 · 2026-03-23 12:00</div>
+      <div>v6.0 · 2026-03-24 09:00</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -242,14 +242,18 @@ input::placeholder{color:var(--text3)}
 
 <!-- 总览 -->
 <div id="page-dashboard" class="page active">
-  <div class="flow-bar">
-    <div class="flow-step"><div class="fs-label">在途（已下单）</div><div class="fs-val amber" id="f-transit">0</div></div>
+  <div class="flow-bar" style="grid-template-columns:1fr auto 1fr">
+    <div class="flow-step amber">
+      <div class="fs-label">在途（已下单）</div>
+      <div class="fs-val amber" id="f-transit">0</div>
+      <div id="f-transit-items" style="font-size:12px;color:var(--text3);margin-top:4px"></div>
+    </div>
     <div class="flow-arrow">→</div>
-    <div class="flow-step"><div class="fs-label">本地库存（已入库）</div><div class="fs-val green" id="f-local">0</div></div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step"><div class="fs-label">已发往Temu仓</div><div class="fs-val blue" id="f-sent">0</div></div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step"><div class="fs-label">Temu在售库存</div><div class="fs-val purple" id="f-temu">0</div></div>
+    <div class="flow-step green">
+      <div class="fs-label">已入库批次</div>
+      <div class="fs-val green" id="f-local">0</div>
+      <div id="f-local-items" style="font-size:12px;color:var(--text3);margin-top:4px"></div>
+    </div>
   </div>
   <div id="arrived-alerts"></div>
   <div id="pending-alerts"></div>
@@ -993,14 +997,29 @@ function render(){
 }
 
 function renderFlow(){
-  const transit=D.products.reduce((s,p)=>s+getTransitQty(p.id),0);
-  const local=D.products.reduce((s,p)=>s+getLocalStock(p.id),0);
-  const sent=D.outbounds.reduce((s,r)=>s+r.qty,0);
-  const temu=D.products.reduce((s,p)=>s+getTemuStock(p.id),0);
-  document.getElementById('f-transit').textContent=transit;
-  document.getElementById('f-local').textContent=local;
-  document.getElementById('f-sent').textContent=sent;
-  document.getElementById('f-temu').textContent=temu;
+  // 在途：几单（而非几个产品）
+  const transitOrders = D.purchases.filter(r=>r.status==='transit');
+  const transitCount = transitOrders.length;
+  const transitItems = transitOrders.reduce((s,r)=>s+r.qty, 0);
+
+  // 已入库：几批（而非几个）
+  const receivedOrders = D.purchases.filter(r=>r.status==='received');
+  const receivedCount = receivedOrders.length;
+  const receivedItems = receivedOrders.reduce((s,r)=>s+(r.receivedQty||r.qty), 0);
+
+  const t = document.getElementById('f-transit');
+  const l = document.getElementById('f-local');
+  const ti = document.getElementById('f-transit-items');
+  const li = document.getElementById('f-local-items');
+
+  if(t) t.textContent = transitCount + ' 单';
+  if(l) l.textContent = receivedCount + ' 批';
+  if(ti) ti.textContent = transitCount>0 ? `共 ${transitItems} 件在途` : '';
+  if(li) li.textContent = receivedCount>0 ? `共 ${receivedItems} 件已入库` : '';
+
+  // 兼容旧代码引用
+  const s=document.getElementById('f-sent'); if(s) s.textContent='';
+  const tt=document.getElementById('f-temu'); if(tt) tt.textContent='';
 }
 
 function renderArrivedAlerts(){
