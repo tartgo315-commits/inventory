@@ -1056,12 +1056,13 @@ window.showPage = function(name){
 
 // ===== 渲染 =====
 function render(){
-  renderFlow(); renderArrivedAlerts(); renderMetrics(); renderMonthlyMetrics();
-  renderTransitTable(); renderPurchaseTable(); renderCostStats();
-  renderOutboundTable(); renderSalesTable(); renderStockTable(); renderProductsTable();
-  renderSupplierTable(); renderStocktakeTable(); renderReturnsTable(); renderMonthlySales(); renderCostTrend();
-  renderSalesChart(); renderAnalysis();
-  populateSelects(); populateReturnSelect();
+  const fns=[renderFlow,renderArrivedAlerts,renderMetrics,renderMonthlyMetrics,
+    renderTransitTable,renderPurchaseTable,renderCostStats,
+    renderOutboundTable,renderSalesTable,renderStockTable,renderProductsTable,
+    renderSupplierTable,renderStocktakeTable,renderReturnsTable,
+    renderMonthlySales,renderCostTrend,renderSalesChart,renderAnalysis,
+    populateSelects,populateReturnSelect];
+  fns.forEach(fn=>{ try{fn();}catch(e){console.warn('[render]',fn.name,e.message);} });
 }
 
 function renderFlow(){
@@ -2966,7 +2967,7 @@ function renderMonthlySales(){
 // ===== 采购成本走势图 =====
 function renderCostTrend(){
   const sel=document.getElementById('trend-product-sel');
-  if(sel&&!sel.innerHTML){
+  if(sel&&(!sel.innerHTML||sel.innerHTML.trim()=='')){
     sel.innerHTML=D.products.map(p=>`<option value="${p.id}">${p.name.slice(0,20)}</option>`).join('');
   }
   const canvas=document.getElementById('cost-trend-chart'); if(!canvas) return;
