@@ -883,6 +883,8 @@ function defaultData() {
 // 标记：Firebase数据是否已加载完成
 let _firebaseReady = false;
 let _bookmarkHandled = false;
+// 记录本地发出但还未收到回响的写入次数，避免 onSnapshot 把自己刚写的数据再覆盖回来
+let _ownWritePending = 0;
 
 async function initFirebase(cfg) {
   try {
@@ -893,8 +895,10 @@ async function initFirebase(cfg) {
     onSnapshot(docRef, snap=>{
       if(snap.exists()){
         const remote = snap.data();
-        // 只有远程数据比本地数据多，或者本地还未就绪时才更新
-        if(!_firebaseReady || remote.products?.length >= D.products.length){
+        if(_ownWritePending > 0){
+          // 这是我们自己写入的回响，跳过覆盖，只消费一次计数
+          _ownWritePending--;
+        } else if(!_firebaseReady || remote.products?.length >= D.products.length){
           D = {...defaultData(), ...remote};
           if(!D.outbounds) D.outbounds = [];
           if(!D.purchases) D.purchases = [];
@@ -902,16 +906,13 @@ async function initFirebase(cfg) {
           if(!D.products) D.products = [];
         }
       } else {
-        // Firebase里没有数据，只有本地也是空的才初始化，不覆盖任何有效数据
         if(!_firebaseReady){
           D = defaultData();
-          // 不主动写入，等用户真正录入数据后才写
         }
       }
       _firebaseReady = true;
       render();
       setSyncStatus('online');
-      // 处理书签跳转参数（只处理一次）
       if(!_bookmarkHandled){ _bookmarkHandled=true; handleBookmarkParams(); }
     }, (err)=>{
       setSyncStatus('error');
@@ -919,7 +920,6 @@ async function initFirebase(cfg) {
     });
   } catch(e){
     setSyncStatus('error');
-    // Origin not allowed：需要在 Firebase 控制台添加授权域
     console.warn('[TARTGO] Firebase 初始化失败:', e && e.message,
       '\n👉 如提示 Origin not allowed，请前往：Firebase Console > Authentication > Settings > 已获授权的网域，添加域名：', location.hostname);
   }
@@ -958,9 +958,10 @@ async function pushData() {
     } catch(e){}
   }
   try {
+    _ownWritePending++; // 标记这是自己的写入，onSnapshot 收到回响时不要覆盖
     await setDoc(docRef, JSON.parse(JSON.stringify(D)));
     setSyncStatus('online');
-  } catch(e){ setSyncStatus('error'); }
+  } catch(e){ _ownWritePending=Math.max(0,_ownWritePending-1); setSyncStatus('error'); }
 }
 window.resetConfig = ()=>{ if(confirm('重置？')) location.reload(); };
 
