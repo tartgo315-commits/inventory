@@ -1436,7 +1436,10 @@ function renderStockTable(){
         ?`<a href="${getProductLink(p.id)}" target="_blank" style="font-size:13px;color:var(--primary);text-decoration:none;font-weight:600">🔗 查看</a>`
         :`<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})">+ 添加</span>`}</td>
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
-      <td><strong>${local}</strong></td>
+      <td>${hasSpecs
+        ? `<strong>${local}</strong>`
+        : `<span onclick="inlineEditStock(this,${p.id},0)" title="点击修改库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary);color:var(--text)">${local}</span>`
+      }</td>
       <td>¥${fifo.toFixed(2)}</td>
       <td>¥${wavg.toFixed(2)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
@@ -1459,7 +1462,7 @@ function renderStockTable(){
             </div>
           </td>
           <td></td><td></td>
-          <td><strong>${spLocal}</strong></td>
+          <td><span onclick="inlineEditStock(this,${p.id},${sp.sid})" title="点击修改库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary);color:var(--text)">${spLocal}</span></td>
           <td>¥${spFifo.toFixed(2)}</td>
           <td class="c-muted">-</td>
           <td class="${spProfit>20?'c-green':spProfit>0?'':'c-red'}">${spPrice?spProfit.toFixed(1)+'%':'-'}</td>
@@ -1470,6 +1473,34 @@ function renderStockTable(){
   });
   tbody.innerHTML=html||`<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>`;
 }
+
+window.inlineEditStock = function(el, pid, sid){
+  const current = parseInt(el.textContent)||0;
+  const input = document.createElement('input');
+  input.type='number'; input.value=current; input.min='0';
+  input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
+  el.replaceWith(input);
+  input.focus(); input.select();
+  const confirm = ()=>{
+    const newVal = parseInt(input.value);
+    if(isNaN(newVal)||newVal<0){ input.replaceWith(el); return; }
+    if(newVal === current){ input.replaceWith(el); return; }
+    // 用盘点调整写入差值
+    const diff = newVal - current;
+    if(!D.stockAdjustments) D.stockAdjustments=[];
+    D.stockAdjustments.push({date:today(),pid,sid:sid||0,diff,note:'总览快速调整'});
+    // 写入进货/出库记录来改变库存
+    if(diff>0){
+      D.purchases.push({date:today(),pid,sid:sid||0,qty:diff,price:0,shipPerUnit:0,shipTotal:0,
+        tracking:'',order:'快速调整',link:'',img:'',status:'received',receivedQty:diff,receivedDate:today(),isAdjust:true});
+    } else {
+      D.outbounds.push({date:today(),pid,sid:sid||0,qty:Math.abs(diff),tracking:'',note:'快速调整',isAdjust:true});
+    }
+    save(); renderStockTable(); render();
+  };
+  input.addEventListener('blur', confirm);
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') input.blur(); if(e.key==='Escape'){ input.replaceWith(el); } });
+};
 
 window.toggleStockRow = function(pid){
   if(!window._stockExpanded) window._stockExpanded={};
