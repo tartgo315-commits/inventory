@@ -1481,15 +1481,14 @@ window.inlineEditStock = function(el, pid, sid){
   input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
   el.replaceWith(input);
   input.focus(); input.select();
+
+  const cancel = ()=>{ input.replaceWith(el); };
   const confirm = ()=>{
     const newVal = parseInt(input.value);
-    if(isNaN(newVal)||newVal<0){ input.replaceWith(el); return; }
-    if(newVal === current){ input.replaceWith(el); return; }
-    // 用盘点调整写入差值
+    if(isNaN(newVal)||newVal<0||newVal===current){ cancel(); return; }
     const diff = newVal - current;
     if(!D.stockAdjustments) D.stockAdjustments=[];
     D.stockAdjustments.push({date:today(),pid,sid:sid||0,diff,note:'总览快速调整'});
-    // 写入进货/出库记录来改变库存
     if(diff>0){
       D.purchases.push({date:today(),pid,sid:sid||0,qty:diff,price:0,shipPerUnit:0,shipTotal:0,
         tracking:'',order:'快速调整',link:'',img:'',status:'received',receivedQty:diff,receivedDate:today(),isAdjust:true});
@@ -1498,8 +1497,12 @@ window.inlineEditStock = function(el, pid, sid){
     }
     save(); renderStockTable(); render();
   };
-  input.addEventListener('blur', confirm);
-  input.addEventListener('keydown', e=>{ if(e.key==='Enter') input.blur(); if(e.key==='Escape'){ input.replaceWith(el); } });
+  // 只有回车确认，失去焦点/ESC 一律取消
+  input.addEventListener('blur', cancel);
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ input.removeEventListener('blur', cancel); confirm(); }
+    if(e.key==='Escape'){ cancel(); }
+  });
 };
 
 window.toggleStockRow = function(pid){
