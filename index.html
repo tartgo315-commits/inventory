@@ -2175,7 +2175,6 @@ window.openEditProduct = window.editProduct = function(id){
   const reorderEl=document.getElementById('pe-reorder'); if(reorderEl) reorderEl.value=p.reorderPoint||'';
   _productImgBase64 = p.img||'';
   setPreviewEl('pe-img-preview', p.img||'');
-  document.getElementById('pe-reorder').value = p.reorderPoint||'';
   document.getElementById('pe-new-spec-name').value='';
   document.getElementById('pe-new-spec-price').value='';
   renderSpecsInModal(id);
@@ -2278,7 +2277,6 @@ window.saveEditProduct = function(){
     if(nameEl) sp.name=nameEl.value.trim()||sp.name;
     if(priceEl) sp.price=parseFloat(priceEl.value)||0;
   });
-  const reorderPoint=parseInt(document.getElementById('pe-reorder').value)||0;
   Object.assign(p,{name,price,sku,temuLink,sourceLink,reorderPoint,img:_productImgBase64});
   document.getElementById('product-edit-modal').style.display='none';
   save(); render();
