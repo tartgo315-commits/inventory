@@ -2366,6 +2366,7 @@ window.addSpecInModal = function(){
   document.getElementById('pe-new-spec-name').value='';
   document.getElementById('pe-new-spec-price').value='';
   document.getElementById('pe-new-spec-cost').value='';
+  save(); // 立即同步到Firebase，防止onSnapshot覆盖刚添加的型号
   renderSpecsInModal(pid);
 };
 
