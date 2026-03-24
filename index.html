@@ -1420,6 +1420,10 @@ function renderStockTable(){
     const local=hasSpecs?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
     const transit=getTransitQty(p.id);
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
+    // 库存价值：有型号时累加各型号，无型号时用产品级均价
+    const totalValue=hasSpecs
+      ? specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid)*getFifoCostPerUnitSpec(p.id,sp.sid),0)
+      : local*fifo;
     const isExp=window._stockExpanded[p.id]===true;
     const expandBtn=hasSpecs
       ?`<button onclick="toggleStockRow(${p.id})" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap">${isExp?'▲ 收起':'▼ '+specs.length+'个型号'}</button>`
@@ -1436,7 +1440,7 @@ function renderStockTable(){
       <td>¥${fifo.toFixed(2)}</td>
       <td>¥${wavg.toFixed(2)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
-      <td style="font-weight:700;color:var(--primary)">¥${(local*fifo).toFixed(2)}</td>
+      <td style="font-weight:700;color:var(--primary)">¥${totalValue.toFixed(2)}</td>
     </tr>`;
 
     // 型号子行
