@@ -143,7 +143,7 @@ input::placeholder{color:var(--text3)}
 .cost-preview{padding:0 14px;background:#fafbfc;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text2);height:40px;display:flex;align-items:center;font-weight:500}
 
 /* FIFO标签 */
-.fifo-tag{font-size:10px;background:var(--green-bg);color:var(--green);border-radius:4px;padding:2px 6px;margin-left:4px;font-weight:700}
+.avg-tag{font-size:10px;background:var(--green-bg);color:var(--green);border-radius:4px;padding:2px 6px;margin-left:4px;font-weight:700}
 
 /* 分隔线 */
 .section-sep{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin:24px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--border)}
@@ -267,7 +267,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品库存状态</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>FIFO成本/件</th><th>历史均价/件</th><th>利润率</th><th>周转天数</th>
+      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>均价成本/件</th><th>历史均价/件</th><th>利润率</th><th>周转天数</th>
     </tr></thead><tbody id="stock-table"></tbody></table></div>
   </div>
 </div>
@@ -364,7 +364,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品成本分析</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>图片</th><th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>FIFO成本(¥/件)</th><th>Temu售价(¥)</th><th>毛利/件(¥)</th><th>毛利率</th>
+      <th>图片</th><th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>均价成本(¥/件)</th><th>Temu售价(¥)</th><th>毛利/件(¥)</th><th>毛利率</th>
     </tr></thead><tbody id="cost-stats-table"></tbody></table></div>
   </div>
 
@@ -445,7 +445,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">销售明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="sale-total"></span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>日期</th><th>商品/型号</th><th>数量</th><th>售价(¥)</th><th>FIFO成本(¥)</th><th>毛利(¥)</th><th>毛利率</th><th>订单号</th><th>操作</th>
+      <th>日期</th><th>商品/型号</th><th>数量</th><th>售价(¥)</th><th>均价成本(¥)</th><th>毛利(¥)</th><th>毛利率</th><th>订单号</th><th>操作</th>
     </tr></thead><tbody id="sales-table"></tbody></table></div>
   </div>
 </div>
@@ -988,52 +988,23 @@ function getTemuStockSpec(pid,sid){
   return Math.max(0,sent-sold);
 }
 function getTransitQty(pid){ return D.purchases.filter(r=>r.pid==pid&&r.status==='transit').reduce((s,r)=>s+r.qty,0); }
-function getFifoCostPerUnitSpec(pid,sid){
-  if(!sid||sid==0) return getFifoCostPerUnit(pid);
-  const q=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received').slice()
-    .sort((a,b)=>((a.receivedDate||a.date)<(b.receivedDate||b.date)?-1:1))
-    .map(r=>({qty:r.receivedQty||r.qty,unitCost:(r.price||0)+(r.shipPerUnit||0)}));
-  if(!q.length) return 0;
-  const used=D.outbounds.filter(r=>r.pid==pid&&r.sid==sid).reduce((s,r)=>s+r.qty,0);
-  let rem=used;
-  for(const b of q){ if(rem<=0)return b.unitCost; if(rem>=b.qty)rem-=b.qty; else return b.unitCost; }
-  return q[q.length-1].unitCost;
+// ===== 成本计算（均价） =====
+function buildFifoQueue(pid){ return []; } // 保留兼容，不再使用
+function buildFifoQueueSpec(pid,sid){ return []; }
+
+function getFifoCostPerUnit(pid){
+  return getWeightedAvgCost(pid);
 }
 
-// ===== FIFO =====
-function buildFifoQueue(pid){
-  // 包含所有该产品的入库记录（无论有无型号）
-  return D.purchases.filter(r=>r.pid==pid&&r.status==='received').slice()
-    .sort((a,b)=>((a.receivedDate||a.date)<(b.receivedDate||b.date)?-1:1))
-    .map(r=>({qty:r.receivedQty||r.qty,unitCost:(r.price||0)+(r.shipPerUnit||0)}));
+function getFifoCostPerUnitSpec(pid,sid){
+  if(!sid||sid==0) return getFifoCostPerUnit(pid);
+  return getWeightedAvgCostSpec(pid,sid);
 }
-function buildFifoQueueSpec(pid,sid){
-  if(!sid||sid==0) return buildFifoQueue(pid);
-  return D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received').slice()
-    .sort((a,b)=>((a.receivedDate||a.date)<(b.receivedDate||b.date)?-1:1))
-    .map(r=>({qty:r.receivedQty||r.qty,unitCost:(r.price||0)+(r.shipPerUnit||0)}));
-}
-// 头程运费分摊：出库到Temu时的运费按件计入
-function getOutboundShipPerUnit(pid,sid){
-  const obs=D.outbounds.filter(r=>r.pid==pid&&(!sid||r.sid==sid)&&r.shipPerUnit);
-  if(!obs.length) return 0;
-  const totalQty=obs.reduce((s,r)=>s+r.qty,0);
-  const totalShip=obs.reduce((s,r)=>s+(r.shipTotal||0),0);
-  return totalQty>0?totalShip/totalQty:0;
-}
-function getFifoCostPerUnit(pid){
-  const q=buildFifoQueue(pid); if(!q.length) return 0;
-  const used=D.outbounds.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
-  let rem=used;
-  for(const b of q){ if(rem<=0)return b.unitCost; if(rem>=b.qty)rem-=b.qty; else return b.unitCost; }
-  return q[q.length-1].unitCost;
-}
+
 function getSaleFifoCost(saleIdx){
-  const sale=D.sales[saleIdx], q=buildFifoQueue(sale.pid);
-  const soldBefore=D.sales.slice(0,saleIdx).filter(r=>r.pid==sale.pid).reduce((s,r)=>s+r.qty,0);
-  let skip=soldBefore, needed=sale.qty, total=0;
-  for(const b of q){ if(skip>=b.qty){skip-=b.qty;continue;} const av=b.qty-skip; skip=0; const tk=Math.min(av,needed); total+=tk*b.unitCost; needed-=tk; if(needed<=0)break; }
-  return total;
+  const sale=D.sales[saleIdx];
+  const cost=getFifoCostPerUnit(sale.pid);
+  return cost * sale.qty;
 }
 function getWeightedAvgCost(pid){
   const bs=D.purchases.filter(r=>r.pid==pid&&r.status==='received');
@@ -1043,7 +1014,8 @@ function getWeightedAvgCost(pid){
 
 function getWeightedAvgCostSpec(pid,sid){
   const bs=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received');
-  const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0); if(!tq) return 0;
+  const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
+  if(!tq){ const sp=gs(pid,sid); return (sp&&sp.cost)||0; }
   return bs.reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.shipPerUnit||0)),0)/tq;
 }
 
@@ -1163,7 +1135,7 @@ function renderMetrics(){
   mel.innerHTML=
     card('本地库存成本','¥'+lv.toFixed(0),'已入库未发Temu')+
     card('累计销售额','¥'+tr.toFixed(2),D.sales.length+' 笔')+
-    card('累计毛利(FIFO)',(gv>=0?'+':'')+'¥'+gv.toFixed(2),'未含Temu头程运费',gv>=0?'c-green':'c-red')+
+    card('累计毛利',(gv>=0?'+':'')+'¥'+gv.toFixed(2),'未含Temu头程运费',gv>=0?'c-green':'c-red')+
     card('产品数量',D.products.length+'','个产品')+
     card('型号数量',totalSpecs+'','个SKC');
 }
@@ -1366,7 +1338,7 @@ function renderCostStats(){
       <td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
       <td><strong>¥${wavg.toFixed(2)}</strong></td>
       <td>¥${lc.toFixed(2)}<span class="c-muted" style="font-size:11px;margin-left:4px">${last?last.receivedDate||last.date:''}</span></td>
-      <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+      <td>¥${fifo.toFixed(2)}</td>
       <td>${temuPriceCell}</td>
       <td class="${profitColor}">${temuPriceRmb ? (profitPerUnit>=0?'+':'')+'¥'+profitPerUnit.toFixed(2) : '-'}</td>
       <td class="${rateColor}">${temuPriceRmb ? profitRate.toFixed(1)+'%' : '-'}</td>
@@ -1397,7 +1369,7 @@ function renderCostStats(){
           <td>${spAll.length}</td><td>${spTOrd}</td><td>${spTRecv}</td>
           <td><strong>¥${spWavg.toFixed(2)}</strong></td>
           <td>${spLc?'¥'+spLc.toFixed(2):'<span class="c-muted">-</span>'}<span class="c-muted" style="font-size:11px;margin-left:4px">${spLast?spLast.receivedDate||spLast.date:''}</span></td>
-          <td>¥${spFifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+          <td>¥${spFifo.toFixed(2)}</td>
           <td>${spPrice?`¥${spPrice.toFixed(2)}`:'<span class="c-muted">-</span>'}</td>
           <td class="${spProfit>=0?'c-green':'c-red'}">${spPriceRmb?(spProfit>=0?'+':'')+'¥'+spProfit.toFixed(2):'-'}</td>
           <td class="${spRate>=20?'c-green':spRate>=0?'':'c-red'}">${spPriceRmb?spRate.toFixed(1)+'%':'-'}</td>
@@ -1455,7 +1427,7 @@ function renderStockTable(){
         :`<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})">+ 添加</span>`}</td>
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
       <td><strong>${local}</strong></td>
-      <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+      <td>¥${fifo.toFixed(2)}</td>
       <td>¥${wavg.toFixed(2)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
       <td class="c-muted">${(()=>{ const sold=D.sales.filter(r=>r.pid==p.id).reduce((s,r)=>s+r.qty,0); const firstIn=D.purchases.filter(r=>r.pid==p.id&&r.status==='received')[0]; if(!sold||!local||!firstIn) return '-'; const days2=Math.max(1,Math.round((new Date()-new Date(firstIn.receivedDate||firstIn.date))/(1000*86400))); return Math.round(local/(sold/days2))+'天'; })()}</td>
@@ -1478,7 +1450,7 @@ function renderStockTable(){
           </td>
           <td></td><td></td>
           <td><strong>${spLocal}</strong></td>
-          <td>¥${spFifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+          <td>¥${spFifo.toFixed(2)}</td>
           <td class="c-muted">-</td>
           <td class="${spProfit>20?'c-green':spProfit>0?'':'c-red'}">${spPrice?spProfit.toFixed(1)+'%':'-'}</td>
           <td></td>
@@ -1523,7 +1495,7 @@ function renderProductsTable(){
         <td style="color:var(--text2);font-weight:600">↳ ${sp.name}</td>
         <td class="c-muted">${sp.sku||'-'}</td>
         <td style="font-weight:700;color:var(--green)">${spPrice?'¥'+spPrice:'<span style=\"color:var(--amber);font-size:11px\">未设置</span>'}</td>
-        <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+        <td>¥${fifo.toFixed(2)}</td>
         <td><strong>${local}</strong></td>
         <td class="${profit>20?'c-green':profit>0?'':'c-red'}">${spPrice?profit.toFixed(1)+'%':'-'}</td>
         <td style="white-space:nowrap">
@@ -1564,7 +1536,7 @@ function renderProductsTable(){
           <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">型号</th>
           <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">SKU</th>
           <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">Temu售价</th>
-          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">成本(FIFO)</th>
+          <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">均价成本</th>
           <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">本地库存</th>
           <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">利润率</th>
           <th style="padding:7px 10px;font-size:11px;color:var(--text2);font-weight:600;text-align:left">操作</th>
@@ -2877,7 +2849,7 @@ function renderSalesMonthlyStas(){
   el.innerHTML=
     card('本月销售额','¥'+mRev.toFixed(2),mSales.length+'笔订单')+
     card('本月销售量',mQty+'件','件数')+
-    card('本月毛利',(mProfit>=0?'+':'')+'¥'+mProfit.toFixed(2),'FIFO成本',mProfit>=0?'c-green':'c-red')+
+    card('本月毛利',(mProfit>=0?'+':'')+'¥'+mProfit.toFixed(2),'均价成本',mProfit>=0?'c-green':'c-red')+
     card('本月毛利率',mRev>0?(mProfit/mRev*100).toFixed(1)+'%':'-%','利润率',mProfit>=0?'c-green':'c-red');
 }
 
@@ -2921,7 +2893,7 @@ function renderSalesTable(){
 }
 
 window.exportSalesCSV = function(){
-  const rows=[['日期','产品','型号','数量','售价','FIFO成本','毛利','毛利率','订单号']];
+  const rows=[['日期','产品','型号','数量','售价','均价成本','毛利','毛利率','订单号']];
   D.sales.forEach((r,i)=>{
     const p=gp(r.pid),sp=gs(r.pid,r.sid);
     const cost=getSaleFifoCost(i);
@@ -3130,7 +3102,7 @@ window.clearAll = function(){
 
 window.exportAll = function(){
   const wb=XLSX.utils.book_new();
-  const pd=[['ID','商品名','SKU','Temu售价(¥)','本地库存','在途','FIFO成本(¥)','均价(¥)']];
+  const pd=[['ID','商品名','SKU','Temu售价(¥)','本地库存','在途','均价成本(¥)','均价(¥)']];
   D.products.forEach(pp=>pd.push([pp.id,pp.name,pp.sku||'',pp.price,getLocalStock(pp.id),getTransitQty(pp.id),+getFifoCostPerUnit(pp.id).toFixed(2),+getWeightedAvgCost(pp.id).toFixed(2)]));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pd),'商品');
   const purd=[['下单日期','商品ID','商品名','采购量','入库量','入库日期','单件进价(¥)','单件运费(¥)','总运费(¥)','状态','快递单号','1688单号']];
@@ -3139,7 +3111,7 @@ window.exportAll = function(){
   const outd=[['日期','商品ID','商品名','发出量','运单号','备注']];
   D.outbounds.forEach(r=>{const rp=gp(r.pid);outd.push([r.date,r.pid,rp?rp.name:'',r.qty,r.tracking||'',r.note||'']);});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(outd),'出库记录');
-  const sd=[['日期','商品ID','商品名','数量','售价(¥)','FIFO成本(¥)','毛利(¥)','订单号']];
+  const sd=[['日期','商品ID','商品名','数量','售价(¥)','均价成本(¥)','毛利(¥)','订单号']];
   D.sales.forEach((r,i)=>{const rp=gp(r.pid),fc=getSaleFifoCost(i),g=+(r.qty*r.price-fc/D.settings.rate).toFixed(2);sd.push([r.date,r.pid,rp?rp.name:'',r.qty,r.price,+(fc/D.settings.rate).toFixed(2),g,r.order||'']);});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sd),'销售记录');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['汇率','低库存阈值'],[D.settings.rate,D.settings.lowStock]]),'配置');
