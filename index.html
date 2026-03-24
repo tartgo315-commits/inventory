@@ -258,7 +258,7 @@ input::placeholder{color:var(--text3)}
       <div id="f-local-items" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
     </div>
     <div style="width:1px;background:var(--border);margin:0 4px;align-self:stretch"></div>
-    <div id="metrics" style="display:contents"></div>
+    <div id="metrics" style="display:flex;gap:14px;flex:1;flex-wrap:wrap"></div>
   </div>
   <div id="arrived-alerts"></div>
   <div id="pending-alerts"></div>
@@ -367,31 +367,7 @@ input::placeholder{color:var(--text3)}
     </tr></thead><tbody id="cost-stats-table"></tbody></table></div>
   </div>
 
-  <!-- 采购成本走势 -->
-  <div class="card">
-    <div class="card-title">
-      采购成本走势
-      <span style="font-size:12px;font-weight:400;color:var(--text3)">选择产品查看各批次进价变化</span>
-      <select id="trend-product-sel" style="height:30px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;margin-left:8px" onchange="renderCostTrend()"></select>
-    </div>
-    <canvas id="cost-trend-chart" height="70"></canvas>
-    <div id="cost-trend-empty" style="text-align:center;color:var(--text3);padding:20px;font-size:13px;display:none">暂无进货记录</div>
-  </div>
-
   <div class="section-sep">进货全记录</div>
-  <div class="card" style="padding:12px 16px">
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <input type="text" id="pur-search" placeholder="搜索商品名..." oninput="filterPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:180px">
-      <input type="month" id="pur-filter-month" onchange="filterPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
-      <select id="pur-filter-status" onchange="filterPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
-        <option value="">全部状态</option>
-        <option value="transit">在途</option>
-        <option value="received">已入库</option>
-      </select>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pur-search').value='';document.getElementById('pur-filter-month').value='';document.getElementById('pur-filter-status').value='';filterPurchaseTable()">清除</button>
-      <button class="btn btn-ghost btn-sm" onclick="exportPurchaseCSV()">📥 导出CSV</button>
-    </div>
-  </div>
   <div class="card">
     <div class="card-title">
       进货明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="pur-total"></span>
@@ -759,7 +735,6 @@ input::placeholder{color:var(--text3)}
           <div class="fg"><label>默认售价（¥）</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
           <div class="fg"><label>补货预警点（件）</label><input type="number" id="pe-reorder" min="0" placeholder="10" title="本地库存低于此数量时提醒补货"></div>
           <div class="fg"><label>SKU编码</label><input type="text" id="pe-sku"></div>
-          <div class="fg"><label>补货点（低于此库存预警）</label><input type="number" id="pe-reorder" min="0" placeholder="10" style="width:100%"></div>
           <div class="fg" style="grid-column:1/-1"><label>Temu商品链接</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
           <div class="fg" style="grid-column:1/-1"><label>1688货源链接 <span style="font-size:11px;color:var(--text3);font-weight:400">（保存后🔗图标直接跳转）</span></label><input type="text" id="pe-source-link" placeholder="https://detail.1688.com/offer/..."></div>
         </div>
@@ -1139,7 +1114,7 @@ function renderArrivedAlerts(){
         if(stock<globalLow) items.push(`${p.name}（${stock}件，补货点${globalLow}）`);
       } else {
         specs.forEach(sp=>{
-          const stock=getLocalStockSpec(p.id,sp.sid);
+          const stockVal=getLocalStockSpec(p.id,sp.sid);
           const thr=sp.reorderPoint||globalLow;
           if(stock<thr) items.push(`${p.name}·${sp.name}（${stock}件，补货点${thr}）`);
         });
@@ -1502,7 +1477,7 @@ function renderProductsTable(){
       <td colspan="5"><button class="btn btn-primary btn-sm" onclick="addSpec(${p.id})">＋ 添加型号</button></td>
     </tr>`;
 
-    const collapsedSummary=!isExpanded&&specs.length>0?`<div style="padding:8px 16px;background:#f9fafb;border-top:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap">${specs.map(sp=>{const local=getLocalStockSpec(p.id,sp.sid);const spPrice=sp.price||p.price||0;return `<span style="font-size:12px;color:var(--text2)"><span style="color:var(--primary);font-weight:600">${sp.name}</span> 库存<strong>${local}</strong>${spPrice?` · <span style="color:var(--green)">¥${spPrice}</span>`:''}</span>`;}).join('')}</div>`:'';
+    const collapsedSummary=!isExpanded&&specs.length>0?`<div style="padding:8px 16px;background:#f9fafb;border-top:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap">${specs.map(sp=>{const cLocal=getLocalStockSpec(p.id,sp.sid);const cPrice=sp.price||p.price||0;return `<span style="font-size:12px;color:var(--text2)"><span style="color:var(--primary);font-weight:600">${sp.name}</span> 库存<strong>${cLocal}</strong>${cPrice?` · <span style="color:var(--green)">¥${cPrice}</span>`:''}</span>`;}).join('')}</div>`:'';
 
     return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
       <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:${isExpanded?'1px solid var(--border)':'none'}">
@@ -1692,7 +1667,7 @@ window.smartParse = function() {
       }
     }
     for (const p of [/起批价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,/批发价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,/优惠后\s*(\d+\.?\d*)/,/[¥￥]\s*(\d+\.?\d*)/,/(\d{1,5}\.\d{2})/]) {
-      const m=text.match(p); if(m){const v=parseFloat(m[1]);if(v>=0.1&&v<99999){price=v;break;}}
+      const m=text.match(p); if(m){const v2=parseFloat(m[1]);if(v>=0.1&&v<99999){price=v;break;}}
     }
     if (!name&&!price) { resultEl.innerHTML=`<span style="color:var(--amber)">未能识别，请确认复制了完整页面文字</span>`; return; }
     if (price) { document.getElementById('pur-price').value=price; updateCostPreview(); }
@@ -1914,7 +1889,7 @@ function handleBookmarkParams() {
       }
     }
 
-    const resultEl = document.getElementById('parse-result');
+    const resultEl2 = document.getElementById('parse-result');
     if (resultEl && source === 'order') {
       resultEl.innerHTML = `
         <div style="padding:14px 16px;background:#fff;border-radius:8px;border:1px solid var(--border)">
@@ -2382,7 +2357,7 @@ window.addPurchase = function(status){
   }
 
   const qty=parseInt(document.getElementById('pur-qty').value);
-  const price=parseFloat(document.getElementById('pur-price').value);
+  const price2=parseFloat(document.getElementById('pur-price').value);
   const shipTotal=parseFloat(document.getElementById('pur-ship-total').value)||0;
   const tracking=document.getElementById('pur-tracking').value.trim();
   const order=document.getElementById('pur-order').value.trim();
@@ -2638,7 +2613,7 @@ function renderStocktakeTable(){
       </tr>`;
     } else {
       specs.forEach(sp=>{
-        const stock=getLocalStockSpec(p.id,sp.sid);
+        const stock2=getLocalStockSpec(p.id,sp.sid);
         rows+=`<tr>
           <td style="width:64px;padding:4px 6px">${imgThumb(p.id,sp.sid)}</td>
           <td>${p.name} <span style="color:var(--primary);font-size:12px">· ${sp.name}</span></td>
@@ -2889,38 +2864,6 @@ function renderAnalysis(){
   }
 }
 
-function renderCostTrend(){
-  const canvas=document.getElementById('cost-trend-chart'); if(!canvas) return;
-  const empty=document.getElementById('cost-trend-empty');
-  const pid=parseInt((document.getElementById('analysis-product')||{}).value||'0');
-  if(!pid){ canvas.style.display='none'; if(empty) empty.style.display='block'; return; }
-  canvas.style.display='block'; if(empty) empty.style.display='none';
-
-  const records=D.purchases.filter(r=>r.pid==pid&&r.status==='received')
-    .sort((a,b)=>(a.receivedDate||a.date).localeCompare(b.receivedDate||b.date));
-  if(!records.length) return;
-
-  const ctx=canvas.getContext('2d');
-  const w=canvas.offsetWidth||800, h=120;
-  canvas.width=w; canvas.height=h;
-  ctx.clearRect(0,0,w,h);
-
-  const costs=records.map(r=>(r.price||0)+(r.shipPerUnit||0));
-  const maxC=Math.max(...costs)*1.2||1;
-  const barW=Math.max(20,Math.floor((w-40)/records.length)-4);
-
-  records.forEach((r,i)=>{
-    const cost=costs[i];
-    const barH=Math.round(cost/maxC*(h-30));
-    const x=40+i*(barW+4);
-    ctx.fillStyle='#4f46e5';
-    ctx.fillRect(x,h-barH-20,barW,barH);
-    ctx.fillStyle='#1a1d23'; ctx.font='11px sans-serif'; ctx.textAlign='center';
-    ctx.fillText('¥'+cost.toFixed(2),x+barW/2,h-barH-24);
-    ctx.fillStyle='#9ca3af'; ctx.font='10px sans-serif';
-    ctx.fillText((r.receivedDate||r.date).slice(5),x+barW/2,h-4);
-  });
-}
 
 function renderTurnoverTable(){
   const tbody=document.getElementById('turnover-table'); if(!tbody) return;
@@ -3068,17 +3011,17 @@ window.clearAll = function(){
 
 window.exportAll = function(){
   const wb=XLSX.utils.book_new();
-  const pd=[['ID','商品名','SKU','Temu售价(¥)','本地库存','Temu库存','在途','FIFO成本(¥)','均价(¥)']];
-  D.products.forEach(p=>pd.push([p.id,p.name,p.sku||'',p.price,getLocalStock(p.id),getTemuStock(p.id),getTransitQty(p.id),+getFifoCostPerUnit(p.id).toFixed(2),+getWeightedAvgCost(p.id).toFixed(2)]));
+  const pd=[['ID','商品名','SKU','Temu售价(¥)','本地库存','在途','FIFO成本(¥)','均价(¥)']];
+  D.products.forEach(pp=>pd.push([pp.id,pp.name,pp.sku||'',pp.price,getLocalStock(pp.id),getTransitQty(pp.id),+getFifoCostPerUnit(pp.id).toFixed(2),+getWeightedAvgCost(pp.id).toFixed(2)]));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pd),'商品');
-  const purd=[['下单日期','商品ID','商品名','采购量','入库量','入库日期','单件进价(¥)','单件运费(¥)','总运费(¥)','单件总成本(¥)','状态','快递单号','1688单号']];
-  D.purchases.forEach(r=>{const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0);purd.push([r.date,r.pid,p?p.name:'',r.qty,r.receivedQty||'',r.receivedDate||'',r.price||0,+(r.shipPerUnit||0).toFixed(4),r.shipTotal||0,uc,r.status==='received'?'已入库':'在途',r.tracking||'',r.order||'']);});
+  const purd=[['下单日期','商品ID','商品名','采购量','入库量','入库日期','单件进价(¥)','单件运费(¥)','总运费(¥)','状态','快递单号','1688单号']];
+  D.purchases.forEach(r=>{const rp=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0);purd.push([r.date,r.pid,rp?rp.name:'',r.qty,r.receivedQty||r.qty,r.receivedDate||'',r.price,r.shipPerUnit,r.shipTotal,r.status==='received'?'已入库':'在途',r.tracking||'',r.order||'']);});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(purd),'进货记录');
   const outd=[['日期','商品ID','商品名','发出量','运单号','备注']];
-  D.outbounds.forEach(r=>{const p=gp(r.pid);outd.push([r.date,r.pid,p?p.name:'',r.qty,r.tracking||'',r.note||'']);});
+  D.outbounds.forEach(r=>{const rp=gp(r.pid);outd.push([r.date,r.pid,rp?rp.name:'',r.qty,r.tracking||'',r.note||'']);});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(outd),'出库记录');
-  const sd=[['日期','商品ID','商品名','数量','售价(¥)','FIFO成本(¥)','毛利($)','订单号']];
-  D.sales.forEach((r,i)=>{const p=gp(r.pid),fc=getSaleFifoCost(i),g=+(r.qty*r.price-fc/D.settings.rate).toFixed(2);sd.push([r.date,r.pid,p?p.name:'',r.qty,r.price,+fc.toFixed(2),g,r.order||'']);});
+  const sd=[['日期','商品ID','商品名','数量','售价(¥)','FIFO成本(¥)','毛利(¥)','订单号']];
+  D.sales.forEach((r,i)=>{const rp=gp(r.pid),fc=getSaleFifoCost(i),g=+(r.qty*r.price-fc/D.settings.rate).toFixed(2);sd.push([r.date,r.pid,rp?rp.name:'',r.qty,r.price,+(fc/D.settings.rate).toFixed(2),g,r.order||'']);});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sd),'销售记录');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['汇率','低库存阈值'],[D.settings.rate,D.settings.lowStock]]),'配置');
   XLSX.writeFile(wb,`进销存_${today()}.xlsx`);
@@ -3095,15 +3038,15 @@ window.exportFiltered = function(){
   const sales=D.sales.filter(filterDate);
 
   // 生成CSV内容
-  const purRows=[['日期','产品','型号','数量','入库量','进价','运费/件','总成本/件','状态','订单号']];
+  const pB2urRows=[['日期','产品','型号','数量','入库量','进价','运费/件','总成本/件','状态','订单号']];
   purchases.forEach(r=>{
-    const p=gp(r.pid),sp=gs(r.pid,r.sid);
-    purRows.push([r.date,p?p.name:'',sp?sp.name:'',r.qty,r.receivedQty||r.qty,r.price,r.shipPerUnit,(r.price||0)+(r.shipPerUnit||0),r.status==='received'?'已入库':'在途',r.order]);
+    const pP=gp(r.pid),sp=gs(r.pid,r.sid);
+    purRows.push([r.date,pP?pP.name:'',sp?sp.name:'',r.qty,r.receivedQty||r.qty,r.price,r.shipPerUnit,(r.price||0)+(r.shipPerUnit||0),r.status==='received'?'已入库':'在途',r.order]);
   });
   const saleRows=[['日期','产品','型号','数量','单价','销售额','订单号']];
   sales.forEach((r,i)=>{
-    const p=gp(r.pid),sp=gs(r.pid,r.sid);
-    saleRows.push([r.date,p?p.name:'',sp?sp.name:'',r.qty,r.price,r.qty*r.price,r.order]);
+    const pS=gp(r.pid),sp=gs(r.pid,r.sid);
+    saleRows.push([r.date,pS?pS.name:'',sp?sp.name:'',r.qty,r.price,r.qty*r.price,r.order]);
   });
 
   // 转CSV
@@ -3128,7 +3071,7 @@ window.importExcel = function(input){
       if(wb.SheetNames.includes('进货记录'))D.purchases=XLSX.utils.sheet_to_json(wb.Sheets['进货记录']).map(r=>({date:r['下单日期']||'',pid:+r['商品ID'],qty:+r['采购量']||0,receivedQty:+r['入库量']||0,receivedDate:r['入库日期']||'',price:+r['单件进价(¥)']||0,shipPerUnit:+r['单件运费(¥)']||0,shipTotal:+r['总运费(¥)']||0,status:r['状态']==='已入库'?'received':'transit',tracking:r['快递单号']||'',order:r['1688单号']||''}));
       if(wb.SheetNames.includes('出库记录'))D.outbounds=XLSX.utils.sheet_to_json(wb.Sheets['出库记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['发出量']||0,tracking:r['运单号']||'',note:r['备注']||''}));
       if(wb.SheetNames.includes('销售记录'))D.sales=XLSX.utils.sheet_to_json(wb.Sheets['销售记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['数量']||0,price:+r['售价(¥)']||0,order:r['订单号']||''}));
-      if(wb.SheetNames.includes('配置')){const rows=XLSX.utils.sheet_to_json(wb.Sheets['配置']);if(rows[0]){D.settings.rate=+rows[0]['汇率']||7.2;D.settings.lowStock=+rows[0]['低库存阈值']||10;}}
+      if(wb.SheetNames.includes('配置')){const rows2=XLSX.utils.sheet_to_json(wb.Sheets['配置']);if(rows[0]){D.settings.rate=+rows[0]['汇率']||7.2;D.settings.lowStock=+rows[0]['低库存阈值']||10;}}
       save(); render();
       document.getElementById('import-status').innerHTML=`<div class="alert alert-ok" style="margin-top:10px">✅ 导入成功！</div>`;
       input.value='';
