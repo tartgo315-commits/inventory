@@ -1420,6 +1420,7 @@ function renderOutboundTable(){
 
 
 function renderStockTable(){
+  if(window._stockEditing) return; // 有内联编辑进行中，不重建DOM
   const tbody=document.getElementById('stock-table'); if(!tbody) return;
   if(!window._stockExpanded) window._stockExpanded={};
   let html='';
@@ -1490,10 +1491,15 @@ window.inlineEditStock = function(el, pid, sid){
   input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
   el.replaceWith(input);
   input.focus(); input.select();
+  window._stockEditing = true; // 编辑中，禁止 renderStockTable 重建DOM
 
-  const cancel = ()=>{ input.replaceWith(el); };
-  const confirm = ()=>{
+  const cancel = ()=>{
+    window._stockEditing = false;
+    if(input.parentNode) input.replaceWith(el);
+  };
+  const confirmEdit = ()=>{
     const newVal = parseInt(input.value);
+    window._stockEditing = false;
     if(isNaN(newVal)||newVal<0||newVal===current){ cancel(); return; }
     const diff = newVal - current;
     if(!D.stockAdjustments) D.stockAdjustments=[];
@@ -1506,10 +1512,9 @@ window.inlineEditStock = function(el, pid, sid){
     }
     save(); renderStockTable(); render();
   };
-  // 只有回车确认，失去焦点/ESC 一律取消
   input.addEventListener('blur', cancel);
   input.addEventListener('keydown', e=>{
-    if(e.key==='Enter'){ input.removeEventListener('blur', cancel); confirm(); }
+    if(e.key==='Enter'){ input.removeEventListener('blur', cancel); confirmEdit(); }
     if(e.key==='Escape'){ cancel(); }
   });
 };
