@@ -730,7 +730,7 @@ input::placeholder{color:var(--text3)}
     <div style="background:var(--bg);border-radius:8px;padding:14px;margin-bottom:16px">
       <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">产品信息</div>
       <div style="display:flex;gap:14px;align-items:flex-start">
-        <div id="pe-img-preview" style="width:80px;height:80px;border-radius:8px;border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3);overflow:hidden;flex-shrink:0;background:#fff;cursor:pointer" onclick="document.getElementById('pe-img-file').click()" title="点击上传产品图片">📷</div>
+        <div id="pe-img-preview" style="width:80px;height:80px;border-radius:8px;border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3);overflow:hidden;flex-shrink:0;background:#fff;cursor:pointer" onclick="_pasteSpecTarget=null;document.getElementById('pe-img-file').click()" title="点击上传产品图片">📷</div>
         <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="fg" style="grid-column:1/-1"><label>产品名称 *</label><input type="text" id="pe-name" style="width:100%"></div>
           <div class="fg"><label>默认售价（¥）</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
@@ -750,8 +750,9 @@ input::placeholder{color:var(--text3)}
     <!-- 添加新型号 -->
     <div style="background:#f0f4ff;border-radius:8px;padding:12px;margin-bottom:16px">
       <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px">＋ 添加新型号</div>
-      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px">
         <input type="text" id="pe-new-spec-name" placeholder="型号名称，如 428-32T" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+        <input type="number" id="pe-new-spec-cost" placeholder="成本价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;background:#fffbe6;border-color:#fbbf24">
         <input type="number" id="pe-new-spec-price" placeholder="Temu售价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
         <button class="btn btn-primary btn-sm" id="pe-add-spec-btn" style="height:32px">添加</button>
       </div>
@@ -1945,6 +1946,8 @@ let _purImgBase64 = '';
 let _editImgBase64 = '';
 let _productImgBase64 = '';
 let _specImgBase64 = '';
+// 记录当前「准备粘贴图片」的型号目标 {pid, sid}，null 表示贴给产品主图
+let _pasteSpecTarget = null;
 
 function compressImage(file, maxSize, callback) {
   const reader = new FileReader();
@@ -2032,6 +2035,18 @@ document.addEventListener('paste', function(e) {
       compressImage(file, 600, function(base64) {
         if(isQuickOpen) { _quickImgBase64=base64; setPreviewEl('quick-img-preview',base64); }
         else if(isEditOpen) { _editImgBase64=base64; setPreviewEl('edit-img-preview',base64); }
+        else if(isProdOpen && _pasteSpecTarget) {
+          // 粘贴到指定型号图片
+          const p = gp(_pasteSpecTarget.pid);
+          const sp = p && (p.specs||[]).find(s=>s.sid==_pasteSpecTarget.sid);
+          if(sp){
+            compressImage(file, 600, function(b64){
+              sp.img = b64;
+              renderSpecsInModal(_pasteSpecTarget.pid);
+              _pasteSpecTarget = null; // 贴完清除，下次需重新点
+            });
+          }
+        }
         else if(isProdOpen) { _productImgBase64=base64; setPreviewEl('pe-img-preview',base64); }
         else if(isSpecOpen) { _specImgBase64=base64; setPreviewEl('se-img-preview',base64); }
         else { _purImgBase64=base64; setPreviewEl('pur-img-preview',base64); }
@@ -2150,6 +2165,7 @@ window.handleSpecImg = function(input) {
 
 window.openEditProduct = window.editProduct = function(id){
   const p=gp(id); if(!p) return;
+  _pasteSpecTarget = null; // 重置粘贴目标
   document.getElementById('pe-id').value = id;
   document.getElementById('pe-name').value = p.name||'';
   document.getElementById('pe-sku').value = p.sku||'';
@@ -2187,10 +2203,12 @@ function renderSpecsInModal(pid){
                :'<div style="width:56px;height:56px;background:var(--surface);border:1.5px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text3)">📷</div>')
         +'<input type="file" class="spec-img-input" data-pid="'+pid+'" data-sid="'+sp.sid+'" accept="image/*" style="display:none">'
         +'</div>'
-        +'<div style="flex:1;display:grid;grid-template-columns:2fr 1fr;gap:8px">'
+        +'<div style="flex:1;display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px">'
         +'<input type="text" id="pe-spec-name-'+sp.sid+'" value="'+((sp.name||'').replace(/"/g,'&quot;'))+'" placeholder="型号名称" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">'
+        +'<input type="number" id="pe-spec-cost-'+sp.sid+'" value="'+(sp.cost||'')+'" placeholder="成本价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;background:#fffbe6;border-color:#fbbf24" title="该型号的进货成本价">'
         +'<input type="number" id="pe-spec-price-'+sp.sid+'" value="'+(sp.price||'')+'" placeholder="Temu售价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">'
         +'</div>'
+        +'<button class="btn btn-ghost btn-sm spec-paste-btn" data-pid="'+pid+'" data-sid="'+sp.sid+'" style="flex-shrink:0;color:var(--primary);border-color:var(--primary-light)" title="先复制图片，再点这里粘贴">📋 粘贴图</button>'
         +'<button class="btn btn-ghost btn-sm spec-del-btn" data-pid="'+pid+'" data-sid="'+sp.sid+'" style="color:var(--red);flex-shrink:0">删除</button>'
         +'</div>';
     }).join('');
@@ -2198,6 +2216,8 @@ function renderSpecsInModal(pid){
   // 事件绑定（不用内联onclick，避免CSP问题）
   el.querySelectorAll('.spec-img-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
+      // 记录粘贴目标为该型号
+      _pasteSpecTarget = {pid: parseInt(btn.dataset.pid), sid: parseInt(btn.dataset.sid)};
       btn.querySelector('.spec-img-input').click();
     });
   });
@@ -2211,6 +2231,37 @@ function renderSpecsInModal(pid){
       deleteSpecInModal(parseInt(btn.dataset.pid), parseInt(btn.dataset.sid));
     });
   });
+  el.querySelectorAll('.spec-paste-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      pasteSpecImg(parseInt(btn.dataset.pid), parseInt(btn.dataset.sid), btn);
+    });
+  });
+}
+
+async function pasteSpecImg(pid, sid, btn){
+  try {
+    const items = await navigator.clipboard.read();
+    for(const item of items){
+      for(const type of item.types){
+        if(type.startsWith('image/')){
+          const blob = await item.getType(type);
+          const file = new File([blob], 'paste.png', {type});
+          const origText = btn.textContent;
+          btn.textContent = '处理中...';
+          compressImage(file, 600, function(base64){
+            const p=gp(pid); if(!p) return;
+            const sp=(p.specs||[]).find(s=>s.sid==sid); if(!sp) return;
+            sp.img=base64;
+            renderSpecsInModal(pid);
+          });
+          return;
+        }
+      }
+    }
+    alert('剪贴板里没有图片，请先右键复制图片再点此按钮');
+  } catch(e){
+    alert('请先右键复制图片，再点「📋 粘贴图」按钮');
+  }
 }
 
 window.handleSpecImgInModal = function(input, pid, sid){
@@ -2235,13 +2286,15 @@ window.addSpecInModal = function(){
   const p=gp(pid); if(!p) return;
   const name=document.getElementById('pe-new-spec-name').value.trim();
   const price=parseFloat(document.getElementById('pe-new-spec-price').value)||0;
+  const cost=parseFloat(document.getElementById('pe-new-spec-cost').value)||0;
   if(!name){alert('请填写型号名称');return;}
   if(!p.specs) p.specs=[];
   if(!D.nextSid) D.nextSid=100;
-  p.specs.push({sid:D.nextSid++, name, price, sku:'', img:''});
+  p.specs.push({sid:D.nextSid++, name, price, cost, sku:'', img:''});
   document.getElementById('pe-reorder').value = p.reorderPoint||'';
   document.getElementById('pe-new-spec-name').value='';
   document.getElementById('pe-new-spec-price').value='';
+  document.getElementById('pe-new-spec-cost').value='';
   renderSpecsInModal(pid);
 };
 
@@ -2258,8 +2311,10 @@ window.saveEditProduct = function(){
   (p.specs||[]).forEach(sp=>{
     const nameEl=document.getElementById('pe-spec-name-'+sp.sid);
     const priceEl=document.getElementById('pe-spec-price-'+sp.sid);
+    const costEl=document.getElementById('pe-spec-cost-'+sp.sid);
     if(nameEl) sp.name=nameEl.value.trim()||sp.name;
     if(priceEl) sp.price=parseFloat(priceEl.value)||0;
+    if(costEl) sp.cost=parseFloat(costEl.value)||0;
   });
   Object.assign(p,{name,price,sku,temuLink,sourceLink,reorderPoint,img:_productImgBase64});
   document.getElementById('product-edit-modal').style.display='none';
