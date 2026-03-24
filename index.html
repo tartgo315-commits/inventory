@@ -623,6 +623,14 @@ input::placeholder{color:var(--text3)}
     <div class="btns"><button class="btn btn-primary" onclick="changePassword()">修改密码</button></div>
   </div>
   <div class="card">
+    <div class="card-title">图片压缩</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px">如果遇到「同步失败」，点此一次性压缩所有图片，减少 Firebase 存储体积。</div>
+    <div class="btns">
+      <button class="btn btn-amber" onclick="manualRecompress()">🗜️ 压缩所有图片</button>
+      <span id="recompress-status" style="font-size:13px;color:var(--text2)"></span>
+    </div>
+  </div>
+  <div class="card">
     <div class="card-title" style="color:var(--red)">危险操作</div>
     <div class="btns"><button class="btn btn-danger" onclick="clearAll()">清空所有数据</button><span style="font-size:12px;color:var(--text3)">不可恢复</span></div>
   </div>
@@ -914,8 +922,6 @@ async function initFirebase(cfg) {
       render();
       setSyncStatus('online');
       if(!_bookmarkHandled){ _bookmarkHandled=true; handleBookmarkParams(); }
-      // 只在首次加载时重压旧图，避免每次onSnapshot都触发死循环
-      if(!_recompressDone) recompressAllImages();
     }, (err)=>{
       setSyncStatus('error');
       console.warn('[TARTGO] Firestore 实时同步失败:', err && err.message);
@@ -2066,6 +2072,40 @@ function compressImageFromBase64(base64, callback) {
 }
 
 let _recompressDone = false;
+
+window.manualRecompress = function(){
+  const statusEl = document.getElementById('recompress-status');
+  if(statusEl) statusEl.textContent = '检查中...';
+  let changed = false, pending = 0;
+  const threshold = 15 * 1024; // 15KB以上才重压
+  const tryDone = ()=>{
+    if(--pending === 0){
+      if(changed){
+        save();
+        if(statusEl) statusEl.textContent = `✅ 压缩完成，已同步`;
+      } else {
+        if(statusEl) statusEl.textContent = '✅ 所有图片已是最优大小，无需处理';
+      }
+    }
+  };
+  D.products.forEach(p=>{
+    if(p.img && p.img.length > threshold){ pending++;
+      compressImageFromBase64(p.img, b64=>{ p.img=b64; changed=true; tryDone(); }); }
+    (p.specs||[]).forEach(sp=>{
+      if(sp.img && sp.img.length > threshold){ pending++;
+        compressImageFromBase64(sp.img, b64=>{ sp.img=b64; changed=true; tryDone(); }); }
+    });
+  });
+  D.purchases.forEach(r=>{
+    if(r.img && r.img.length > threshold){ pending++;
+      compressImageFromBase64(r.img, b64=>{ r.img=b64; changed=true; tryDone(); }); }
+  });
+  if(pending === 0){
+    if(statusEl) statusEl.textContent = '✅ 没有需要压缩的图片';
+  } else {
+    if(statusEl) statusEl.textContent = `压缩中（${pending}张）...`;
+  }
+};
 function recompressAllImages() {
   if(_recompressDone) return;
   _recompressDone = true;
