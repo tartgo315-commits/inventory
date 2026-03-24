@@ -914,6 +914,9 @@ async function initFirebase(cfg) {
       render();
       setSyncStatus('online');
       if(!_bookmarkHandled){ _bookmarkHandled=true; handleBookmarkParams(); }
+      // 每次数据加载都检查并重压大图，直到全部压缩完毕
+      _recompressDone = false;
+      recompressAllImages();
     }, (err)=>{
       setSyncStatus('error');
       console.warn('[TARTGO] Firestore 实时同步失败:', err && err.message);
@@ -2028,8 +2031,8 @@ function compressImage(file, maxSize, callback) {
     img.onload = function() {
       const canvas = document.createElement('canvas');
       let w = img.width, h = img.height;
-      // 最长边不超过600px
-      const max = 600;
+      // 缩略图用途，最长边压到200px足够，大幅减少Firebase存储体积
+      const max = 200;
       if(w > max || h > max) {
         if(w > h) { h = Math.round(h * max/w); w = max; }
         else { w = Math.round(w * max/h); h = max; }
@@ -2037,8 +2040,8 @@ function compressImage(file, maxSize, callback) {
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, w, h);
-      // 压缩质量0.75
-      const base64 = canvas.toDataURL('image/jpeg', 0.75);
+      // 质量0.6，进一步压缩体积
+      const base64 = canvas.toDataURL('image/jpeg', 0.6);
       callback(base64);
     };
     img.src = e.target.result;
@@ -2046,8 +2049,56 @@ function compressImage(file, maxSize, callback) {
   reader.readAsDataURL(file);
 }
 
+function compressImageFromBase64(base64, callback) {
+  const img = new Image();
+  img.onload = function() {
+    const canvas = document.createElement('canvas');
+    let w = img.width, h = img.height;
+    const max = 200;
+    if(w > max || h > max) {
+      if(w > h) { h = Math.round(h * max/w); w = max; }
+      else { w = Math.round(w * max/h); h = max; }
+    }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    callback(canvas.toDataURL('image/jpeg', 0.6));
+  };
+  img.src = base64;
+}
+
+let _recompressDone = false;
+function recompressAllImages() {
+  if(_recompressDone) return;
+  _recompressDone = true;
+  let changed = false;
+  // 超过15KB的base64就重压（约等于11KB图片），确保总体积可控
+  const threshold = 15 * 1024 / 0.75;
+  let pending = 0;
+  const tryDone = () => { if(--pending === 0 && changed){ render(); save(); } };
+
+  D.products.forEach(p => {
+    if(p.img && p.img.length > threshold) {
+      pending++;
+      compressImageFromBase64(p.img, b64 => { p.img = b64; changed = true; tryDone(); });
+    }
+    (p.specs||[]).forEach(sp => {
+      if(sp.img && sp.img.length > threshold) {
+        pending++;
+        compressImageFromBase64(sp.img, b64 => { sp.img = b64; changed = true; tryDone(); });
+      }
+    });
+  });
+  D.purchases.forEach(r => {
+    if(r.img && r.img.length > threshold) {
+      pending++;
+      compressImageFromBase64(r.img, b64 => { r.img = b64; changed = true; tryDone(); });
+    }
+  });
+  if(pending === 0 && changed){ render(); save(); }
+  console.log(`[TARTGO] 图片重压检查：发现 ${pending} 张需要压缩`);
+}
+
 function setPreviewEl(elId, base64) {
-  const el = document.getElementById(elId);
   if(!el) return;
   el.innerHTML = '';
   if(base64) {
