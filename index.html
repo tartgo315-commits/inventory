@@ -267,7 +267,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品库存状态</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>均价成本/件</th><th>历史均价/件</th><th>利润率</th><th>周转天数</th>
+      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>均价成本/件</th><th>历史均价/件</th><th>利润率</th><th>库存价值(¥)</th>
     </tr></thead><tbody id="stock-table"></tbody></table></div>
   </div>
 </div>
@@ -1430,7 +1430,7 @@ function renderStockTable(){
       <td>¥${fifo.toFixed(2)}</td>
       <td>¥${wavg.toFixed(2)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
-      <td class="c-muted">${(()=>{ const sold=D.sales.filter(r=>r.pid==p.id).reduce((s,r)=>s+r.qty,0); const firstIn=D.purchases.filter(r=>r.pid==p.id&&r.status==='received')[0]; if(!sold||!local||!firstIn) return '-'; const days2=Math.max(1,Math.round((new Date()-new Date(firstIn.receivedDate||firstIn.date))/(1000*86400))); return Math.round(local/(sold/days2))+'天'; })()}</td>
+      <td style="font-weight:700;color:var(--primary)">¥${(local*fifo).toFixed(2)}</td>
     </tr>`;
 
     // 型号子行
@@ -1453,12 +1453,7 @@ function renderStockTable(){
           <td>¥${spFifo.toFixed(2)}</td>
           <td class="c-muted">-</td>
           <td class="${spProfit>20?'c-green':spProfit>0?'':'c-red'}">${spPrice?spProfit.toFixed(1)+'%':'-'}</td>
-          <td></td>
-        </tr>`;
-      });
-    }
-  });
-  tbody.innerHTML=html||`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>`;
+          <td style="font-weight:700;color:var(--primary)">¥${(spLocal*spFifo).toFixed(2)}</td>
 }
 
 window.toggleStockRow = function(pid){
