@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v6.4 · 2026-03-24 10:15</div>
+      <div>v6.5 · 2026-03-24 10:30</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -263,7 +263,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品库存状态</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>已发Temu</th><th>Temu库存</th><th>FIFO成本/件</th><th>历史均价/件</th><th>利润率</th>
+      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>FIFO成本/件</th><th>历史均价/件</th><th>利润率</th>
     </tr></thead><tbody id="stock-table"></tbody></table></div>
   </div>
 </div>
@@ -1287,20 +1287,64 @@ function renderSalesTable(){
 
 function renderStockTable(){
   const tbody=document.getElementById('stock-table'); if(!tbody) return;
-  tbody.innerHTML=D.products.map(p=>{
-    const local=getLocalStock(p.id),temu=getTemuStock(p.id),transit=getTransitQty(p.id);
+  if(!window._stockExpanded) window._stockExpanded={};
+  let html='';
+  D.products.forEach(p=>{
+    const specs=p.specs||[];
+    const hasSpecs=specs.length>0;
+    const local=hasSpecs?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
+    const transit=getTransitQty(p.id);
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    return `<tr><td><div class="prod-cell">${imgThumb(p.id)}${editableProductName(p.id, p.name)}</div></td>
+    const isExp=window._stockExpanded[p.id]===true;
+    const expandBtn=hasSpecs
+      ?`<button onclick="toggleStockRow(${p.id})" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap">${isExp?'▲ 收起':'▼ '+specs.length+'个型号'}</button>`
+      :'';
+
+    // 产品汇总行
+    html+=`<tr style="background:var(--surface)">
+      <td><div class="prod-cell">${imgThumb(p.id)}${editableProductName(p.id,p.name)}${expandBtn}</div></td>
       <td>${getProductLink(p.id)
-        ? `<a href="${getProductLink(p.id)}" target="_blank" style="font-size:13px;color:var(--primary);text-decoration:none;font-weight:600" title="跳转1688货源">🔗 查看</a>`
-        : `<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})" title="点击添加货源链接">+ 添加</span>`}</td>
+        ?`<a href="${getProductLink(p.id)}" target="_blank" style="font-size:13px;color:var(--primary);text-decoration:none;font-weight:600">🔗 查看</a>`
+        :`<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})">+ 添加</span>`}</td>
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
-      <td><strong>${local}</strong></td><td>${temu}</td><td>${temu}</td>
+      <td><strong>${local}</strong></td>
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
       <td>¥${wavg.toFixed(2)}</td>
-      <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td></tr>`;
-  }).join('');
+      <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
+    </tr>`;
+
+    // 型号子行
+    if(hasSpecs && isExp){
+      specs.forEach(sp=>{
+        const spLocal=getLocalStockSpec(p.id,sp.sid);
+        const spFifo=getFifoCostPerUnitSpec(p.id,sp.sid);
+        const spPrice=sp.price||p.price||0;
+        const spProfit=spPrice>0?((spPrice-spFifo)/spPrice*100):0;
+        html+=`<tr style="background:#f7f8fc">
+          <td style="padding-left:56px">
+            <div style="display:flex;align-items:center;gap:8px">
+              ${sp.img?`<img src="${sp.img}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;border:1px solid var(--border)">`:'<div style="width:32px;height:32px;background:var(--bg);border:1px dashed var(--border2);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px">📷</div>'}
+              <span style="font-size:13px;color:var(--primary);font-weight:600">↳ ${sp.name}</span>
+              ${spPrice?`<span style="font-size:12px;color:var(--green);font-weight:600">¥${spPrice}</span>`:''}
+            </div>
+          </td>
+          <td></td><td></td>
+          <td><strong>${spLocal}</strong></td>
+          <td>¥${spFifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
+          <td class="c-muted">-</td>
+          <td class="${spProfit>20?'c-green':spProfit>0?'':'c-red'}">${spPrice?spProfit.toFixed(1)+'%':'-'}</td>
+        </tr>`;
+      });
+    }
+  });
+  tbody.innerHTML=html||`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>`;
 }
+
+window.toggleStockRow = function(pid){
+  if(!window._stockExpanded) window._stockExpanded={};
+  window._stockExpanded[pid]=!window._stockExpanded[pid];
+  renderStockTable();
+};
 
 function renderProductsTable(){
   const el=document.getElementById('products-list'); if(!el) return;
