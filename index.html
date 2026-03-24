@@ -211,6 +211,7 @@ input::placeholder{color:var(--text3)}
     <button class="nav-item" onclick="showPage('sales')"><span class="nav-icon">💰</span><span>Temu销售</span></button>
     <div class="nav-section">管理</div>
     <button class="nav-item" onclick="showPage('products')"><span class="nav-icon">🏷️</span><span>商品管理</span></button>
+    <button class="nav-item" onclick="showPage('analysis')"><span class="nav-icon">📊</span><span>数据分析</span></button>
     <button class="nav-item" onclick="showPage('supplier')"><span class="nav-icon">🏭</span><span>供应商</span></button>
     <button class="nav-item" onclick="showPage('stocktake')"><span class="nav-icon">📋</span><span>库存盘点</span></button>
     <button class="nav-item" onclick="showPage('returns')"><span class="nav-icon">↩️</span><span>退货记录</span></button>
@@ -223,7 +224,8 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v6.5 · 2026-03-24 10:30</div>
+      <div>v7.0 · 2026-03-24 11:30</div>
+      <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -365,6 +367,19 @@ input::placeholder{color:var(--text3)}
   </div>
 
   <div class="section-sep">进货全记录</div>
+  <div class="card" style="padding:12px 16px">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="pur-search" placeholder="搜索商品名..." oninput="renderPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:180px">
+      <input type="month" id="pur-filter-month" onchange="renderPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+      <select id="pur-filter-status" onchange="renderPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+        <option value="">全部状态</option>
+        <option value="transit">在途</option>
+        <option value="received">已入库</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pur-search').value='';document.getElementById('pur-filter-month').value='';document.getElementById('pur-filter-status').value='';renderPurchaseTable()">清除</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportPurchaseCSV()">📥 导出CSV</button>
+    </div>
+  </div>
   <div class="card">
     <div class="card-title">
       进货明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="pur-total"></span>
@@ -406,20 +421,37 @@ input::placeholder{color:var(--text3)}
 
 <!-- Temu销售 -->
 <div id="page-sales" class="page">
+  <!-- 月度销售统计 -->
+  <div class="metric-grid" id="sales-monthly-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
+
   <div class="card">
     <div class="card-title">录入Temu销售</div>
     <div class="form-grid form-grid-4">
-      <div class="fg"><label>选择商品</label><select id="sale-product"></select></div>
+      <div class="fg"><label>选择商品/型号</label><select id="sale-product"></select></div>
       <div class="fg"><label>销售数量</label><input type="number" id="sale-qty" placeholder="1" min="1"></div>
       <div class="fg"><label>实际售价（¥）</label><input type="number" id="sale-price" placeholder="65.00" step="0.01"></div>
       <div class="fg"><label>Temu订单号（可选）</label><input type="text" id="sale-order" placeholder="Temu-xxxxxxxx"></div>
     </div>
     <div class="btns"><button class="btn btn-primary" onclick="addSale()">确认销售</button></div>
   </div>
+
+  <!-- 筛选栏 -->
+  <div class="card" style="padding:12px 16px">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--text2);font-weight:600">筛选：</span>
+      <select id="sale-filter-product" onchange="renderSalesTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+        <option value="">全部产品</option>
+      </select>
+      <input type="month" id="sale-filter-month" onchange="renderSalesTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('sale-filter-product').value='';document.getElementById('sale-filter-month').value='';renderSalesTable()">清除筛选</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportSalesCSV()">📥 导出CSV</button>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-title">销售明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="sale-total"></span></div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>日期</th><th>商品</th><th>数量</th><th>FIFO成本(¥)</th><th>FIFO毛利(¥)</th><th>订单号</th><th>操作</th>
+      <th>日期</th><th>商品/型号</th><th>数量</th><th>售价(¥)</th><th>FIFO成本(¥)</th><th>毛利(¥)</th><th>毛利率</th><th>订单号</th><th>操作</th>
     </tr></thead><tbody id="sales-table"></tbody></table></div>
   </div>
 </div>
@@ -447,6 +479,37 @@ input::placeholder{color:var(--text3)}
       </div>
     </div>
     <div id="products-list"></div>
+  </div>
+</div>
+
+<!-- 数据分析 -->
+<div id="page-analysis" class="page">
+  <!-- 采购成本走势 -->
+  <div class="card">
+    <div class="card-title">
+      采购成本走势
+      <select id="analysis-product" onchange="renderAnalysis()" style="height:30px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;margin-left:8px">
+        <option value="">选择产品查看走势</option>
+      </select>
+    </div>
+    <canvas id="cost-trend-chart" height="80"></canvas>
+    <div id="cost-trend-empty" style="text-align:center;color:var(--text3);padding:30px;display:none">请选择产品</div>
+  </div>
+
+  <!-- 库存周转率 -->
+  <div class="card">
+    <div class="card-title">库存周转率分析</div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>产品/型号</th><th>当前库存</th><th>月均销量</th><th>预计库存天数</th><th>状态</th><th>建议</th>
+    </tr></thead><tbody id="turnover-table"></tbody></table></div>
+  </div>
+
+  <!-- 进货周期 -->
+  <div class="card">
+    <div class="card-title">供应商进货周期</div>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>产品</th><th>最近进货日期</th><th>下单到入库天数</th><th>平均周期</th><th>建议补货日期</th>
+    </tr></thead><tbody id="lead-time-table"></tbody></table></div>
   </div>
 </div>
 
@@ -669,6 +732,7 @@ input::placeholder{color:var(--text3)}
           <div class="fg" style="grid-column:1/-1"><label>产品名称 *</label><input type="text" id="pe-name" style="width:100%"></div>
           <div class="fg"><label>默认售价（¥）</label><input type="number" id="pe-price" step="0.01" min="0" placeholder="65.00"></div>
           <div class="fg"><label>SKU编码</label><input type="text" id="pe-sku"></div>
+          <div class="fg"><label>补货点（低于此库存预警）</label><input type="number" id="pe-reorder" min="0" placeholder="10" style="width:100%"></div>
           <div class="fg" style="grid-column:1/-1"><label>Temu商品链接</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
           <div class="fg" style="grid-column:1/-1"><label>1688货源链接 <span style="font-size:11px;color:var(--text3);font-weight:400">（保存后🔗图标直接跳转）</span></label><input type="text" id="pe-source-link" placeholder="https://detail.1688.com/offer/..."></div>
         </div>
@@ -976,8 +1040,8 @@ function today(){ return new Date().toISOString().slice(0,10); }
 function calcProfitFifo(p){ const c=getFifoCostPerUnit(p.id),rv=p.price*D.settings.rate; return rv?(rv-c)/rv*100:0; }
 
 // ===== 页面切换 =====
-const PAGES=['dashboard','purchase','outbound','sales','products','supplier','stocktake','returns','backup','settings'];
-const PAGE_TITLES={'dashboard':'总览','purchase':'进货 / 入库','outbound':'出库到Temu','sales':'Temu销售','products':'商品管理','supplier':'供应商管理','stocktake':'库存盘点','returns':'退货记录','backup':'备份/恢复','settings':'设置'};
+const PAGES=['dashboard','purchase','outbound','sales','products','analysis','supplier','stocktake','returns','backup','settings'];
+const PAGE_TITLES={'dashboard':'总览','purchase':'进货 / 入库','outbound':'出库到Temu','sales':'Temu销售','products':'商品管理','analysis':'数据分析','supplier':'供应商管理','stocktake':'库存盘点','returns':'退货记录','backup':'备份/恢复','settings':'设置'};
 window.showPage = function(name){
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
@@ -994,7 +1058,7 @@ function render(){
   renderTransitTable(); renderPurchaseTable(); renderCostStats();
   renderOutboundTable(); renderSalesTable(); renderStockTable(); renderProductsTable();
   renderSupplierTable(); renderStocktakeTable(); renderReturnsTable();
-  renderSalesChart();
+  renderSalesChart(); renderAnalysis();
   populateSelects(); populateReturnSelect();
 }
 
@@ -2063,6 +2127,7 @@ window.openEditProduct = window.editProduct = function(id){
   document.getElementById('pe-price').value = p.price||'';
   document.getElementById('pe-temu-link').value = p.temuLink||'';
   document.getElementById('pe-source-link').value = p.sourceLink||getProductLink(p.id)||'';
+  const reorderEl=document.getElementById('pe-reorder'); if(reorderEl) reorderEl.value=p.reorderPoint||'';
   _productImgBase64 = p.img||'';
   setPreviewEl('pe-img-preview', p.img||'');
   document.getElementById('pe-new-spec-name').value='';
@@ -2165,7 +2230,8 @@ window.saveEditProduct = function(){
     if(nameEl) sp.name=nameEl.value.trim()||sp.name;
     if(priceEl) sp.price=parseFloat(priceEl.value)||0;
   });
-  Object.assign(p,{name,price,sku,temuLink,sourceLink,img:_productImgBase64});
+  const reorderPoint=parseInt(document.getElementById('pe-reorder').value)||0;
+  Object.assign(p,{name,price,sku,temuLink,sourceLink,reorderPoint,img:_productImgBase64});
   document.getElementById('product-edit-modal').style.display='none';
   save(); render();
 };
@@ -2648,6 +2714,232 @@ window.deleteReturn = function(i){
   if(!confirm('删除退货记录？注意：库存调整不会自动撤销。'))return;
   D.returns.splice(i,1); save(); render();
 };
+
+// ===== 销售月度统计 =====
+function renderSalesMonthlyStas(){
+  const el=document.getElementById('sales-monthly-stats'); if(!el) return;
+  const now=new Date(), ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const mSales=D.sales.filter(r=>r.date&&r.date.startsWith(ym));
+  const mRev=mSales.reduce((s,r)=>s+r.qty*(r.price||0),0);
+  const mCost=mSales.reduce((s,r,i)=>s+getSaleFifoCost(D.sales.indexOf(r)),0);
+  const mProfit=mRev-mCost;
+  const mQty=mSales.reduce((s,r)=>s+r.qty,0);
+  const card=(l,v,s,c='')=>`<div class="metric" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px"><div class="metric-label">${l}</div><div class="metric-val ${c}" style="font-size:22px;font-weight:800">${v}</div><div class="metric-sub">${s}</div></div>`;
+  el.innerHTML=
+    card('本月销售额','¥'+mRev.toFixed(2),mSales.length+'笔订单')+
+    card('本月销售量',mQty+'件','件数')+
+    card('本月毛利',(mProfit>=0?'+':'')+'¥'+mProfit.toFixed(2),'FIFO成本',mProfit>=0?'c-green':'c-red')+
+    card('本月毛利率',mRev>0?(mProfit/mRev*100).toFixed(1)+'%':'-%','利润率',mProfit>=0?'c-green':'c-red');
+}
+
+// ===== 销售筛选和导出 =====
+function renderSalesTable(){
+  const search=(document.getElementById('sale-filter-product')||{}).value||'';
+  const month=(document.getElementById('sale-filter-month')||{}).value||'';
+  let filtered=D.sales;
+  if(search) filtered=filtered.filter(r=>r.pid==search);
+  if(month) filtered=filtered.filter(r=>r.date&&r.date.startsWith(month));
+
+  const tr2=filtered.reduce((s,r)=>s+r.qty*(r.price||0),0);
+  const el=document.getElementById('sale-total');
+  if(el) el.textContent=`共${filtered.length}条，销售额¥${tr2.toFixed(2)}`;
+  const tbody=document.getElementById('sales-table'); if(!tbody) return;
+  tbody.innerHTML=filtered.slice().reverse().map((r,i)=>{
+    const p=gp(r.pid),sp=gs(r.pid,r.sid);
+    const origIdx=D.sales.indexOf(r);
+    const cost=getSaleFifoCost(origIdx);
+    const profit=(r.price||0)*r.qty-cost;
+    const profitRate=r.price>0?(profit/(r.price*r.qty)*100):0;
+    return `<tr>
+      <td>${r.date}</td>
+      <td><div style="font-weight:600">${p?p.name:'已删除'}</div>${sp?`<div style="font-size:12px;color:var(--primary)">↳ ${sp.name}</div>`:''}</td>
+      <td>${r.qty}</td>
+      <td>¥${(r.price||0).toFixed(2)}</td>
+      <td>¥${cost.toFixed(2)}</td>
+      <td class="${profit>=0?'c-green':'c-red'}">${profit>=0?'+':''}¥${profit.toFixed(2)}</td>
+      <td class="${profitRate>=20?'c-green':profitRate>0?'':'c-red'}">${r.price?profitRate.toFixed(1)+'%':'-'}</td>
+      <td class="c-muted">${r.order||'-'}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSale(${origIdx})">删除</button></td>
+    </tr>`;
+  }).join('')||`<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px">暂无记录</td></tr>`;
+
+  // 更新筛选下拉
+  const pSel=document.getElementById('sale-filter-product');
+  if(pSel&&pSel.options.length<=1){
+    D.products.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; pSel.appendChild(o); });
+  }
+  renderSalesMonthlyStas();
+}
+
+window.exportSalesCSV = function(){
+  const rows=[['日期','产品','型号','数量','售价','FIFO成本','毛利','毛利率','订单号']];
+  D.sales.forEach((r,i)=>{
+    const p=gp(r.pid),sp=gs(r.pid,r.sid);
+    const cost=getSaleFifoCost(i);
+    const profit=(r.price||0)*r.qty-cost;
+    const rate=r.price>0?(profit/(r.price*r.qty)*100):0;
+    rows.push([r.date,p?p.name:'',sp?sp.name:'',r.qty,(r.price||0).toFixed(2),cost.toFixed(2),profit.toFixed(2),rate.toFixed(1)+'%',r.order||'']);
+  });
+  downloadCSV(rows,'Temu销售记录');
+};
+
+window.exportPurchaseCSV = function(){
+  const rows=[['日期','产品','型号','采购量','入库量','单件进价','运费/件','总成本','批次金额','状态','快递单号','订单号']];
+  D.purchases.forEach(r=>{
+    const p=gp(r.pid),sp=gs(r.pid,r.sid);
+    const uc=(r.price||0)+(r.shipPerUnit||0);
+    const rqty=r.status==='received'?(r.receivedQty||r.qty):0;
+    rows.push([r.date,p?p.name:'',sp?sp.name:'',r.qty,rqty,(r.price||0).toFixed(2),(r.shipPerUnit||0).toFixed(2),uc.toFixed(2),(rqty*uc).toFixed(2),r.status==='received'?'已入库':'在途',r.tracking||'',r.order||'']);
+  });
+  downloadCSV(rows,'进货记录');
+};
+
+function downloadCSV(rows, filename){
+  const bom='\uFEFF';
+  const csv=bom+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=filename+'_'+today()+'.csv'; a.click();
+}
+
+// ===== 进货明细筛选 =====
+const _origRenderPurchaseTable = renderPurchaseTable;
+renderPurchaseTable = function(){
+  // 先调原函数
+  _origRenderPurchaseTable();
+  // 再做筛选
+  const search=(document.getElementById('pur-search')||{}).value||'';
+  const month=(document.getElementById('pur-filter-month')||{}).value||'';
+  const status=(document.getElementById('pur-filter-status')||{}).value||'';
+  if(!search&&!month&&!status) return;
+  const rows=document.querySelectorAll('#purchase-table tr');
+  rows.forEach(tr=>{
+    const text=tr.innerText||'';
+    let show=true;
+    if(search&&!text.includes(search)) show=false;
+    if(month&&!text.includes(month.slice(0,7))) show=false;
+    if(status){
+      if(status==='transit'&&!text.includes('在途')) show=false;
+      if(status==='received'&&!text.includes('已入库')) show=false;
+    }
+    tr.style.display=show?'':'none';
+  });
+};
+
+// ===== 数据分析页 =====
+function renderAnalysis(){
+  renderCostTrend();
+  renderTurnoverTable();
+  renderLeadTimeTable();
+  // 填充产品下拉
+  const sel=document.getElementById('analysis-product');
+  if(sel&&sel.options.length<=1){
+    D.products.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
+  }
+}
+
+function renderCostTrend(){
+  const canvas=document.getElementById('cost-trend-chart'); if(!canvas) return;
+  const empty=document.getElementById('cost-trend-empty');
+  const pid=parseInt((document.getElementById('analysis-product')||{}).value||'0');
+  if(!pid){ canvas.style.display='none'; if(empty) empty.style.display='block'; return; }
+  canvas.style.display='block'; if(empty) empty.style.display='none';
+
+  const records=D.purchases.filter(r=>r.pid==pid&&r.status==='received')
+    .sort((a,b)=>(a.receivedDate||a.date).localeCompare(b.receivedDate||b.date));
+  if(!records.length) return;
+
+  const ctx=canvas.getContext('2d');
+  const w=canvas.offsetWidth||800, h=120;
+  canvas.width=w; canvas.height=h;
+  ctx.clearRect(0,0,w,h);
+
+  const costs=records.map(r=>(r.price||0)+(r.shipPerUnit||0));
+  const maxC=Math.max(...costs)*1.2||1;
+  const barW=Math.max(20,Math.floor((w-40)/records.length)-4);
+
+  records.forEach((r,i)=>{
+    const cost=costs[i];
+    const barH=Math.round(cost/maxC*(h-30));
+    const x=40+i*(barW+4);
+    ctx.fillStyle='#4f46e5';
+    ctx.fillRect(x,h-barH-20,barW,barH);
+    ctx.fillStyle='#1a1d23'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('¥'+cost.toFixed(2),x+barW/2,h-barH-24);
+    ctx.fillStyle='#9ca3af'; ctx.font='10px sans-serif';
+    ctx.fillText((r.receivedDate||r.date).slice(5),x+barW/2,h-4);
+  });
+}
+
+function renderTurnoverTable(){
+  const tbody=document.getElementById('turnover-table'); if(!tbody) return;
+  const now=new Date();
+  const rows=[];
+  D.products.forEach(p=>{
+    const specs=p.specs||[];
+    const process=(pid,sid,name)=>{
+      const stock=sid?getLocalStockSpec(pid,sid):getLocalStock(pid);
+      // 近3个月销量
+      const threeMonths=new Date(); threeMonths.setMonth(threeMonths.getMonth()-3);
+      const ym3=threeMonths.toISOString().slice(0,7);
+      const recentSales=D.sales.filter(r=>r.pid==pid&&(!sid||r.sid==sid)&&r.date>=ym3);
+      const totalSold=recentSales.reduce((s,r)=>s+r.qty,0);
+      const monthlyAvg=totalSold/3;
+      const daysLeft=monthlyAvg>0?Math.round(stock/(monthlyAvg/30)):9999;
+      let status='',advice='';
+      if(daysLeft<7){ status='<span style="color:var(--red);font-weight:700">⚠️ 紧急</span>'; advice='立即补货'; }
+      else if(daysLeft<30){ status='<span style="color:var(--amber);font-weight:700">⚡ 偏低</span>'; advice='近期补货'; }
+      else if(daysLeft===9999){ status='<span style="color:var(--text3)">无销售记录</span>'; advice='-'; }
+      else{ status='<span style="color:var(--green)">✅ 充裕</span>'; advice='暂无需'; }
+      rows.push(`<tr>
+        <td>${name}</td>
+        <td><strong>${stock}</strong></td>
+        <td>${monthlyAvg.toFixed(1)}/月</td>
+        <td>${daysLeft===9999?'-':daysLeft+'天'}</td>
+        <td>${status}</td>
+        <td style="font-size:12px;color:var(--text3)">${advice}</td>
+      </tr>`);
+    };
+    if(specs.length===0){ process(p.id,0,p.name); }
+    else { specs.forEach(sp=>process(p.id,sp.sid,p.name+' · '+sp.name)); }
+  });
+  tbody.innerHTML=rows.join('')||`<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">暂无数据</td></tr>`;
+}
+
+function renderLeadTimeTable(){
+  const tbody=document.getElementById('lead-time-table'); if(!tbody) return;
+  const rows=[];
+  D.products.forEach(p=>{
+    const records=D.purchases.filter(r=>r.pid==p.id&&r.status==='received'&&r.date&&r.receivedDate);
+    if(!records.length) return;
+    const leadTimes=records.map(r=>{
+      const d1=new Date(r.date), d2=new Date(r.receivedDate||r.date);
+      return Math.max(0,Math.round((d2-d1)/86400000));
+    });
+    const avg=leadTimes.reduce((s,v)=>s+v,0)/leadTimes.length;
+    const last=records.sort((a,b)=>(b.date).localeCompare(a.date))[0];
+    const threshold=p.reorderPoint||D.settings.lowStock||10;
+    const stock=getLocalStock(p.id);
+    // 建议补货日期 = 今天 + (库存-补货点)/月均销量的天数 - 提前期
+    const threeMonths=new Date(); threeMonths.setMonth(threeMonths.getMonth()-3);
+    const sold=D.sales.filter(r=>r.pid==p.id&&r.date>=threeMonths.toISOString().slice(0,7)).reduce((s,r)=>s+r.qty,0);
+    const dailySale=sold/90||0;
+    let reorderDate='-';
+    if(dailySale>0){
+      const daysLeft=(stock-threshold)/dailySale;
+      const rd=new Date(); rd.setDate(rd.getDate()+Math.max(0,Math.round(daysLeft-avg)));
+      reorderDate=rd.toISOString().slice(0,10);
+    }
+    rows.push(`<tr>
+      <td>${editableProductName(p.id,p.name)}</td>
+      <td>${last.date}</td>
+      <td>${leadTimes[leadTimes.length-1]}天</td>
+      <td>${avg.toFixed(1)}天</td>
+      <td style="font-weight:600;color:${reorderDate<today()?'var(--red)':'var(--text)'}">${reorderDate}</td>
+    </tr>`);
+  });
+  tbody.innerHTML=rows.join('')||`<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">需有进货记录才能计算</td></tr>`;
+}
 
 window.clearAll = function(){
   if(!confirm('确定清空所有数据？此操作不可恢复！'))return;
