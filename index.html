@@ -1056,13 +1056,12 @@ window.showPage = function(name){
 
 // ===== 渲染 =====
 function render(){
-  const fns=[renderFlow,renderArrivedAlerts,renderMetrics,renderMonthlyMetrics,
-    renderTransitTable,renderPurchaseTable,renderCostStats,
-    renderOutboundTable,renderSalesTable,renderStockTable,renderProductsTable,
-    renderSupplierTable,renderStocktakeTable,renderReturnsTable,
-    renderMonthlySales,renderCostTrend,renderSalesChart,renderAnalysis,
-    populateSelects,populateReturnSelect];
-  fns.forEach(fn=>{ try{fn();}catch(e){console.warn('[render]',fn.name,e.message);} });
+  renderFlow(); renderArrivedAlerts(); renderMetrics(); renderMonthlyMetrics();
+  renderTransitTable(); renderPurchaseTable(); renderCostStats();
+  renderOutboundTable(); renderSalesTable(); renderStockTable(); renderProductsTable();
+  renderSupplierTable(); renderStocktakeTable(); renderReturnsTable(); renderMonthlySales(); renderCostTrend();
+  renderSalesChart(); renderAnalysis();
+  populateSelects(); populateReturnSelect();
 }
 
 function renderFlow(){
@@ -2619,8 +2618,8 @@ function renderStocktakeTable(){
           <td style="width:64px;padding:4px 6px">${imgThumb(p.id,sp.sid)}</td>
           <td>${p.name} <span style="color:var(--primary);font-size:12px">· ${sp.name}</span></td>
           <td style="font-weight:700;color:var(--green)">${sp.price||p.price?'¥'+(sp.price||p.price):'-'}</td>
-          <td>${stock}</td>
-          <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
+          <td>${stock2}</td>
+          <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock2}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
           <td class="st-diff" id="std-${p.id}-${sp.sid}" style="font-weight:600">0</td>
           <td><input type="text" class="st-note" data-pid="${p.id}" data-sid="${sp.sid}" placeholder="盘点备注" style="width:120px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:12px"></td>
         </tr>`;
@@ -2967,7 +2966,7 @@ function renderMonthlySales(){
 // ===== 采购成本走势图 =====
 function renderCostTrend(){
   const sel=document.getElementById('trend-product-sel');
-  if(sel&&(!sel.innerHTML||sel.innerHTML.trim()=='')){
+  if(sel&&!sel.innerHTML){
     sel.innerHTML=D.products.map(p=>`<option value="${p.id}">${p.name.slice(0,20)}</option>`).join('');
   }
   const canvas=document.getElementById('cost-trend-chart'); if(!canvas) return;
