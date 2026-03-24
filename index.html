@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TARTGO · 进销存</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%234f46e5'/><text y='.9em' font-size='72' x='12'>📦</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -911,8 +912,16 @@ async function initFirebase(cfg) {
       setSyncStatus('online');
       // 处理书签跳转参数（只处理一次）
       if(!_bookmarkHandled){ _bookmarkHandled=true; handleBookmarkParams(); }
-    }, ()=>setSyncStatus('error'));
-  } catch(e){ setSyncStatus('error'); }
+    }, (err)=>{
+      setSyncStatus('error');
+      console.warn('[TARTGO] Firestore 实时同步失败:', err && err.message);
+    });
+  } catch(e){
+    setSyncStatus('error');
+    // Origin not allowed：需要在 Firebase 控制台添加授权域
+    console.warn('[TARTGO] Firebase 初始化失败:', e && e.message,
+      '\n👉 如提示 Origin not allowed，请前往：Firebase Console > Authentication > Settings > 已获授权的网域，添加域名：', location.hostname);
+  }
 }
 
 function setSyncStatus(s){
@@ -3038,7 +3047,7 @@ window.exportFiltered = function(){
   const sales=D.sales.filter(filterDate);
 
   // 生成CSV内容
-  const pB2urRows=[['日期','产品','型号','数量','入库量','进价','运费/件','总成本/件','状态','订单号']];
+  const purRows=[['日期','产品','型号','数量','入库量','进价','运费/件','总成本/件','状态','订单号']];
   purchases.forEach(r=>{
     const pP=gp(r.pid),sp=gs(r.pid,r.sid);
     purRows.push([r.date,pP?pP.name:'',sp?sp.name:'',r.qty,r.receivedQty||r.qty,r.price,r.shipPerUnit,(r.price||0)+(r.shipPerUnit||0),r.status==='received'?'已入库':'在途',r.order]);
