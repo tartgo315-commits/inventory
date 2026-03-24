@@ -1008,15 +1008,21 @@ function getSaleFifoCost(saleIdx){
 }
 function getWeightedAvgCost(pid){
   const bs=D.purchases.filter(r=>r.pid==pid&&r.status==='received');
-  const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0); if(!tq) return 0;
-  return bs.reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.shipPerUnit||0)),0)/tq;
+  const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
+  const p=gp(pid);
+  if(!tq){ return (p&&p.cost)||0; }
+  const wavg=bs.reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.shipPerUnit||0)),0)/tq;
+  return wavg || (p&&p.cost) || 0;
 }
 
 function getWeightedAvgCostSpec(pid,sid){
   const bs=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received');
   const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
-  if(!tq){ const sp=gs(pid,sid); return (sp&&sp.cost)||0; }
-  return bs.reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.shipPerUnit||0)),0)/tq;
+  const sp=gs(pid,sid);
+  if(!tq){ return (sp&&sp.cost)||0; }
+  const wavg=bs.reduce((s,r)=>s+(r.receivedQty||r.qty)*((r.price||0)+(r.shipPerUnit||0)),0)/tq;
+  // 均价为0时用手动填的成本价兜底
+  return wavg || (sp&&sp.cost) || 0;
 }
 
 // ===== 工具 =====
