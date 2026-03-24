@@ -224,7 +224,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v7.0 · 2026-03-24 11:30</div>
+      <div>v7.1 · 2026-03-24 12:00</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
@@ -369,14 +369,14 @@ input::placeholder{color:var(--text3)}
   <div class="section-sep">进货全记录</div>
   <div class="card" style="padding:12px 16px">
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <input type="text" id="pur-search" placeholder="搜索商品名..." oninput="renderPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:180px">
-      <input type="month" id="pur-filter-month" onchange="renderPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
-      <select id="pur-filter-status" onchange="renderPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+      <input type="text" id="pur-search" placeholder="搜索商品名..." oninput="filterPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:180px">
+      <input type="month" id="pur-filter-month" onchange="filterPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+      <select id="pur-filter-status" onchange="filterPurchaseTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
         <option value="">全部状态</option>
         <option value="transit">在途</option>
         <option value="received">已入库</option>
       </select>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pur-search').value='';document.getElementById('pur-filter-month').value='';document.getElementById('pur-filter-status').value='';renderPurchaseTable()">清除</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pur-search').value='';document.getElementById('pur-filter-month').value='';document.getElementById('pur-filter-status').value='';filterPurchaseTable()">清除</button>
       <button class="btn btn-ghost btn-sm" onclick="exportPurchaseCSV()">📥 导出CSV</button>
     </div>
   </div>
@@ -1334,20 +1334,6 @@ function renderOutboundTable(){
   }).join('');
 }
 
-function renderSalesTable(){
-  const tr2=D.sales.reduce((s,r)=>s+r.qty*r.price,0);
-  const el=document.getElementById('sale-total'); if(el) el.textContent=`共${D.sales.length}条，销售额¥${tr2.toFixed(2)}`;
-  const tbody=document.getElementById('sales-table'); if(!tbody) return;
-  tbody.innerHTML=D.sales.slice().reverse().map((r,i)=>{
-    const p=gp(r.pid),ri=D.sales.length-1-i,fc=getSaleFifoCost(ri),g=r.qty*r.price-fc/D.settings.rate;
-    return `<tr><td>${r.date}</td><td><div style='font-weight:600'>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style='font-size:12px;color:var(--primary);font-weight:600'>↳ ${gs(r.pid,r.sid).name}</div>`:''}</td>
-      <td>${r.qty}</td><td>¥${r.price}</td>
-      <td>¥${fc.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
-      <td class="${g>=0?'c-green':'c-red'}">${g>=0?'+':''}¥${g.toFixed(2)}</td>
-      <td class="c-muted">${r.order||'-'}</td>
-      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSale(${ri})">删除</button></td></tr>`;
-  }).join('');
-}
 
 function renderStockTable(){
   const tbody=document.getElementById('stock-table'); if(!tbody) return;
@@ -2802,24 +2788,20 @@ function downloadCSV(rows, filename){
   a.download=filename+'_'+today()+'.csv'; a.click();
 }
 
-// ===== 进货明细筛选 =====
-const _origRenderPurchaseTable = renderPurchaseTable;
-renderPurchaseTable = function(){
-  // 先调原函数
-  _origRenderPurchaseTable();
-  // 再做筛选
+// ===== 进货明细筛选（独立函数） =====
+window.filterPurchaseTable = function(){
   const search=(document.getElementById('pur-search')||{}).value||'';
   const month=(document.getElementById('pur-filter-month')||{}).value||'';
   const status=(document.getElementById('pur-filter-status')||{}).value||'';
-  if(!search&&!month&&!status) return;
-  const rows=document.querySelectorAll('#purchase-table tr');
-  rows.forEach(tr=>{
+  const groups=document.querySelectorAll('#purchase-table tr[style*="background:#f5f6fa"],#purchase-table tr[style*="background:var(--surface)"]');
+  document.querySelectorAll('#purchase-table tr').forEach(tr=>{
+    if(!search&&!month&&!status){tr.style.display='';return;}
     const text=tr.innerText||'';
     let show=true;
-    if(search&&!text.includes(search)) show=false;
+    if(search&&!text.toLowerCase().includes(search.toLowerCase())) show=false;
     if(month&&!text.includes(month.slice(0,7))) show=false;
     if(status){
-      if(status==='transit'&&!text.includes('在途')) show=false;
+      if(status==='transit'&&text.includes('已入库')) show=false;
       if(status==='received'&&!text.includes('已入库')) show=false;
     }
     tr.style.display=show?'':'none';
