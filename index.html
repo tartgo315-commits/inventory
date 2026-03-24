@@ -223,7 +223,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v6.0 · 2026-03-24 09:00</div>
+      <div>v6.1 · 2026-03-24 09:30</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
       <div>产品型号 · 直接入库 · 头程运费</div>
     </div>
@@ -925,7 +925,8 @@ function getFifoCostPerUnitSpec(pid,sid){
 
 // ===== FIFO =====
 function buildFifoQueue(pid){
-  return D.purchases.filter(r=>r.pid==pid&&!r.sid&&r.status==='received').slice()
+  // 包含所有该产品的入库记录（无论有无型号）
+  return D.purchases.filter(r=>r.pid==pid&&r.status==='received').slice()
     .sort((a,b)=>((a.receivedDate||a.date)<(b.receivedDate||b.date)?-1:1))
     .map(r=>({qty:r.receivedQty||r.qty,unitCost:(r.price||0)+(r.shipPerUnit||0)}));
 }
@@ -1040,7 +1041,18 @@ function renderArrivedAlerts(){
 }
 
 function renderMetrics(){
-  const lv=D.products.reduce((s,p)=>s+getLocalStock(p.id)*getFifoCostPerUnit(p.id),0);
+  // 本地库存成本：所有产品（含型号）的FIFO成本合计
+  let lv=0;
+  D.products.forEach(p=>{
+    const specs=p.specs||[];
+    if(specs.length===0){
+      lv+=getLocalStock(p.id)*getFifoCostPerUnit(p.id);
+    } else {
+      specs.forEach(sp=>{
+        lv+=getLocalStockSpec(p.id,sp.sid)*getFifoCostPerUnitSpec(p.id,sp.sid);
+      });
+    }
+  });
   const tr=D.sales.reduce((s,r)=>s+r.qty*r.price,0);
   const tc=D.sales.reduce((s,r,i)=>s+getSaleFifoCost(i)/D.settings.rate,0);
   const gv=tr-tc;
