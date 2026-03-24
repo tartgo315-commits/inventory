@@ -1056,12 +1056,12 @@ window.showPage = function(name){
 
 // ===== 渲染 =====
 function render(){
-  renderFlow(); renderArrivedAlerts(); renderMetrics(); renderMonthlyMetrics();
-  renderTransitTable(); renderPurchaseTable(); renderCostStats();
-  renderOutboundTable(); renderSalesTable(); renderStockTable(); renderProductsTable();
-  renderSupplierTable(); renderStocktakeTable(); renderReturnsTable(); renderMonthlySales(); renderCostTrend();
-  renderSalesChart(); renderAnalysis();
-  populateSelects(); populateReturnSelect();
+  const fns=[renderFlow,renderArrivedAlerts,renderMetrics,renderMonthlyMetrics,
+    renderTransitTable,renderPurchaseTable,renderCostStats,
+    renderOutboundTable,renderSalesTable,renderStockTable,renderProductsTable,
+    renderSupplierTable,renderStocktakeTable,renderReturnsTable,renderMonthlySales,renderCostTrend,
+    renderSalesChart,renderAnalysis,populateSelects,populateReturnSelect];
+  fns.forEach(fn=>{ try{fn();}catch(e){console.warn(fn.name,e);} });
 }
 
 function renderFlow(){
