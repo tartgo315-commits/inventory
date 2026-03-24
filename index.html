@@ -1418,12 +1418,7 @@ function renderStockTable(){
       <td>¥${fifo.toFixed(2)}<span class="fifo-tag">FIFO</span></td>
       <td>¥${wavg.toFixed(2)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
-      <td class="c-muted">${(()=>{
-        const sold=D.sales.filter(r=>r.pid==p.id).reduce((s,r)=>s+r.qty,0);
-        if(!sold||!local) return '-';
-        const days=Math.round(local/(sold/Math.max(1,(new Date()-new Date(D.purchases.filter(r=>r.pid==p.id&&r.status==='received')[0]?.receivedDate||Date.now()))/(1000*86400)))||0);
-        return days>0?days+'天':'-';
-      })()}</td>
+      <td class="c-muted">${(()=>{ const sold=D.sales.filter(r=>r.pid==p.id).reduce((s,r)=>s+r.qty,0); const firstIn=D.purchases.filter(r=>r.pid==p.id&&r.status==='received')[0]; if(!sold||!local||!firstIn) return '-'; const days2=Math.max(1,Math.round((new Date()-new Date(firstIn.receivedDate||firstIn.date))/(1000*86400))); return Math.round(local/(sold/days2))+'天'; })()}</td>
     </tr>`;
 
     // 型号子行
