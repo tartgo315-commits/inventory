@@ -914,9 +914,8 @@ async function initFirebase(cfg) {
       render();
       setSyncStatus('online');
       if(!_bookmarkHandled){ _bookmarkHandled=true; handleBookmarkParams(); }
-      // 每次数据加载都检查并重压大图，直到全部压缩完毕
-      _recompressDone = false;
-      recompressAllImages();
+      // 只在首次加载时重压旧图，避免每次onSnapshot都触发死循环
+      if(!_recompressDone) recompressAllImages();
     }, (err)=>{
       setSyncStatus('error');
       console.warn('[TARTGO] Firestore 实时同步失败:', err && err.message);
