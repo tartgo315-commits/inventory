@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v7.3 · 2026-03-25 16:00</div>
+      <div>v7.4 · 2026-03-25 17:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -267,7 +267,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品库存状态</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>均价成本/件</th><th>历史均价/件</th><th>利润率</th><th>库存价值(¥)</th>
+      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>均价成本/件</th><th style="color:var(--green)">Temu售价</th><th>历史均价/件</th><th>利润率</th><th>库存价值(¥)</th>
     </tr></thead><tbody id="stock-table"></tbody></table></div>
   </div>
 </div>
@@ -840,11 +840,9 @@ function productLink(link, label, spec) {
 
 // 产品名可点击编辑版本（不包含链接跳转干扰）
 function editableProductName(pid, label) {
-  // 只返回名字，不含任何按钮
   return `<span class="prod-cell-name" title="${label||'-'}">${label||'-'}</span>`;
 }
 function productControls(pid, expandBtn) {
-  // 第二行：✏️ 固定位置 + 型号按钮（没有则空占位保持对齐）
   const specSlot = expandBtn
     ? expandBtn
     : `<span style="display:inline-block;min-width:72px"></span>`;
@@ -1458,6 +1456,7 @@ function renderStockTable(){
         : `<span onclick="inlineEditStock(this,${p.id},0)" title="点击修改库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary);color:var(--text)">${local}</span>`
       }</td>
       <td>¥${fifo.toFixed(2)}</td>
+      <td style="font-weight:600;color:var(--green)">${p.price?'¥'+p.price:'-'}</td>
       <td>¥${wavg.toFixed(2)}</td>
       <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
       <td style="font-weight:700;color:var(--primary)">¥${totalValue.toFixed(2)}</td>
@@ -1481,6 +1480,7 @@ function renderStockTable(){
           <td></td><td></td>
           <td><span onclick="inlineEditStock(this,${p.id},${sp.sid})" title="点击修改库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary);color:var(--text)">${spLocal}</span></td>
           <td>¥${spFifo.toFixed(2)}</td>
+          <td style="font-weight:600;color:var(--green)">${spPrice?'¥'+spPrice:'-'}</td>
           <td class="c-muted">-</td>
           <td class="${spProfit>20?'c-green':spProfit>0?'':'c-red'}">${spPrice?spProfit.toFixed(1)+'%':'-'}</td>
           <td style="font-weight:700;color:var(--primary)">¥${(spLocal*spFifo).toFixed(2)}</td>
