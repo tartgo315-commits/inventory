@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v8.2 · 2026-03-26 02:00</div>
+      <div>v8.3 · 2026-03-26 02:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1068,9 +1068,10 @@ function render(){
 }
 
 function renderFlow(){
-  // 在途：几单（而非几个产品）
+  // 在途：按订单号去重，同一订单号算1单
   const transitOrders = D.purchases.filter(r=>r.status==='transit');
-  const transitCount = transitOrders.length;
+  const transitKeys = new Set(transitOrders.map(r=>r.order&&r.order!=='快速调整'?'o:'+r.order:'p:'+r.pid));
+  const transitCount = transitKeys.size;
   const transitItems = transitOrders.reduce((s,r)=>s+r.qty, 0);
 
   // 已入库：几批（而非几个）
