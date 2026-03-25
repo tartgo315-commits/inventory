@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v7.9 · 2026-03-25 22:00</div>
+      <div>v8.0 · 2026-03-25 23:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1657,14 +1657,12 @@ window.smartParse = function() {
     const oM = text.match(/订单号[\s：:]*(\d{10,25})/);
     if(oM) orderId=oM[1];
 
-    // 精准解析：支持「优惠后xx元」和「xx.xx 元/件」两种价格格式
+    // 精准解析：结构是「商品名 → 规格行 → 货号行 → 标签行 → 优惠后xx元 → 原价 → 数量」
     const goods = [];
     for (let i=0; i<lines.length; i++) {
-      // 兼容两种价格格式
-      const priceM = lines[i].match(/优惠后\s*(\d+\.?\d*)/) || lines[i].match(/^(\d+\.?\d*)\s*元\/[件个只条]/);
+      const priceM = lines[i].match(/优惠后\s*(\d+\.?\d*)/);
       if (!priceM) continue;
       const price = parseFloat(priceM[1]);
-      if (price <= 0) continue;
 
       let spec='', name='', qty=1;
       let specFound=false;
@@ -1673,40 +1671,37 @@ window.smartParse = function() {
       for (let j=i-1; j>=Math.max(0,i-30); j--) {
         const l = lines[j];
 
-        // 跳过服务标签行
-        if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请|7天|15天)/.test(l)) continue;
-        if (/7天无理由|极速退款|48小时发货|跨境无忧/.test(l) && l.length < 80) continue;
+        // 跳过标签行
+        if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请)/.test(l)) continue;
         // 跳过货号行
         if (/^货号[：:]\s*/.test(l)) continue;
-        // 跳过表头行
-        if (/^(货品|单价|数量|优惠|货品状态)$/.test(l)) continue;
 
-        // 找到规格行：支持「规格：」和「颜色: xxx 尺码: xxx」
-        const isSpecLine = /^规格[：:\s]/.test(l) || /^颜色[：:]/.test(l) || /^尺码[：:]/.test(l);
-        if (isSpecLine) {
-          spec = l.replace(/^规格[：:\s]\s*/,'').replace(/^颜色[：:]\s*/,'').replace(/货号[：:]\s*\S+/,'').trim();
+        // 找到规格行
+        if (/^规格[：:]\s*/.test(l)) {
+          spec = l.replace(/^规格[：:]\s*/,'').trim();
           specFound = true;
+          // 规格行的正上方（跳过空行）就是商品名
           for (let k=j-1; k>=Math.max(0,j-5); k--) {
             const nl = lines[k];
             if (nl.length>=6 && nl.length<=120 &&
-              !/^[\d\s¥￥元\.\/×x,，。\-]+$/.test(nl) &&
-              !/^(规格|货号|颜色|尺码|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请|货品|单价|数量|优惠)/.test(nl)) {
+              !/^[\d\s¥￥元\.\/×x,，。]+$/.test(nl) &&
+              !/^(规格|货号|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请)/.test(nl)) {
               name = nl;
               break;
             }
           }
-          break;
+          break; // 找到规格就停，不再往前找
         }
 
-        // 没有规格行时用第一个合适行作商品名
+        // 如果没有规格行，用遇到的第一个合适行作为商品名
         if (!specFound && !name && l.length>=6 && l.length<=120 &&
-          !/^[\d\s¥￥元\.\/×x,，。\-]+$/.test(l) &&
-          !/^(规格|货号|颜色|尺码|数量|优惠|运费|单价|原价|实付|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|货品|该笔|点此|验货)/.test(l)) {
+          !/^[\d\s¥￥元\.\/×x,，。]+$/.test(l) &&
+          !/^(规格|货号|数量|优惠|运费|单价|原价|实付|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|收货|配送|手机|电话|地址)/.test(l)) {
           name = l;
         }
       }
 
-      // 往后找数量（纯数字行）
+      // 往后找数量
       for (let k=i+1; k<Math.min(lines.length,i+8); k++) {
         if (/^\d+$/.test(lines[k])) {
           const v=parseInt(lines[k]); if(v>=1&&v<=9999){qty=v;break;}
@@ -1714,79 +1709,47 @@ window.smartParse = function() {
       }
 
       if (name && price>0) {
+        // 尝试从已有进货记录里找该商品的1688链接
         const existLink = D.purchases.filter(r=>r.link&&r.pid&&gp(r.pid)&&
           (gp(r.pid).name===name||gp(r.pid).name.slice(0,10)===name.slice(0,10)))
-          .map(r=>r.link)[0]||sourceLink||'';
+          .map(r=>r.link)[0]||'';
         goods.push({name, productName:name, spec, price, qty, ship, paid, orderId, sourceLink:existLink});
       }
     }
 
     if (!goods.length) {
       resultEl.innerHTML=`<div style="padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e">
-        ⚠️ 未识别到商品。请确认复制了完整订单页文字，包含商品名和价格（「优惠后xx元」或「xx元/件」均可）。</div>`;
+        ⚠️ 未识别到商品。请确认复制了完整订单页文字，且能看到「优惠后xx元」字样。</div>`;
       return;
     }
-
-    // ── 同名商品合并为多型号 ──
-    const grouped = {};
-    const groupOrder = [];
-    goods.forEach(g => {
-      const key = g.name.slice(0,20); // 用前20字作key
-      if (!grouped[key]) { grouped[key] = []; groupOrder.push(key); }
-      grouped[key].push(g);
-    });
-    const groupKeys = groupOrder.filter((k,i)=>groupOrder.indexOf(k)===i);
-    const isMultiSpec = groupKeys.some(k => grouped[k].length > 1);
 
     if (goods.length===1) {
       fillFromGoods(goods[0]);
     } else {
+      // 多商品：全部显示，支持批量导入
       window._parsedGoods = goods;
-      window._parsedGrouped = grouped;
-      window._parsedGroupKeys = groupKeys;
-
-      // 生成商品列表HTML
-      let itemsHtml = '';
-      groupKeys.forEach(key => {
-        const group = grouped[key];
-        const g0 = group[0];
-        const totalQty = group.reduce((s,g)=>s+g.qty, 0);
-        if (group.length > 1) {
-          // 多型号产品
-          itemsHtml += `<div style="padding:10px 12px;border:1.5px solid var(--primary-light);border-radius:8px;background:#f0f4ff">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <span style="font-weight:700;font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${g0.name}">${g0.name.slice(0,40)}</span>
-              <span style="font-size:12px;color:var(--text3);flex-shrink:0">${group.length}个型号 共${totalQty}件</span>
-              <button class="btn btn-primary btn-sm" onclick="createMultiSpecProduct('${key}')">➕ 一键创建多型号</button>
-            </div>
-            ${group.map(g=>`<div style="font-size:12px;color:var(--text2);padding:2px 0;display:flex;gap:8px">
-              <span style="color:var(--primary)">${g.spec||'无规格'}</span>
-              <span>¥${g.price.toFixed(2)} × ${g.qty}件</span>
-            </div>`).join('')}
-          </div>`;
-        } else {
-          // 单个商品
-          itemsHtml += `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g0.name.slice(0,50)}</div>
-              ${g0.spec?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${g0.spec}</div>`:''}
-            </div>
-            <div style="text-align:right;flex-shrink:0;font-weight:800;color:var(--primary)">¥${g0.price.toFixed(2)} × ${g0.qty}件</div>
-            <button class="btn btn-ghost btn-sm" onclick="fillFromGoods(window._parsedGoods[${goods.indexOf(g0)}])">单独导入</button>
-          </div>`;
-        }
-      });
-
       resultEl.innerHTML=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div style="font-weight:700;color:var(--primary);font-size:14px">✅ 识别到 ${goods.length} 个商品${isMultiSpec?' · 含多型号产品':''}</div>
+          <div style="font-weight:700;color:var(--primary);font-size:14px">✅ 识别到 ${goods.length} 个商品</div>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-primary" onclick="importAllGoods()" style="height:38px;padding:0 20px">📦 全部导入直接入库</button>
+            <button class="btn btn-primary" onclick="importAllGoods()" style="font-size:14px;height:42px;padding:0 24px">📦 全部导入（${goods.length}个）直接入库</button>
             <button class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
           </div>
         </div>
-        <div style="display:grid;gap:8px">${itemsHtml}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:10px">运费¥${ship.toFixed(2)} 按件均摊 · 订单号 ${orderId}</div>
+        <div style="display:grid;gap:8px">
+          ${goods.map((g,i)=>`
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name.slice(0,50)}</div>
+                ${g.spec?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${g.spec}</div>`:''}
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-weight:800;color:var(--primary)">¥${g.price.toFixed(2)} × ${g.qty}件</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="fillFromGoods(window._parsedGoods[${i}])">单独导入</button>
+            </div>`).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:10px">「全部导入」会直接建立库存记录，运费按订单总运费均摊</div>
       </div>`;
     }
 
