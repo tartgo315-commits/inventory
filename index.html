@@ -85,7 +85,7 @@ th{text-align:left;padding:11px 16px;color:var(--text2);font-weight:700;border-b
 td{padding:14px 16px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#fafbfe}
-.prod-cell{display:flex;align-items:center;gap:14px}
+.prod-cell{display:flex;align-items:center;gap:8px;min-width:0}.prod-cell-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.prod-cell-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.prod-cell-sub{display:flex;align-items:center;gap:6px;height:20px}
 .prod-thumb{width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0;background:var(--bg)}
 .prod-placeholder{width:56px;height:56px;background:#f3f4f6;border:1.5px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;color:var(--text3);cursor:pointer}
 .prod-info{display:flex;flex-direction:column;gap:3px}
@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v7.0 · 2026-03-24 11:00</div>
+      <div>v7.3 · 2026-03-25 16:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -840,11 +840,18 @@ function productLink(link, label, spec) {
 
 // 产品名可点击编辑版本（不包含链接跳转干扰）
 function editableProductName(pid, label) {
-  const link = getProductLink(pid);
-  const linkBtn = link
-    ? `<a href="${link}" target="_blank" onclick="event.stopPropagation()" style="font-size:13px;color:var(--text3);text-decoration:none;margin-left:4px" title="跳转1688货源">🔗</a>`
-    : '';
-  return `<span style="cursor:pointer;font-weight:600" onclick="event.stopPropagation();openEditProduct(${pid})" title="点击编辑产品">${label||'-'} <span style="font-size:11px;color:var(--text3)">✏️</span></span>${linkBtn}`;
+  // 只返回名字，不含任何按钮
+  return `<span class="prod-cell-name" title="${label||'-'}">${label||'-'}</span>`;
+}
+function productControls(pid, expandBtn) {
+  // 第二行：✏️ 固定位置 + 型号按钮（没有则空占位保持对齐）
+  const specSlot = expandBtn
+    ? expandBtn
+    : `<span style="display:inline-block;min-width:72px"></span>`;
+  return `<div class="prod-cell-sub">
+    <span onclick="event.stopPropagation();openEditProduct(${pid})" style="font-size:13px;color:var(--text3);cursor:pointer;flex-shrink:0" title="编辑产品">✏️</span>
+    ${specSlot}
+  </div>`;
 }
 
 // 从进货记录取最新图片
@@ -1441,7 +1448,7 @@ function renderStockTable(){
 
     // 产品汇总行
     html+=`<tr style="background:var(--surface)">
-      <td><div class="prod-cell">${imgThumb(p.id)}${editableProductName(p.id,p.name)}${expandBtn}</div></td>
+      <td><div class="prod-cell">${imgThumb(p.id)}<div class="prod-cell-body">${editableProductName(p.id,p.name)}${productControls(p.id,expandBtn)}</div></div></td>
       <td>${getProductLink(p.id)
         ?`<a href="${getProductLink(p.id)}" target="_blank" style="font-size:13px;color:var(--primary);text-decoration:none;font-weight:600">🔗 查看</a>`
         :`<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})">+ 添加</span>`}</td>
@@ -1646,19 +1653,14 @@ window.smartParse = function() {
 
   if (isOrder) {
     // ===== 订单模式：解析完整订单文字 =====
-    let ship=0, paid=0, orderId='', sourceLink='';
+    let ship=0, paid=0, orderId='';
 
-    // 运费：兼容「运费 ¥19.95」和「官方物流提货\n¥19.95」两种格式
-    const sM = text.match(/(?:运费|官方物流提货|物流提货|快递费)[\s\n：:]*[¥￥]?\s*(\d+\.?\d*)/)
-              || text.match(/[¥￥]\s*(\d+\.?\d*)\s*\n?[^\n]*运费/);
+    const sM = text.match(/(?:运费|官方物流提货|物流提货)[\s\n：:]*[¥￥]?\s*(\d+\.?\d*)/) || text.match(/[¥￥]\s*(\d+\.?\d*)\s*\n?[^\n]*运费/);
     if(sM) ship=parseFloat(sM[1]);
     const pM = text.match(/实付款?[\s\n]*[¥￥]\s*(\d+\.?\d*)/);
     if(pM) paid=parseFloat(pM[1]);
     const oM = text.match(/订单号[\s：:]*(\d{10,25})/);
     if(oM) orderId=oM[1];
-    // 从粘贴文字里抓1688链接（如果有的话）
-    const linkM = text.match(/https?:\/\/[^\s]*1688\.com[^\s]*/);
-    if(linkM) sourceLink=linkM[0];
 
     // 精准解析：结构是「商品名 → 规格行 → 货号行 → 标签行 → 优惠后xx元 → 原价 → 数量」
     const goods = [];
@@ -1674,29 +1676,26 @@ window.smartParse = function() {
       for (let j=i-1; j>=Math.max(0,i-30); j--) {
         const l = lines[j];
 
-        // 跳过服务标签行（7天无理由退货、极速退款等混合在一行的情况）
-        if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请|7天|15天)/.test(l)) continue;
-        if (/7天无理由|极速退款|48小时发货|24小时发货|跨境无忧/.test(l) && l.length < 80) continue;
-        // 跳过货号行（独立行 或 嵌在规格行里的货号部分已在规格解析时处理）
+        // 跳过标签行
+        if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请)/.test(l)) continue;
+        // 跳过货号行
         if (/^货号[：:]\s*/.test(l)) continue;
 
-        // 找到规格行：支持「规格：」和「颜色: xxx 尺码: xxx」两种格式
-        const isSpecLine = /^规格[：:]\s*/.test(l) || /^颜色[：:]\s*/.test(l) || /^尺码[：:]\s*/.test(l);
-        if (isSpecLine) {
-          // 提取规格，去掉末尾的「货号: xxx」部分
-          spec = l.replace(/^规格[：:]\s*/,'').replace(/货号[：:]\s*\S+/,'').trim();
+        // 找到规格行
+        if (/^规格[：:]\s*/.test(l)) {
+          spec = l.replace(/^规格[：:]\s*/,'').trim();
           specFound = true;
-          // 规格行的正上方就是商品名
+          // 规格行的正上方（跳过空行）就是商品名
           for (let k=j-1; k>=Math.max(0,j-5); k--) {
             const nl = lines[k];
             if (nl.length>=6 && nl.length<=120 &&
               !/^[\d\s¥￥元\.\/×x,，。]+$/.test(nl) &&
-              !/^(规格|货号|颜色|尺码|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请|7天|15天)/.test(nl)) {
+              !/^(规格|货号|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请)/.test(nl)) {
               name = nl;
               break;
             }
           }
-          break;
+          break; // 找到规格就停，不再往前找
         }
 
         // 如果没有规格行，用遇到的第一个合适行作为商品名
@@ -1715,9 +1714,10 @@ window.smartParse = function() {
       }
 
       if (name && price>0) {
+        // 尝试从已有进货记录里找该商品的1688链接
         const existLink = D.purchases.filter(r=>r.link&&r.pid&&gp(r.pid)&&
           (gp(r.pid).name===name||gp(r.pid).name.slice(0,10)===name.slice(0,10)))
-          .map(r=>r.link)[0]||sourceLink||'';
+          .map(r=>r.link)[0]||'';
         goods.push({name, productName:name, spec, price, qty, ship, paid, orderId, sourceLink:existLink});
       }
     }
