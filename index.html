@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v8.1 · 2026-03-26 00:00</div>
+      <div>v8.1 · 2026-03-26 01:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1845,6 +1845,41 @@ window._handleImportData = function(data) {
     <div style="display:grid;gap:8px">${itemsHtml}</div>
     <div style="font-size:11px;color:var(--text3);margin-top:10px">运费¥${ship.toFixed(2)} 按件均摊 · 订单号 ${data.orderId||'-'}</div>
   </div>`;
+};
+
+
+window.createMultiSpecProduct = function(nameKey) {
+  const group = window._parsedGrouped && window._parsedGrouped[nameKey];
+  if (!group || !group.length) { alert('数据丢失，请重新导入'); return; }
+  const g0 = group[0];
+  const ship = g0.ship || 0;
+  const totalQty = group.reduce((s,g) => s+g.qty, 0);
+  let p = D.products.find(p => p.name === g0.name || p.name.slice(0,15) === g0.name.slice(0,15));
+  if (!p) {
+    p = {id:D.nextId++, name:g0.name, price:0, sku:'', img:'', specs:[], sourceLink:g0.sourceLink||''};
+    D.products.push(p);
+  }
+  let added = 0;
+  group.forEach(g => {
+    const specName = g.spec || '默认';
+    let sp = (p.specs||[]).find(s => s.name === specName);
+    if (!sp) {
+      sp = {sid:D.nextSid++, name:specName, price:0, sku:'', img:''};
+      if (!p.specs) p.specs = [];
+      p.specs.push(sp);
+    }
+    D.purchases.push({
+      date:today(), pid:p.id, sid:sp.sid, qty:g.qty,
+      price:g.price, shipPerUnit:totalQty>0?ship/totalQty:0, shipTotal:ship,
+      tracking:'', order:g.orderId||'', link:g.sourceLink||'',
+      img:'', status:'transit'
+    });
+    added++;
+  });
+  save(); render();
+  document.getElementById('parse-result').innerHTML = '';
+  showPage('purchase');
+  alert('已创建「' + g0.name.slice(0,20) + '」' + added + ' 个型号，共 ' + totalQty + ' 件，状态：在途');
 };
 
 window.importAllGoods = function() {
