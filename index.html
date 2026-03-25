@@ -1514,10 +1514,10 @@ window.inlineEditStock = function(el, pid, sid){
     }
     save(); renderStockTable(); render();
   };
-  input.addEventListener('blur', cancel);
+  input.addEventListener('blur', ()=>{ confirmEdit(); });
   input.addEventListener('keydown', e=>{
-    if(e.key==='Enter'){ input.removeEventListener('blur', cancel); confirmEdit(); }
-    if(e.key==='Escape'){ cancel(); }
+    if(e.key==='Enter'){ confirmEdit(); }
+    if(e.key==='Escape'){ input.removeEventListener('blur', ()=>{}); cancel(); }
   });
 };
 
