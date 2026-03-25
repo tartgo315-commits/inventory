@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v8.1 · 2026-03-26 01:00</div>
+      <div>v8.2 · 2026-03-26 02:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1159,23 +1159,84 @@ function renderTransitTable(){
   const el=document.getElementById('transit-table'); if(!el) return;
   const items=D.purchases.filter(r=>r.status==='transit');
   if(!items.length){el.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">暂无在途订单</td></tr>`;return;}
-  el.innerHTML=items.map(r=>{
-    const p=gp(r.pid),uc=(r.price||0)+(r.shipPerUnit||0),idx=D.purchases.indexOf(r);
-    return `<tr>
-      <td style="width:64px;padding:4px 6px">${imgThumb(r.pid)}</td>
-      <td><div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div>${r.sid&&gs(r.pid,r.sid)?`<div style="font-size:12px;color:var(--primary);margin-top:2px;font-weight:600">↳ ${gs(r.pid,r.sid).name}</div>`:''}<div style="font-size:11px;color:var(--text3);margin-top:2px">${r.date}${r.order?' · '+r.order:''}</div></td>
-      <td>${r.qty}</td>
-      <td>¥${uc.toFixed(2)}</td>
-      <td>${trackingLink(r.tracking)}</td>
-      <td class="c-muted">${r.eta||'-'}</td>
-      <td>
-        <div class="action-btns">
+
+  // 按产品分组
+  const groups={}, order=[];
+  items.forEach(r=>{
+    if(!groups[r.pid]){groups[r.pid]={p:gp(r.pid),records:[]};order.push(r.pid);}
+    groups[r.pid].records.push(r);
+  });
+
+  let html='';
+  order.forEach(pid=>{
+    const {p, records}=groups[pid];
+    const totalQty=records.reduce((s,r)=>s+r.qty,0);
+    const isMulti=records.length>1;
+    const firstR=records[0];
+    const indices=records.map(r=>D.purchases.indexOf(r));
+
+    if(!isMulti){
+      // 单型号：原来的样式
+      const r=firstR, idx=indices[0];
+      const sp=r.sid&&gs(r.pid,r.sid);
+      const uc=(r.price||0)+(r.shipPerUnit||0);
+      html+=`<tr>
+        <td style="width:64px;padding:4px 6px">${imgThumb(r.pid)}</td>
+        <td>
+          <div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div>
+          ${sp?`<div style="font-size:12px;color:var(--primary);margin-top:2px;font-weight:600">↳ ${sp.name}</div>`:''}
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${r.date}${r.order?' · '+r.order:''}</div>
+        </td>
+        <td>${r.qty}</td>
+        <td>¥${uc.toFixed(2)}</td>
+        <td>${trackingLink(r.tracking)}</td>
+        <td class="c-muted">${r.eta||'-'}</td>
+        <td><div class="action-btns">
           <button class="btn btn-ghost btn-sm" onclick="confirmReceive(${idx})">签收入库</button>
           <button class="btn btn-ghost btn-sm" onclick="openEditPurchase(${idx})">编辑</button>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletePurchase(${idx})">删除</button>
+        </div></td>
+      </tr>`;
+    } else {
+      // 多型号：产品汇总行 + 型号子行
+      html+=`<tr style="background:#f5f6fa">
+        <td style="width:64px;padding:4px 6px">${imgThumb(pid)}</td>
+        <td>
+          <div style="font-weight:700">${productLink(firstR.link,p?p.name:'已删除')}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${firstR.date}${firstR.order?' · '+firstR.order:''}</div>
+        </td>
+        <td style="font-weight:700">${totalQty}</td>
+        <td><span style="font-size:11px;color:var(--text3)">${records.length}个型号</span></td>
+        <td>${trackingLink(firstR.tracking)}</td>
+        <td class="c-muted">${firstR.eta||'-'}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-primary btn-sm" onclick="confirmReceiveAll([${indices.join(',')}])">全部签收</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-left:4px" onclick="deleteAllTransit([${indices.join(',')}])">全部删除</button>
+        </td>
+      </tr>`;
+      // 型号子行
+      records.forEach((r,i)=>{
+        const sp=r.sid&&gs(r.pid,r.sid);
+        const uc=(r.price||0)+(r.shipPerUnit||0);
+        const idx=indices[i];
+        html+=`<tr style="background:#fafbfe">
+          <td></td>
+          <td style="padding-left:32px">
+            <div style="font-size:13px;color:var(--primary);font-weight:600">↳ ${sp?sp.name:'默认'}</div>
+          </td>
+          <td>${r.qty}</td>
+          <td>¥${uc.toFixed(2)}</td>
+          <td></td><td></td>
+          <td><div class="action-btns">
+            <button class="btn btn-ghost btn-sm" onclick="confirmReceive(${idx})">签收</button>
+            <button class="btn btn-ghost btn-sm" onclick="openEditPurchase(${idx})">编辑</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deletePurchase(${idx})">删除</button>
+          </div></td>
+        </tr>`;
+      });
+    }
+  });
+  el.innerHTML=html;
 }
 
 function renderPurchaseTable(){
@@ -1780,108 +1841,6 @@ window.smartParse = function() {
   }
 };
 
-
-window._handleImportData = function(data) {
-  const goods = data.goods.map(g=>({
-    name:g.name, productName:g.name, spec:g.spec||'',
-    price:g.price, qty:g.qty, ship:data.ship||0, paid:data.paid||0,
-    orderId:data.orderId||'', sourceLink:data.sourceLink||'', imgB64:g.imgB64||''
-  }));
-  window._parsedGoods = goods;
-
-  // 按商品名分组
-  const grouped={}, groupOrder=[];
-  goods.forEach(g=>{
-    const key=g.name.slice(0,20);
-    if(!grouped[key]){grouped[key]=[];groupOrder.push(key);}
-    grouped[key].push(g);
-  });
-  window._parsedGrouped=grouped;
-  window._parsedGroupKeys=groupOrder.filter((k,i)=>groupOrder.indexOf(k)===i);
-
-  const resultEl=document.getElementById('parse-result');
-  if(!resultEl) return;
-
-  if(goods.length===1 && !goods[0].spec){
-    fillFromGoods(goods[0]); return;
-  }
-
-  const ship=data.ship||0;
-  const isMultiSpec=window._parsedGroupKeys.some(k=>grouped[k].length>1);
-  let itemsHtml='';
-  window._parsedGroupKeys.forEach(key=>{
-    const group=grouped[key];
-    const g0=group[0];
-    const totalQty=group.reduce((s,g)=>s+g.qty,0);
-    if(group.length>1){
-      itemsHtml+=`<div style="padding:10px 12px;border:1.5px solid var(--primary-light);border-radius:8px;background:#f0f4ff">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <span style="font-weight:700;font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g0.name.slice(0,40)}</span>
-          <span style="font-size:12px;color:var(--text3);flex-shrink:0">${group.length}个型号 共${totalQty}件</span>
-          <button class="btn btn-primary btn-sm" onclick="createMultiSpecProduct('${key.replace(/'/g,'')}')">➕ 一键创建多型号</button>
-        </div>
-        ${group.map(g=>`<div style="font-size:12px;color:var(--text2);padding:2px 0;display:flex;gap:8px"><span style="color:var(--primary)">${g.spec||'无规格'}</span><span>¥${g.price.toFixed(2)} × ${g.qty}件</span></div>`).join('')}
-      </div>`;
-    } else {
-      itemsHtml+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g0.name.slice(0,50)}</div>
-          ${g0.spec?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${g0.spec}</div>`:''}
-        </div>
-        <div style="text-align:right;flex-shrink:0;font-weight:800;color:var(--primary)">¥${g0.price.toFixed(2)} × ${g0.qty}件</div>
-        <button class="btn btn-ghost btn-sm" onclick="fillFromGoods(window._parsedGoods[${goods.indexOf(g0)}])">单独导入</button>
-      </div>`;
-    }
-  });
-
-  resultEl.innerHTML=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div style="font-weight:700;color:var(--primary);font-size:14px">✅ 从1688书签导入 ${goods.length} 个商品${isMultiSpec?' · 含多型号':''}</div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="importAllGoods()" style="height:38px;padding:0 20px">📦 全部导入直接入库</button>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('parse-result').innerHTML=''">清空</button>
-      </div>
-    </div>
-    <div style="display:grid;gap:8px">${itemsHtml}</div>
-    <div style="font-size:11px;color:var(--text3);margin-top:10px">运费¥${ship.toFixed(2)} 按件均摊 · 订单号 ${data.orderId||'-'}</div>
-  </div>`;
-};
-
-
-window.createMultiSpecProduct = function(nameKey) {
-  const group = window._parsedGrouped && window._parsedGrouped[nameKey];
-  if (!group || !group.length) { alert('数据丢失，请重新导入'); return; }
-  const g0 = group[0];
-  const ship = g0.ship || 0;
-  const totalQty = group.reduce((s,g) => s+g.qty, 0);
-  let p = D.products.find(p => p.name === g0.name || p.name.slice(0,15) === g0.name.slice(0,15));
-  if (!p) {
-    p = {id:D.nextId++, name:g0.name, price:0, sku:'', img:'', specs:[], sourceLink:g0.sourceLink||''};
-    D.products.push(p);
-  }
-  let added = 0;
-  group.forEach(g => {
-    const specName = g.spec || '默认';
-    let sp = (p.specs||[]).find(s => s.name === specName);
-    if (!sp) {
-      sp = {sid:D.nextSid++, name:specName, price:0, sku:'', img:''};
-      if (!p.specs) p.specs = [];
-      p.specs.push(sp);
-    }
-    D.purchases.push({
-      date:today(), pid:p.id, sid:sp.sid, qty:g.qty,
-      price:g.price, shipPerUnit:totalQty>0?ship/totalQty:0, shipTotal:ship,
-      tracking:'', order:g.orderId||'', link:g.sourceLink||'',
-      img:'', status:'transit'
-    });
-    added++;
-  });
-  save(); render();
-  document.getElementById('parse-result').innerHTML = '';
-  showPage('purchase');
-  alert('已创建「' + g0.name.slice(0,20) + '」' + added + ' 个型号，共 ' + totalQty + ' 件，状态：在途');
-};
-
 window.importAllGoods = function() {
   const goods = window._parsedGoods;
   if(!goods||!goods.length) return;
@@ -1992,22 +1951,8 @@ window.fillFromGoods = function(g) {
 function handleBookmarkParams() {
   const params = new URLSearchParams(window.location.search);
   const source = params.get('source');
-
-  // 优先读取URL hash里的数据（书签脚本跨域传数据方式）
-  if(location.hash && location.hash.startsWith('#tartgo=')) {
-    try {
-      const encoded = location.hash.slice(8);
-      const data = JSON.parse(decodeURIComponent(encoded));
-      if(data && data.goods && data.goods.length) {
-        history.replaceState(null, '', location.pathname);
-        showPage('purchase');
-        setTimeout(()=>{ _handleImportData(data); }, 500);
-        return;
-      }
-    } catch(e){}
-  }
   
-  // 旧方式：通过localStorage读取含图片的完整数据
+  // 新方式：通过localStorage读取含图片的完整数据
   const importKey = params.get('importKey');
   if(importKey && importKey !== 'NOIMG') {
     try {
@@ -2745,6 +2690,35 @@ window.addPurchase = function(status){
   const p=gp(pid);
   const statusTxt = status==='received'?'已直接入库':'在途';
   alert(`录入成功！${getDisplayName(pid,sid)} ${qty}件，单件成本¥${(price+shipPerUnit).toFixed(2)}，状态：${statusTxt}`);
+};
+
+
+window.deleteAllTransit = function(indices) {
+  if (!confirm('删除这批在途记录（共'+indices.length+'个型号）？此操作不可恢复。')) return;
+  indices.slice().sort((a,b)=>b-a).forEach(idx=>{ D.purchases.splice(idx,1); });
+  save(); render();
+};
+
+window.confirmReceiveAll = function(indices) {
+  const records = indices.map(i=>D.purchases[i]).filter(Boolean);
+  if (!records.length) return;
+  const p = gp(records[0].pid);
+  const totalQty = records.reduce((s,r)=>s+r.qty, 0);
+  const specs = records.map(r=>{
+    const sp=gs(r.pid,r.sid);
+    return (sp?sp.name:'默认')+' '+r.qty+'件';
+  }).join('、');
+  if (!confirm(`全部签收入库：
+${p?p.name:''}
+
+${specs}
+
+共 ${totalQty} 件，确认吗？`)) return;
+  records.forEach(r=>{
+    r.status='received'; r.receivedQty=r.qty; r.receivedDate=today();
+  });
+  save(); render();
+  alert('✅ 已全部入库！共 '+totalQty+' 件');
 };
 
 window.confirmReceive = function(idx){
