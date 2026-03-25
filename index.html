@@ -1646,14 +1646,19 @@ window.smartParse = function() {
 
   if (isOrder) {
     // ===== 订单模式：解析完整订单文字 =====
-    let ship=0, paid=0, orderId='';
+    let ship=0, paid=0, orderId='', sourceLink='';
 
-    const sM = text.match(/运费[\s\n]*[¥￥]?\s*(\d+\.?\d*)/);
+    // 运费：兼容「运费 ¥19.95」和「官方物流提货\n¥19.95」两种格式
+    const sM = text.match(/(?:运费|官方物流提货|物流提货|快递费)[\s\n：:]*[¥￥]?\s*(\d+\.?\d*)/)
+              || text.match(/[¥￥]\s*(\d+\.?\d*)\s*\n?[^\n]*运费/);
     if(sM) ship=parseFloat(sM[1]);
     const pM = text.match(/实付款?[\s\n]*[¥￥]\s*(\d+\.?\d*)/);
     if(pM) paid=parseFloat(pM[1]);
     const oM = text.match(/订单号[\s：:]*(\d{10,25})/);
     if(oM) orderId=oM[1];
+    // 从粘贴文字里抓1688链接（如果有的话）
+    const linkM = text.match(/https?:\/\/[^\s]*1688\.com[^\s]*/);
+    if(linkM) sourceLink=linkM[0];
 
     // 精准解析：结构是「商品名 → 规格行 → 货号行 → 标签行 → 优惠后xx元 → 原价 → 数量」
     const goods = [];
@@ -1669,26 +1674,29 @@ window.smartParse = function() {
       for (let j=i-1; j>=Math.max(0,i-30); j--) {
         const l = lines[j];
 
-        // 跳过标签行
-        if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请)/.test(l)) continue;
-        // 跳过货号行
+        // 跳过服务标签行（7天无理由退货、极速退款等混合在一行的情况）
+        if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请|7天|15天)/.test(l)) continue;
+        if (/7天无理由|极速退款|48小时发货|24小时发货|跨境无忧/.test(l) && l.length < 80) continue;
+        // 跳过货号行（独立行 或 嵌在规格行里的货号部分已在规格解析时处理）
         if (/^货号[：:]\s*/.test(l)) continue;
 
-        // 找到规格行
-        if (/^规格[：:]\s*/.test(l)) {
-          spec = l.replace(/^规格[：:]\s*/,'').trim();
+        // 找到规格行：支持「规格：」和「颜色: xxx 尺码: xxx」两种格式
+        const isSpecLine = /^规格[：:]\s*/.test(l) || /^颜色[：:]\s*/.test(l) || /^尺码[：:]\s*/.test(l);
+        if (isSpecLine) {
+          // 提取规格，去掉末尾的「货号: xxx」部分
+          spec = l.replace(/^规格[：:]\s*/,'').replace(/货号[：:]\s*\S+/,'').trim();
           specFound = true;
-          // 规格行的正上方（跳过空行）就是商品名
+          // 规格行的正上方就是商品名
           for (let k=j-1; k>=Math.max(0,j-5); k--) {
             const nl = lines[k];
             if (nl.length>=6 && nl.length<=120 &&
               !/^[\d\s¥￥元\.\/×x,，。]+$/.test(nl) &&
-              !/^(规格|货号|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请)/.test(nl)) {
+              !/^(规格|货号|颜色|尺码|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请|7天|15天)/.test(nl)) {
               name = nl;
               break;
             }
           }
-          break; // 找到规格就停，不再往前找
+          break;
         }
 
         // 如果没有规格行，用遇到的第一个合适行作为商品名
@@ -1707,10 +1715,9 @@ window.smartParse = function() {
       }
 
       if (name && price>0) {
-        // 尝试从已有进货记录里找该商品的1688链接
         const existLink = D.purchases.filter(r=>r.link&&r.pid&&gp(r.pid)&&
           (gp(r.pid).name===name||gp(r.pid).name.slice(0,10)===name.slice(0,10)))
-          .map(r=>r.link)[0]||'';
+          .map(r=>r.link)[0]||sourceLink||'';
         goods.push({name, productName:name, spec, price, qty, ship, paid, orderId, sourceLink:existLink});
       }
     }
@@ -1762,7 +1769,7 @@ window.smartParse = function() {
       }
     }
     for (const p of [/起批价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,/批发价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/,/优惠后\s*(\d+\.?\d*)/,/[¥￥]\s*(\d+\.?\d*)/,/(\d{1,5}\.\d{2})/]) {
-      const m=text.match(p); if(m){const v2=parseFloat(m[1]);if(v>=0.1&&v<99999){price=v;break;}}
+      const m=text.match(p); if(m){const v=parseFloat(m[1]);if(v>=0.1&&v<99999){price=v;break;}}
     }
     if (!name&&!price) { resultEl.innerHTML=`<span style="color:var(--amber)">未能识别，请确认复制了完整页面文字</span>`; return; }
     if (price) { document.getElementById('pur-price').value=price; updateCostPreview(); }
@@ -1864,8 +1871,9 @@ window.fillFromGoods = function(g) {
   }
   document.getElementById('pur-price').value=g.price.toFixed(2);
   document.getElementById('pur-qty').value=g.qty;
-  if(g.ship) document.getElementById('pur-ship-total').value=g.ship.toFixed(2);
+  document.getElementById('pur-ship-total').value=(g.ship||0).toFixed(2);
   if(g.orderId) document.getElementById('pur-order').value=g.orderId;
+  if(g.sourceLink) document.getElementById('pur-link').value=g.sourceLink;
   updateCostPreview();
 
   const ship=g.ship||0, qty=g.qty||1;
@@ -2592,7 +2600,7 @@ window.addPurchase = function(status){
   }
 
   const qty=parseInt(document.getElementById('pur-qty').value);
-  const price2=parseFloat(document.getElementById('pur-price').value);
+  const price=parseFloat(document.getElementById('pur-price').value);
   const shipTotal=parseFloat(document.getElementById('pur-ship-total').value)||0;
   const tracking=document.getElementById('pur-tracking').value.trim();
   const order=document.getElementById('pur-order').value.trim();
