@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v8.0 · 2026-03-25 23:00</div>
+      <div>v8.1 · 2026-03-26 00:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1780,6 +1780,73 @@ window.smartParse = function() {
   }
 };
 
+
+window._handleImportData = function(data) {
+  const goods = data.goods.map(g=>({
+    name:g.name, productName:g.name, spec:g.spec||'',
+    price:g.price, qty:g.qty, ship:data.ship||0, paid:data.paid||0,
+    orderId:data.orderId||'', sourceLink:data.sourceLink||'', imgB64:g.imgB64||''
+  }));
+  window._parsedGoods = goods;
+
+  // 按商品名分组
+  const grouped={}, groupOrder=[];
+  goods.forEach(g=>{
+    const key=g.name.slice(0,20);
+    if(!grouped[key]){grouped[key]=[];groupOrder.push(key);}
+    grouped[key].push(g);
+  });
+  window._parsedGrouped=grouped;
+  window._parsedGroupKeys=groupOrder.filter((k,i)=>groupOrder.indexOf(k)===i);
+
+  const resultEl=document.getElementById('parse-result');
+  if(!resultEl) return;
+
+  if(goods.length===1 && !goods[0].spec){
+    fillFromGoods(goods[0]); return;
+  }
+
+  const ship=data.ship||0;
+  const isMultiSpec=window._parsedGroupKeys.some(k=>grouped[k].length>1);
+  let itemsHtml='';
+  window._parsedGroupKeys.forEach(key=>{
+    const group=grouped[key];
+    const g0=group[0];
+    const totalQty=group.reduce((s,g)=>s+g.qty,0);
+    if(group.length>1){
+      itemsHtml+=`<div style="padding:10px 12px;border:1.5px solid var(--primary-light);border-radius:8px;background:#f0f4ff">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-weight:700;font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g0.name.slice(0,40)}</span>
+          <span style="font-size:12px;color:var(--text3);flex-shrink:0">${group.length}个型号 共${totalQty}件</span>
+          <button class="btn btn-primary btn-sm" onclick="createMultiSpecProduct('${key.replace(/'/g,'')}')">➕ 一键创建多型号</button>
+        </div>
+        ${group.map(g=>`<div style="font-size:12px;color:var(--text2);padding:2px 0;display:flex;gap:8px"><span style="color:var(--primary)">${g.spec||'无规格'}</span><span>¥${g.price.toFixed(2)} × ${g.qty}件</span></div>`).join('')}
+      </div>`;
+    } else {
+      itemsHtml+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g0.name.slice(0,50)}</div>
+          ${g0.spec?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${g0.spec}</div>`:''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;font-weight:800;color:var(--primary)">¥${g0.price.toFixed(2)} × ${g0.qty}件</div>
+        <button class="btn btn-ghost btn-sm" onclick="fillFromGoods(window._parsedGoods[${goods.indexOf(g0)}])">单独导入</button>
+      </div>`;
+    }
+  });
+
+  resultEl.innerHTML=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-weight:700;color:var(--primary);font-size:14px">✅ 从1688书签导入 ${goods.length} 个商品${isMultiSpec?' · 含多型号':''}</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="importAllGoods()" style="height:38px;padding:0 20px">📦 全部导入直接入库</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('parse-result').innerHTML=''">清空</button>
+      </div>
+    </div>
+    <div style="display:grid;gap:8px">${itemsHtml}</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px">运费¥${ship.toFixed(2)} 按件均摊 · 订单号 ${data.orderId||'-'}</div>
+  </div>`;
+};
+
 window.importAllGoods = function() {
   const goods = window._parsedGoods;
   if(!goods||!goods.length) return;
@@ -1890,8 +1957,22 @@ window.fillFromGoods = function(g) {
 function handleBookmarkParams() {
   const params = new URLSearchParams(window.location.search);
   const source = params.get('source');
+
+  // 优先读取URL hash里的数据（书签脚本跨域传数据方式）
+  if(location.hash && location.hash.startsWith('#tartgo=')) {
+    try {
+      const encoded = location.hash.slice(8);
+      const data = JSON.parse(decodeURIComponent(encoded));
+      if(data && data.goods && data.goods.length) {
+        history.replaceState(null, '', location.pathname);
+        showPage('purchase');
+        setTimeout(()=>{ _handleImportData(data); }, 500);
+        return;
+      }
+    } catch(e){}
+  }
   
-  // 新方式：通过localStorage读取含图片的完整数据
+  // 旧方式：通过localStorage读取含图片的完整数据
   const importKey = params.get('importKey');
   if(importKey && importKey !== 'NOIMG') {
     try {
