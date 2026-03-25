@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v7.5 · 2026-03-25 18:00</div>
+      <div>v7.6 · 2026-03-25 19:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -727,7 +727,7 @@ input::placeholder{color:var(--text3)}
 
 <!-- 商品编辑弹窗 -->
 <!-- 统一产品详情弹窗（任何界面都可调用） -->
-<div id="product-edit-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+<div id="product-edit-modal" class="modal-mask" style="display:none" onclick="if(event.target===this){if(confirm('有未保存的修改，确定放弃？')){this.style.display='none';}}">
   <div class="modal-box" style="max-width:680px">
     <div class="modal-title">
       <span>编辑产品</span>
@@ -2376,8 +2376,8 @@ function renderSpecsInModal(pid){
         +'</div>'
         +'<div style="flex:1;display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px">'
         +'<input type="text" id="pe-spec-name-'+sp.sid+'" value="'+((sp.name||'').replace(/"/g,'&quot;'))+'" placeholder="型号名称" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">'
-        +'<input type="number" id="pe-spec-cost-'+sp.sid+'" value="'+(sp.cost||'')+'" placeholder="成本价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;background:#fffbe6;border-color:#fbbf24" title="该型号的进货成本价">'
-        +'<input type="number" id="pe-spec-price-'+sp.sid+'" value="'+(sp.price||'')+'" placeholder="Temu售价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">'
+        +'<input type="number" id="pe-spec-cost-'+sp.sid+'" value="'+(sp.cost!=null&&sp.cost!==0?sp.cost:'')+'" placeholder="成本价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;background:#fffbe6;border-color:#fbbf24" title="该型号的进货成本价">'
+        +'<input type="number" id="pe-spec-price-'+sp.sid+'" value="'+(sp.price!=null&&sp.price!==0?sp.price:'')+'" placeholder="Temu售价(¥)" step="0.01" min="0" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">'
         +'</div>'
         +'<button class="btn btn-ghost btn-sm spec-paste-btn" data-pid="'+pid+'" data-sid="'+sp.sid+'" style="flex-shrink:0;color:var(--primary);border-color:var(--primary-light)" title="先复制图片，再点这里粘贴">📋 粘贴图</button>'
         +'<button class="btn btn-ghost btn-sm spec-del-btn" data-pid="'+pid+'" data-sid="'+sp.sid+'" style="color:var(--red);flex-shrink:0">删除</button>'
@@ -2487,8 +2487,8 @@ window.saveEditProduct = function(){
     const priceEl=document.getElementById('pe-spec-price-'+sp.sid);
     const costEl=document.getElementById('pe-spec-cost-'+sp.sid);
     if(nameEl) sp.name=nameEl.value.trim()||sp.name;
-    if(priceEl) sp.price=parseFloat(priceEl.value)||0;
-    if(costEl) sp.cost=parseFloat(costEl.value)||0;
+    if(priceEl){ const v=priceEl.value.trim(); sp.price=v===''?sp.price||0:parseFloat(v)||0; }
+    if(costEl){ const v=costEl.value.trim(); sp.cost=v===''?sp.cost||0:parseFloat(v)||0; }
   });
   Object.assign(p,{name,price,sku,temuLink,sourceLink,reorderPoint,img:_productImgBase64});
   document.getElementById('product-edit-modal').style.display='none';
