@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v8.4 · 2026-03-26 03:00</div>
+      <div>v8.7 · 2026-03-26 06:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -832,10 +832,35 @@ function trackingLink(no) {
   </div>`;
 }
 
-function productLink(link, label, spec) {
+
+// ── 统一产品名显示：所有页面共用 ──
+// pName(pid, sid?, expandBtn?) → 产品名+✏️+型号按钮 一行，点名字/✏️打开编辑
+function pName(pid, sid, expandBtn) {
+  const p = gp(pid);
+  const sp = sid ? gs(pid, sid) : null;
+  const name = p ? p.name : '已删除';
+  const link = getProductLink(pid);
+  const linkBtn = link
+    ? `<a href="${link}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:var(--text3);margin-left:2px;text-decoration:none" title="跳转1688货源">🔗</a>`
+    : '';
+  const editIcon = `<span onclick="event.stopPropagation();openEditProduct(${pid})" style="font-size:11px;color:var(--text3);cursor:pointer;opacity:.7;margin-left:2px" title="编辑产品">✏️</span>`;
+  const expandHtml = expandBtn || '';
+  const nameRow = `<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+    <span style="font-weight:600;cursor:pointer" onclick="event.stopPropagation();openEditProduct(${pid})" title="点击编辑产品">${name}</span>${linkBtn}${editIcon}${expandHtml}
+  </div>`;
+  const specHtml = sp
+    ? `<div style="font-size:12px;color:var(--primary);font-weight:600;margin-top:1px">↳ ${sp.name}</div>`
+    : '';
+  return nameRow + specHtml;
+}
+
+function productLink(link, label, spec, pid) {
   const specTag = spec ? `<span style="font-size:11px;color:var(--text3);margin-left:6px;background:var(--bg);padding:1px 6px;border-radius:4px">${spec}</span>` : '';
-  if (!link) return `<span>${label||'-'}${specTag}</span>`;
-  return `<span>${label||'-'}${specTag}</span><a href="${link}" target="_blank" style="font-size:11px;color:var(--text3);margin-left:6px;text-decoration:none" title="跳转1688商品页">🔗</a>`;
+  const editBtn = pid ? `<span onclick="event.stopPropagation();openEditProduct(${pid})" style="cursor:pointer;font-size:11px;color:var(--text3);margin-left:4px" title="编辑产品">✏️</span>` : '';
+  const linkBtn = link ? `<a href="${link}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:var(--text3);margin-left:2px;text-decoration:none" title="跳转1688商品页">🔗</a>` : '';
+  const nameStyle = pid ? 'cursor:pointer;font-weight:600;color:var(--text)' : 'font-weight:600';
+  const nameClick = pid ? `onclick="event.stopPropagation();openEditProduct(${pid})"` : '';
+  return `<span style="${nameStyle}" ${nameClick} title="${pid?'点击编辑产品':''}">${label||'-'}</span>${specTag}${editBtn}${linkBtn}`;
 }
 
 // 产品名可点击编辑版本（不包含链接跳转干扰）
@@ -1184,8 +1209,7 @@ function renderTransitTable(){
       html+=`<tr>
         <td style="width:64px;padding:4px 6px">${imgThumb(r.pid)}</td>
         <td>
-          <div style="font-weight:600">${productLink(r.link,p?p.name:'已删除')}</div>
-          ${sp?`<div style="font-size:12px;color:var(--primary);margin-top:2px;font-weight:600">↳ ${sp.name}</div>`:''}
+          ${pName(r.pid, r.sid)}
           <div style="font-size:11px;color:var(--text3);margin-top:2px">${r.date}${r.order?' · '+r.order:''}</div>
         </td>
         <td>${r.qty}</td>
@@ -1207,7 +1231,7 @@ function renderTransitTable(){
       html+=`<tr style="background:#f0f2fa;cursor:pointer" onclick="toggleTransitGroup(${pid})">
         <td style="width:64px;padding:4px 6px">${imgThumb(pid)}</td>
         <td>
-          <div style="font-weight:700">${productLink(firstR.link,p?p.name:'已删除')}</div>
+          ${pName(pid, 0, `<button onclick="event.stopPropagation();toggleTransitGroup(${pid})" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap">${isExp?'▲ 收起':'▼ '+records.length+'个型号'}</button>`)}
           <div style="font-size:11px;color:var(--text3);margin-top:2px">${firstR.date}${firstR.order?' · '+firstR.order:''}</div>
         </td>
         <td style="font-weight:700">${totalQty}</td>
@@ -1293,7 +1317,7 @@ function renderPurchaseTable(){
       <td style="width:64px;padding:4px 6px">${imgThumb(pid)}</td>
       <td colspan="8">
         <div style="display:flex;align-items:center;gap:10px">
-          ${editableProductName(pid, p?p.name:"已删除商品")}
+          ${pName(pid, 0, records.length>1?`<button onclick="event.stopPropagation();togglePurchaseGroup('${groupId}')" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap">▼ ${records.length}个型号</button>`:'')} 
           <span style="font-size:12px;color:var(--text3)">${records.length}个型号 · 共${totalQty}件 · 采购¥${totalAmt.toFixed(2)}</span>${p&&p.price?`<span style="font-size:12px;color:var(--green);font-weight:600;margin-left:6px">Temu售价 ¥${p.price}</span>`:''}
           ${statusBadge}
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openAddSpecPurchase(${pid})" style="margin-left:8px">+ 添加型号入库</button>
@@ -1416,12 +1440,8 @@ function renderCostStats(){
       : '';
     html+=`<tr>
       <td style="width:64px;padding:4px 6px">${imgThumb(p.id)}</td>
-      <td style="cursor:pointer" onclick="openEditProduct(${p.id})" title="点击编辑产品">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-weight:600;color:var(--text)">${p.name}</span>
-          <span style="font-size:11px;color:var(--text3);opacity:0.6">✏️</span>
-          ${expandBtn}
-        </div>
+      <td>
+        ${pName(p.id, 0, expandBtn)}
       </td>
       <td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
       <td><strong>¥${wavg.toFixed(2)}</strong></td>
@@ -1482,7 +1502,7 @@ function renderOutboundTable(){
     const p=gp(r.pid),idx=D.outbounds.length-1-i;
     const sp=gs(r.pid,r.sid);
     const temuPrice=sp&&sp.price?sp.price:(p&&p.price?p.price:0);
-    return `<tr><td>${r.date}</td><td><div style='font-weight:600'>${productLink(getProductLink(r.pid),p?p.name:'已删除')}</div>${r.sid&&sp?`<div style='font-size:12px;color:var(--primary);font-weight:600'>↳ ${sp.name}</div>`:''}</td>
+    return `<tr><td>${r.date}</td><td>${pName(r.pid, r.sid)}</td>
       <td><strong>${r.qty}</strong></td>
       <td style="font-weight:700;color:var(--green)">${temuPrice?'¥'+temuPrice:'<span class="c-muted">-</span>'}</td>
       <td>${r.shipTotal?'¥'+r.shipTotal.toFixed(2):'<span class="c-muted">-</span>'}</td>
@@ -1514,7 +1534,7 @@ function renderStockTable(){
 
     // 产品汇总行
     html+=`<tr style="background:var(--surface)">
-      <td><div class="prod-cell">${imgThumb(p.id)}<div class="prod-cell-body">${editableProductName(p.id,p.name)}${productControls(p.id,expandBtn)}</div></div></td>
+      <td><div class="prod-cell">${imgThumb(p.id)}<div style="flex:1;min-width:0">${pName(p.id, 0, expandBtn)}</div></div></td>
       <td>${getProductLink(p.id)
         ?`<a href="${getProductLink(p.id)}" target="_blank" style="font-size:13px;color:var(--primary);text-decoration:none;font-weight:600">🔗 查看</a>`
         :`<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})">+ 添加</span>`}</td>
@@ -1654,7 +1674,7 @@ function renderProductsTable(){
         <input type="checkbox" class="prod-cb" data-pid="${p.id}" onchange="onProdCheckChange()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
         <div style="flex-shrink:0">${imgThumb(p.id)}</div>
         <div style="flex:1;min-width:0;cursor:pointer" onclick="openEditProduct(${p.id})">
-          <div style="font-weight:700;font-size:14px">${p.name} <span style="font-size:11px;color:var(--text3)">✏️</span></div>
+          <div>${pName(p.id, 0, specs.length>0?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleProductSpecs(${p.id})" id="expand-btn-${p.id}" style="font-size:12px;height:24px;padding:0 8px">${isExpanded?'▲ 收起':'▼ '+specs.length+'个型号'}</button>`:'')}</div>
           <div style="font-size:12px;color:var(--text3);margin-top:2px">总库存: <strong>${totalLocal}</strong>${p.price?` · 售价: <span style="color:var(--green);font-weight:600">¥${p.price}</span>`:''}${p.sku?` · SKU: ${p.sku}`:''}${specs.length>0?` · <span style="color:var(--primary)">${specs.length}个型号</span>`:''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
@@ -2966,7 +2986,7 @@ function renderStocktakeTable(){
         const stock2=getLocalStockSpec(p.id,sp.sid);
         rows+=`<tr>
           <td style="width:64px;padding:4px 6px">${imgThumb(p.id,sp.sid)}</td>
-          <td>${p.name} <span style="color:var(--primary);font-size:12px">· ${sp.name}</span></td>
+          <td>${pName(r.pid, r.sid)}</td>
           <td style="font-weight:700;color:var(--green)">${sp.price||p.price?'¥'+(sp.price||p.price):'-'}</td>
           <td>${stock2}</td>
           <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock2}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
@@ -3132,7 +3152,7 @@ function renderSalesTable(){
     const profitRate=r.price>0?(profit/(r.price*r.qty)*100):0;
     return `<tr>
       <td>${r.date}</td>
-      <td><div style="font-weight:600">${p?p.name:'已删除'}</div>${sp?`<div style="font-size:12px;color:var(--primary)">↳ ${sp.name}</div>`:''}</td>
+      <td>${pName(r.pid, r.sid)}</td>
       <td>${r.qty}</td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${cost.toFixed(2)}</td>
@@ -3275,7 +3295,7 @@ function renderLeadTimeTable(){
       reorderDate=rd.toISOString().slice(0,10);
     }
     rows.push(`<tr>
-      <td>${editableProductName(p.id,p.name)}</td>
+      <td>${pName(p.id)}</td>
       <td>${last.date}</td>
       <td>${leadTimes[leadTimes.length-1]}天</td>
       <td>${avg.toFixed(1)}天</td>
