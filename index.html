@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v7.4 · 2026-03-25 17:00</div>
+      <div>v7.5 · 2026-03-25 18:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -843,13 +843,8 @@ function editableProductName(pid, label) {
   return `<span class="prod-cell-name" title="${label||'-'}">${label||'-'}</span>`;
 }
 function productControls(pid, expandBtn) {
-  const specSlot = expandBtn
-    ? expandBtn
-    : `<span style="display:inline-block;min-width:72px"></span>`;
-  return `<div class="prod-cell-sub">
-    <span onclick="event.stopPropagation();openEditProduct(${pid})" style="font-size:13px;color:var(--text3);cursor:pointer;flex-shrink:0" title="编辑产品">✏️</span>
-    ${specSlot}
-  </div>`;
+  const specSlot = expandBtn ? expandBtn : `<span style="display:inline-block;min-width:72px"></span>`;
+  return `<div class="prod-cell-sub"><span onclick="event.stopPropagation();openEditProduct(${pid})" style="font-size:13px;color:var(--text3);cursor:pointer;flex-shrink:0" title="编辑产品">✏️</span>${specSlot}</div>`;
 }
 
 // 从进货记录取最新图片
@@ -1488,7 +1483,7 @@ function renderStockTable(){
       });
     }
   });
-  tbody.innerHTML=html||`<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>`;
+  tbody.innerHTML=html||`<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>`;
 }
 
 window.inlineEditStock = function(el, pid, sid){
