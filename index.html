@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v10.4 · 2026-03-27 00:00</div>
+      <div>v10.5 · 2026-03-27 01:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -364,7 +364,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品成本分析</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>图片</th><th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>均价成本(¥/件)</th><th>Temu售价(¥)</th><th>毛利/件(¥)</th><th>毛利率</th>
+      <th>图片</th><th>商品名</th><th>批次数</th><th>累计采购量</th><th>累计入库量</th><th>历史加权均价(¥/件)</th><th>最近一次成本(¥/件)</th><th>均价成本(¥/件)</th><th>Temu售价(¥)</th><th>毛利/件(¥)</th><th>毛利率</th><th>操作</th>
     </tr></thead><tbody id="cost-stats-table"></tbody></table></div>
   </div>
 
@@ -1491,6 +1491,7 @@ function renderCostStats(){
       <td>${temuPriceCell}</td>
       <td class="${profitColor}">${temuPriceRmb ? (profitPerUnit>=0?'+':'')+'¥'+profitPerUnit.toFixed(2) : '-'}</td>
       <td class="${rateColor}">${temuPriceRmb ? profitRate.toFixed(1)+'%' : '-'}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProduct(${p.id})" title="删除产品及所有进货记录">🗑</button></td>
     </tr>`;
 
     // 型号子行
