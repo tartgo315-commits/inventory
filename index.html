@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v10.0 · 2026-03-26 22:00</div>
+      <div>v10.1 · 2026-03-26 23:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -936,8 +936,7 @@ function getLatestStatus(data) { return null; }
 
 // ===== Firebase =====
 let db, docRef;
-let D = defaultData();
-window.D = D; // 暴露到window供调试和修复使用
+let D = defaultData(); window.D = D;
 
 function defaultData() {
   return { settings:{rate:1,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1, nextSid:1, suppliers:[], returns:[], stockAdjustments:[] };
@@ -1942,12 +1941,8 @@ window.fixShipPerUnit = function() {
       }
     });
   });
-  if (fixed > 0) {
-    save(); render();
-    alert('✅ 已修复 ' + fixed + ' 条运费分摊记录，成本数据已更新！');
-  } else {
-    alert('无需修复（或历史数据缺少 shipTotal 字段）');
-  }
+  if (fixed > 0) { save(); render(); alert('✅ 修复 ' + fixed + ' 条运费分摊！'); }
+  else alert('未找到可修复记录');
 };
 
 window.importAllGoods = function() {
