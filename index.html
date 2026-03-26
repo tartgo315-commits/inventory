@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v9.5 · 2026-03-26 14:00</div>
+      <div>v9.5 · 2026-03-26 15:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -709,6 +709,12 @@ input::placeholder{color:var(--text3)}
       <div class="fg"><label>1688订单号</label><input type="text" id="edit-order"></div>
       <div class="fg"><label>预计到货日期</label><input type="text" id="edit-eta" placeholder="2024-04-10"></div>
       <div class="fg"><label>1688商品链接</label><input type="text" id="edit-link" placeholder="https://detail.1688.com/offer/..."></div>
+      <div class="fg"><label>状态</label>
+        <select id="edit-status" style="height:40px;padding:0 10px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:#fff;width:100%">
+          <option value="transit">在途（未收货）</option>
+          <option value="received">已入库</option>
+        </select>
+      </div>
     </div>
     <div class="fg" style="margin-bottom:12px">
       <label>商品图片</label>
@@ -2927,6 +2933,8 @@ window.openEditPurchase = function(idx) {
   document.getElementById('edit-order').value = r.order || '';
   document.getElementById('edit-eta').value = r.eta || '';
   document.getElementById('edit-link').value = r.link || '';
+  const statusEl = document.getElementById('edit-status');
+  if(statusEl) statusEl.value = r.status || 'transit';
   _editImgBase64 = r.img || '';
   setPreviewEl('edit-img-preview', r.img||'');
   document.getElementById('edit-modal').style.display = 'flex';
@@ -2946,6 +2954,12 @@ window.saveEditPurchase = function() {
   r.eta = document.getElementById('edit-eta').value.trim();
   r.link = document.getElementById('edit-link').value.trim();
   r.img = _editImgBase64;
+  const newStatus = document.getElementById('edit-status')?.value;
+  if(newStatus) {
+    r.status = newStatus;
+    if(newStatus === 'transit') { delete r.receivedDate; delete r.receivedQty; }
+    else if(newStatus === 'received' && !r.receivedDate) { r.receivedDate = r.receivedDate || today(); r.receivedQty = r.receivedQty || r.qty; }
+  }
   document.getElementById('edit-modal').style.display = 'none';
   save(); render(); alert('修改已保存！');
 };
