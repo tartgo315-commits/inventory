@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v9.7 · 2026-03-26 17:00</div>
+      <div>v10.0 · 2026-03-26 20:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1069,7 +1069,7 @@ function getSaleFifoCost(saleIdx){
   return cost * sale.qty;
 }
 function getWeightedAvgCost(pid){
-  const bs=D.purchases.filter(r=>r.pid==pid&&r.status==='received');
+  const bs=D.purchases.filter(r=>r.pid==pid&&r.status==='received'&&!r.isAdjust);
   const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
   const p=gp(pid);
   if(!tq){ return (p&&p.cost)||0; }
@@ -1078,7 +1078,7 @@ function getWeightedAvgCost(pid){
 }
 
 function getWeightedAvgCostSpec(pid,sid){
-  const bs=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received');
+  const bs=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received'&&!r.isAdjust);
   const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
   const sp=gs(pid,sid);
   if(!tq){ return (sp&&sp.cost)||0; }
@@ -1923,6 +1923,9 @@ window.importAllGoods = function() {
   const productMap = {}; // productName -> pid
   let imported=0;
 
+  // 전체 총 qty 계산 (운임 균등 배분용)
+  const totalGoodsQty = goods.reduce((s,g)=>s+g.qty, 0);
+
   goods.forEach(g => {
     const pName = g.productName || g.name;
     const specName = g.spec || '';
@@ -1963,7 +1966,7 @@ window.importAllGoods = function() {
       productMap[pName] = pid;
     }
 
-    const shipPerUnit = g.qty>0 ? (g.ship||0)/g.qty : 0;
+    const shipPerUnit = totalGoodsQty>0 ? (g.ship||0)/totalGoodsQty : 0;
     const img = g.imgB64 ? 'data:image/jpeg;base64,'+g.imgB64 : '';
     D.purchases.push({
       date:today(), pid, sid, qty:g.qty, price:g.price,
