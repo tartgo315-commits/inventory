@@ -1249,7 +1249,7 @@ function renderTransitTable(){
     } else {
       // 多型号：产品汇总行（可点击展开/收起）+ 型号子行
       const groupKey='tg-'+pid;
-      const isExp=window._transitExpanded&&window._transitExpanded[pid]!==false; // 默认展开
+      const isExp=window._transitExpanded&&window._transitExpanded[pid]===true; // 默认收起
       html+=`<tr style="background:#f0f2fa;cursor:pointer" onclick="toggleTransitGroup(${pid})">
         <td style="width:64px;padding:4px 6px">${imgThumb(pid)}</td>
         <td>
@@ -2871,7 +2871,7 @@ window._transitExpanded = {};
 window.toggleTransitGroup = function(pid) {
   if(!window._transitExpanded) window._transitExpanded = {};
   // 默认展开，点击后切换
-  const cur = window._transitExpanded[pid] !== false;
+  const cur = window._transitExpanded[pid] === true;
   window._transitExpanded[pid] = !cur;
   renderTransitTable();
 };
