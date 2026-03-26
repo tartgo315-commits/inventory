@@ -1656,7 +1656,7 @@ function renderProductsTable(){
   el.innerHTML=D.products.map(p=>{
     const specs=p.specs||[];
     const totalLocal=specs.length?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
-    const isExpanded=window._prodExpanded[p.id]!==false;
+    const isExpanded=window._prodExpanded[p.id]===true;
     const expandBtn=specs.length>0?`<button class="btn btn-ghost btn-sm" onclick="toggleProductSpecs(${p.id})" id="expand-btn-${p.id}" style="min-width:64px">${isExpanded?'▲ 收起':'▼ 展开'}</button>`:'';
 
     const specsHtml=specs.map(sp=>{
@@ -1727,7 +1727,7 @@ function renderProductsTable(){
 
 window.toggleProductSpecs = function(pid){
   if(!window._prodExpanded) window._prodExpanded={};
-  window._prodExpanded[pid]=window._prodExpanded[pid]===false?true:false;
+  window._prodExpanded[pid]=window._prodExpanded[pid]===true?false:true;
   renderProductsTable();
 };
 
