@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v9.4 · 2026-03-26 13:00</div>
+      <div>v9.5 · 2026-03-26 14:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1779,7 +1779,8 @@ window.smartParse = function() {
     // 精准解析：结构是「商品名 → 规格行 → 货号行 → 标签行 → 优惠后xx元 → 原价 → 数量」
     const goods = [];
     for (let i=0; i<lines.length; i++) {
-      const priceM = lines[i].match(/优惠后\s*(\d+\.?\d*)/);
+      // 支持「优惠后4.00元/个」连写 和「6.20 元/件」两种格式
+      const priceM = lines[i].match(/优惠后(\d+\.?\d*)元?/) || lines[i].match(/^(\d+\.?\d*)\s*元\/[件个只条]/);
       if (!priceM) continue;
       const price = parseFloat(priceM[1]);
 
