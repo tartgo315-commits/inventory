@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v9.1 · 2026-03-26 10:00</div>
+      <div>v9.2 · 2026-03-26 11:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1338,7 +1338,7 @@ function renderPurchaseTable(){
       <td style="width:64px;padding:4px 6px">${imgThumb(pid)}</td>
       <td colspan="9">
         <div style="display:flex;align-items:center;gap:8px">
-          ${pName(pid, 0, `<button onclick="event.stopPropagation();togglePurchaseGroup('${groupId}')" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap" id="${groupId}-arrow">${window._purchaseExpanded&&window._purchaseExpanded[groupId]===false?'▼ 展开':'▲ 收起'}</button>`)}
+          ${pName(pid, 0, `<button onclick="event.stopPropagation();togglePurchaseGroup('${groupId}')" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap" id="${groupId}-arrow">${window._purchaseExpanded&&window._purchaseExpanded[groupId]===true?'▲ 收起':'▼ 展开'}</button>`)}
           <span style="font-size:12px;color:var(--text3);flex-shrink:0">共${totalQty}件 · ¥${totalAmt.toFixed(2)}</span>
           ${p&&p.price?`<span style="font-size:12px;color:var(--green);font-weight:600;flex-shrink:0">Temu ¥${p.price}</span>`:''}
           ${statusBadge}
@@ -1353,7 +1353,8 @@ function renderPurchaseTable(){
       const uc=(r.price||0)+(r.shipPerUnit||0);
       const rqty=r.status==='received'?(r.receivedQty||r.qty):'-';
       const sb=r.status==='transit'?'<span class="badge badge-transit">在途</span>':`<span class="badge badge-received">已入库 ${r.receivedDate||''}</span>`;
-      html+=`<tr class="${groupId}-row" style="background:#fafbfe">
+      const isExpPur=window._purchaseExpanded&&window._purchaseExpanded[groupId]===true;
+      html+=`<tr class="${groupId}-row" style="background:#fafbfe;${isExpPur?'':'display:none'}">
         <td style="text-align:center"><input type="checkbox" class="pur-cb" data-idx="${idx}" onchange="onPurCheckChange()" style="width:16px;height:16px;cursor:pointer"></td>
         <td></td>
         <td style="padding-left:28px">
@@ -1424,11 +1425,14 @@ window.saveAddSpecPurchase = function(status) {
 };
 
 window.togglePurchaseGroup = function(groupId){
+  if(!window._purchaseExpanded) window._purchaseExpanded={};
+  const cur=window._purchaseExpanded[groupId]===true;
+  window._purchaseExpanded[groupId]=!cur;
+  // 直接操作DOM，不重渲染
   const rows=document.querySelectorAll('.'+groupId+'-row');
   const arrow=document.getElementById(groupId+'-arrow');
-  const hidden=rows.length&&rows[0].style.display==='none';
-  rows.forEach(r=>r.style.display=hidden?'':'none');
-  if(arrow) arrow.textContent=hidden?'▼ 展开':'▶ 折叠';
+  rows.forEach(r=>r.style.display=cur?'none':'');
+  if(arrow) arrow.textContent=cur?'▼ 展开':'▲ 收起';
 };
 
 function renderCostStats(){
