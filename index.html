@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v9.6 · 2026-03-26 16:00</div>
+      <div>v9.7 · 2026-03-26 17:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -916,7 +916,8 @@ function getProductImg(pid, sid) {
 
 function imgThumb(pid, sid) {
   const img = getProductImg(pid, sid);
-  const clickAttr = `onclick="event.stopPropagation();openQuickImgUpload(${pid},${sid||0})" title="点击上传/更换图片" style="cursor:pointer"`;
+  // 左键点击 = 设置粘贴目标（Ctrl+V直接粘贴）；右键 = 打开弹窗上传
+  const clickAttr = `onclick="event.stopPropagation();setProductImgTarget(${pid},${sid||0},this)" oncontextmenu="event.preventDefault();event.stopPropagation();openQuickImgUpload(${pid},${sid||0})" title="点击后 Ctrl+V 粘贴 / 右键选文件" style="cursor:pointer"`;
   if (!img) return `<div class="prod-placeholder" ${clickAttr}>📷</div>`;
   return `<img src="${img}" class="prod-thumb" ${clickAttr} onerror="this.style.display='none'">`;
 }
@@ -2454,7 +2455,23 @@ document.addEventListener('paste', function(e) {
     if(item.type.startsWith('image/')) {
       const file = item.getAsFile();
       compressImage(file, 600, function(base64) {
-        if(isQuickOpen) { _quickImgBase64=base64; setPreviewEl('quick-img-preview',base64); }
+        if(_productImgTarget) {
+          // 直接粘贴到产品/型号图片，不用弹窗
+          const {pid, sid, el} = _productImgTarget;
+          const p = gp(pid);
+          if(p) {
+            if(sid) {
+              const sp = (p.specs||[]).find(s=>s.sid==sid);
+              if(sp) sp.img = base64;
+            } else {
+              p.img = base64;
+            }
+            save(); render();
+          }
+          _productImgTarget = null;
+          document.querySelectorAll('.prod-thumb,.prod-placeholder').forEach(e=>e.style.outline='');
+        }
+        else if(isQuickOpen) { _quickImgBase64=base64; setPreviewEl('quick-img-preview',base64); }
         else if(isEditOpen) { _editImgBase64=base64; setPreviewEl('edit-img-preview',base64); }
         else if(isProdOpen && _pasteSpecTarget) {
           // 粘贴到指定型号图片
@@ -2562,6 +2579,32 @@ window.deleteSpec = function(pid,sid){
 };
 
 let _quickImgBase64 = '';
+let _productImgTarget = null; // {pid, sid, el} 当前图片粘贴目标
+
+
+window.setProductImgTarget = function(pid, sid, el) {
+  _productImgTarget = {pid, sid: sid||0, el};
+  // 清除旧高亮
+  document.querySelectorAll('.prod-thumb,.prod-placeholder').forEach(e=>e.style.outline='');
+  // 高亮当前目标
+  if(el) el.style.outline = '2.5px solid var(--primary)';
+  // 顶部提示
+  let tip = document.getElementById('_paste-tip');
+  if(!tip) {
+    tip = document.createElement('div');
+    tip.id = '_paste-tip';
+    tip.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#4f46e5;color:#fff;padding:8px 20px;border-radius:8px;font-size:13px;z-index:9999;pointer-events:none;box-shadow:0 2px 12px rgba(0,0,0,.2)';
+    document.body.appendChild(tip);
+  }
+  tip.textContent = '📋 已选中图片位置，现在按 Ctrl+V 粘贴';
+  tip.style.display = '';
+  clearTimeout(window._pasteTipTimer);
+  window._pasteTipTimer = setTimeout(()=>{
+    if(tip) tip.style.display = 'none';
+    if(el) el.style.outline = '';
+    _productImgTarget = null;
+  }, 5000);
+};
 
 window.openQuickImgUpload = function(pid, sid) {
   const p = gp(pid); if(!p) return;
