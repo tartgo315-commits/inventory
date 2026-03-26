@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v9.3 · 2026-03-26 12:00</div>
+      <div>v9.4 · 2026-03-26 13:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1151,8 +1151,9 @@ function renderArrivedAlerts(){
   }).join(''):'';
   ['arrived-alerts','arrived-alerts-purchase'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html;});
   const pending=D.purchases.filter(r=>r.status==='transit'&&!r.trackingDelivered);
+  const pendingBatches=new Set(pending.map(r=>r.order&&r.order!=='快速调整'?'o:'+r.order:'p:'+r.pid)).size;
   const pel=document.getElementById('pending-alerts');
-  if(pel) pel.innerHTML=pending.length?`<div class="alert alert-info" style="display:flex;align-items:center;justify-content:space-between"><span>🚚 有 ${pending.length} 批货物在途中</span><button class="btn btn-ghost btn-sm" onclick="showPage('purchase')">查看详情 →</button></div>`:'';
+  if(pel) pel.innerHTML=pending.length?`<div class="alert alert-info" style="display:flex;align-items:center;justify-content:space-between"><span>🚚 有 ${pendingBatches} 批货物在途中</span><button class="btn btn-ghost btn-sm" onclick="showPage('purchase')">查看详情 →</button></div>`:'';
   const lel=document.getElementById('low-stock-alert');
   if(lel){
     const items=[];
