@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v10.1 · 2026-03-26 23:00</div>
+      <div>v10.2 · 2026-03-26 23:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -598,7 +598,6 @@ input::placeholder{color:var(--text3)}
     </div>
     <div class="btns">
       <button class="btn btn-success" onclick="exportAll()">导出全量数据（JSON备份）</button>
-      <button class="btn btn-ghost" onclick="fixShipPerUnit()" style="color:var(--amber)">🔧 修复历史运费分摊</button>
       <button class="btn btn-primary" onclick="exportFiltered()">按日期导出进货+销售明细（xlsx）</button>
     </div>
   </div>
@@ -936,7 +935,7 @@ function getLatestStatus(data) { return null; }
 
 // ===== Firebase =====
 let db, docRef;
-let D = defaultData(); window.D = D;
+let D = defaultData();
 
 function defaultData() {
   return { settings:{rate:1,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1, nextSid:1, suppliers:[], returns:[], stockAdjustments:[] };
@@ -1070,7 +1069,7 @@ function getSaleFifoCost(saleIdx){
   return cost * sale.qty;
 }
 function getWeightedAvgCost(pid){
-  const bs=D.purchases.filter(r=>r.pid==pid&&r.status==='received'&&!r.isAdjust);
+  const bs=D.purchases.filter(r=>r.pid==pid&&r.status==='received'&&!r.isAdjust&&!r.isAdjustment);
   const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
   const p=gp(pid);
   if(!tq){ return (p&&p.cost)||0; }
@@ -1079,7 +1078,7 @@ function getWeightedAvgCost(pid){
 }
 
 function getWeightedAvgCostSpec(pid,sid){
-  const bs=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received'&&!r.isAdjust);
+  const bs=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received'&&!r.isAdjust&&!r.isAdjustment);
   const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
   const sp=gs(pid,sid);
   if(!tq){ return (sp&&sp.cost)||0; }
@@ -1914,35 +1913,6 @@ window.smartParse = function() {
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
     </div>`;
   }
-};
-
-
-window.fixShipPerUnit = function() {
-  const groups = {};
-  D.purchases.forEach(r => {
-    if (r.isAdjust) return;
-    const key = (r.order||'NO') + '|' + r.pid + '|' + r.date;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(r);
-  });
-  let fixed = 0;
-  Object.values(groups).forEach(batch => {
-    if (batch.length < 2) return;
-    const shipVal = batch.map(r => r.shipTotal||0).find(v => v > 0) || 0;
-    if (!shipVal) return;
-    const totalQty = batch.reduce((s, r) => s + (r.qty||0), 0);
-    if (!totalQty) return;
-    const correct = shipVal / totalQty;
-    batch.forEach(r => {
-      if (Math.abs((r.shipPerUnit||0) - correct) > 0.0001) {
-        r.shipPerUnit = correct;
-        r.shipTotal = shipVal;
-        fixed++;
-      }
-    });
-  });
-  if (fixed > 0) { save(); render(); alert('✅ 修复 ' + fixed + ' 条运费分摊！'); }
-  else alert('未找到可修复记录');
 };
 
 window.importAllGoods = function() {
@@ -3319,7 +3289,7 @@ window.confirmStocktake = function(){
         price:0,shipPerUnit:0,shipTotal:0,
         tracking:'',order:'盘点调整',link:'',img:'',
         status:'received',receivedQty:Math.abs(diff),receivedDate:today(),
-        isAdjustment:true,adjustDiff:diff
+        isAdjust:true,isAdjustment:true,adjustDiff:diff
       });
     }
   });
