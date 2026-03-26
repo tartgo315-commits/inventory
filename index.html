@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v9.0 · 2026-03-26 09:00</div>
+      <div>v9.1 · 2026-03-26 10:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -406,8 +406,15 @@ input::placeholder{color:var(--text3)}
     </div>
   </div>
   <div class="card">
-    <div class="card-title">出库记录 <span class="c-muted" style="font-size:12px;font-weight:400" id="out-total"></span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="card-title" style="margin:0">出库记录 <span class="c-muted" style="font-size:12px;font-weight:400" id="out-total"></span></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="out-selected-count" style="font-size:12px;color:var(--text3);display:none"></span>
+        <button class="btn btn-danger btn-sm" id="out-batch-del" style="display:none" onclick="batchDeleteOutbound()">删除所选</button>
+      </div>
+    </div>
     <div class="tbl-wrap"><table><thead><tr>
+      <th style="width:36px"><input type="checkbox" id="out-cb-all" onchange="onOutCheckChange(this)" style="width:16px;height:16px;cursor:pointer"></th>
       <th>日期</th><th>商品/型号</th><th>发出数量</th><th>Temu售价</th><th>头程运费</th><th>运单号</th><th>操作</th>
     </tr></thead><tbody id="outbound-table"></tbody></table></div>
   </div>
@@ -1515,7 +1522,9 @@ function renderOutboundTable(){
     const p=gp(r.pid),idx=D.outbounds.length-1-i;
     const sp=gs(r.pid,r.sid);
     const temuPrice=sp&&sp.price?sp.price:(p&&p.price?p.price:0);
-    return `<tr><td>${r.date}</td><td>${pName(r.pid, r.sid)}</td>
+    return `<tr>
+      <td style="text-align:center"><input type="checkbox" class="out-cb" data-idx="${idx}" onchange="onOutCheckChange()" style="width:16px;height:16px;cursor:pointer"></td>
+      <td>${r.date}</td><td>${pName(r.pid, r.sid)}</td>
       <td><strong>${r.qty}</strong></td>
       <td style="font-weight:700;color:var(--green)">${temuPrice?'¥'+temuPrice:'<span class="c-muted">-</span>'}</td>
       <td>${r.shipTotal?'¥'+r.shipTotal.toFixed(2):'<span class="c-muted">-</span>'}</td>
@@ -2844,6 +2853,27 @@ window.addOutbound = function(){
   document.getElementById('out-cost-preview').textContent='填写头程运费后显示单件分摊';
   render();
   alert(`出库成功！${getDisplayName(pid,sid)} 发出${qty}件${shipTotal?`，头程运费¥${shipTotal}（单件分摊¥${shipPerUnit.toFixed(2)}）`:''}，剩余本地库存：${sid?getLocalStockSpec(pid,sid):getLocalStock(pid)}件`);
+};
+
+
+window.onOutCheckChange = function(allCb) {
+  const cbs = document.querySelectorAll('.out-cb');
+  if (allCb) cbs.forEach(cb => cb.checked = allCb.checked);
+  const checked = Array.from(cbs).filter(cb => cb.checked);
+  const countEl = document.getElementById('out-selected-count');
+  const delBtn = document.getElementById('out-batch-del');
+  const allCbEl = document.getElementById('out-cb-all');
+  if (countEl) { countEl.textContent = checked.length ? `已选 ${checked.length} 条` : ''; countEl.style.display = checked.length ? '' : 'none'; }
+  if (delBtn) delBtn.style.display = checked.length ? '' : 'none';
+  if (allCbEl) allCbEl.indeterminate = checked.length > 0 && checked.length < cbs.length;
+};
+
+window.batchDeleteOutbound = function() {
+  const indices = Array.from(document.querySelectorAll('.out-cb:checked')).map(cb => parseInt(cb.dataset.idx)).sort((a,b)=>b-a);
+  if (!indices.length) return;
+  if (!confirm(`删除选中的 ${indices.length} 条出库记录？`)) return;
+  indices.forEach(idx => D.outbounds.splice(idx, 1));
+  save(); render();
 };
 
 window.deleteOutbound = function(idx){ if(!confirm('删除？'))return; D.outbounds.splice(idx,1); save(); render(); };
