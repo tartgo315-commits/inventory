@@ -598,6 +598,7 @@ input::placeholder{color:var(--text3)}
     </div>
     <div class="btns">
       <button class="btn btn-success" onclick="exportAll()">导出全量数据（JSON备份）</button>
+      <button class="btn btn-ghost" onclick="fixShipPerUnit()" style="color:var(--amber);margin-left:8px" title="修复历史导入时运费分摊错误">🔧 修复历史运费分摊</button>
       <button class="btn btn-primary" onclick="exportFiltered()">按日期导出进货+销售明细（xlsx）</button>
     </div>
   </div>
@@ -1912,6 +1913,43 @@ window.smartParse = function() {
       ${price?`<span>💰 <strong>¥${price}</strong></span>`:''}
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-input').value='';document.getElementById('parse-result').innerHTML=''">清空</button>
     </div>`;
+  }
+};
+
+
+// ── 修复历史进货记录中运费分摊错误 ──
+window.fixShipPerUnit = function() {
+  // 找出同一批次（同订单号+同pid+同日期）内运费分摊不一致的记录，重新按总件数均摊
+  const groups = {};
+  D.purchases.forEach((r, idx) => {
+    if (!r.shipTotal && r.shipTotal !== 0) return; // 没有shipTotal的无法修复
+    const key = r.order + '|' + r.pid + '|' + r.date;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push({r, idx});
+  });
+
+  let fixed = 0;
+  Object.values(groups).forEach(batch => {
+    if (batch.length < 2) return; // 单条记录不需要均摊
+    const totalShip = batch[0].r.shipTotal || 0;
+    if (!totalShip) return; // 运费为0不需要修
+    const totalQty = batch.reduce((s, {r}) => s + (r.qty || 0), 0);
+    if (!totalQty) return;
+    const correctShipPerUnit = totalShip / totalQty;
+    batch.forEach(({r}) => {
+      const current = r.shipPerUnit || 0;
+      if (Math.abs(current - correctShipPerUnit) > 0.001) {
+        r.shipPerUnit = correctShipPerUnit;
+        fixed++;
+      }
+    });
+  });
+
+  if (fixed > 0) {
+    save(); render();
+    alert('✅ 已修复 ' + fixed + ' 条运费分摊记录，成本数据已更新！');
+  } else {
+    alert('✅ 所有记录运费分摊已正确，无需修复。');
   }
 };
 
