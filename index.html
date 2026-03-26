@@ -1236,9 +1236,9 @@ function renderTransitTable(){
       const sp=r.sid&&gs(r.pid,r.sid);
       const uc=(r.price||0)+(r.shipPerUnit||0);
       html+=`<tr>
-        <td style="width:64px;padding:4px 6px;cursor:pointer" onclick="setTransitImgTarget(${idx})" title="点击后 Ctrl+V 粘贴图片">
+        <td style="width:64px;padding:4px 6px;cursor:pointer" onclick="setProductImgTarget(${r.pid},${r.sid||0},this)" title="点击后 Ctrl+V 粘贴图片">
           <div id="transit-img-${idx}" style="width:56px;height:56px;border-radius:6px;border:1.5px dashed var(--border2);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg)">
-            ${r.img?`<img src="${r.img}" style="width:56px;height:56px;object-fit:cover;border-radius:6px">`:'<span style="font-size:22px">📷</span>'}
+            ${getProductImg(r.pid,r.sid)?`<img src="${getProductImg(r.pid,r.sid)}" style="width:56px;height:56px;object-fit:cover;border-radius:6px">`:'<span style="font-size:22px">📷</span>'}
           </div>
         </td>
         <td>
@@ -1286,9 +1286,9 @@ function renderTransitTable(){
           const uc=(r.price||0)+(r.shipPerUnit||0);
           const idx=indices[i];
           html+=`<tr class="${groupKey}-row" style="background:#fafbfe">
-            <td style="width:64px;padding:4px 6px;cursor:pointer" onclick="setTransitImgTarget(${idx})" title="点击后 Ctrl+V 粘贴图片">
+            <td style="width:64px;padding:4px 6px;cursor:pointer" onclick="setProductImgTarget(${r.pid},${r.sid||0},this)" title="点击后 Ctrl+V 粘贴图片">
               <div id="transit-img-${idx}" style="width:40px;height:40px;border-radius:6px;border:1.5px dashed var(--border2);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg)">
-                ${r.img?`<img src="${r.img}" style="width:40px;height:40px;object-fit:cover;border-radius:6px">`:'<span style="font-size:16px">📷</span>'}
+                ${getProductImg(r.pid,r.sid)?`<img src="${getProductImg(r.pid,r.sid)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px">`:'<span style="font-size:16px">📷</span>'}
               </div>
             </td>
             <td style="padding-left:32px">
@@ -2491,13 +2491,19 @@ document.addEventListener('paste', function(e) {
         else if(isProdOpen) { _productImgBase64=base64; setPreviewEl('pe-img-preview',base64); }
         else if(isSpecOpen) { _specImgBase64=base64; setPreviewEl('se-img-preview',base64); }
         else if(_transitImgTarget !== null) {
-          // 粘贴到在途订单行图片
+          // 粘贴到在途行 → 存到 product/spec（全站共享）
           const tr = D.purchases[_transitImgTarget];
           if(tr) {
-            tr.img = base64;
-            save(); renderTransitTable();
-            const prev = document.getElementById('transit-img-'+_transitImgTarget);
-            if(prev) { prev.innerHTML = `<img src="${base64}" style="width:56px;height:56px;object-fit:cover;border-radius:6px">`; }
+            const pp = gp(tr.pid);
+            if(pp) {
+              if(tr.sid) {
+                const sp = (pp.specs||[]).find(s=>s.sid==tr.sid);
+                if(sp) sp.img = base64;
+              } else {
+                pp.img = base64;
+              }
+              save(); render();
+            }
           }
           _transitImgTarget = null;
         }
