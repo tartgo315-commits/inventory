@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v9.5 · 2026-03-26 15:00</div>
+      <div>v9.6 · 2026-03-26 16:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -1235,7 +1235,11 @@ function renderTransitTable(){
       const sp=r.sid&&gs(r.pid,r.sid);
       const uc=(r.price||0)+(r.shipPerUnit||0);
       html+=`<tr>
-        <td style="width:64px;padding:4px 6px">${imgThumb(r.pid)}</td>
+        <td style="width:64px;padding:4px 6px;cursor:pointer" onclick="setTransitImgTarget(${idx})" title="点击后 Ctrl+V 粘贴图片">
+          <div id="transit-img-${idx}" style="width:56px;height:56px;border-radius:6px;border:1.5px dashed var(--border2);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+            ${r.img?`<img src="${r.img}" style="width:56px;height:56px;object-fit:cover;border-radius:6px">`:'<span style="font-size:22px">📷</span>'}
+          </div>
+        </td>
         <td>
           ${pName(r.pid, r.sid)}
           <div style="font-size:11px;color:var(--text3);margin-top:1px">${r.date}${r.order?' · '+r.order:''}</div>
@@ -1281,7 +1285,11 @@ function renderTransitTable(){
           const uc=(r.price||0)+(r.shipPerUnit||0);
           const idx=indices[i];
           html+=`<tr class="${groupKey}-row" style="background:#fafbfe">
-            <td></td>
+            <td style="width:64px;padding:4px 6px;cursor:pointer" onclick="setTransitImgTarget(${idx})" title="点击后 Ctrl+V 粘贴图片">
+              <div id="transit-img-${idx}" style="width:40px;height:40px;border-radius:6px;border:1.5px dashed var(--border2);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+                ${r.img?`<img src="${r.img}" style="width:40px;height:40px;object-fit:cover;border-radius:6px">`:'<span style="font-size:16px">📷</span>'}
+              </div>
+            </td>
             <td style="padding-left:32px">
               <div style="font-size:13px;color:var(--primary);font-weight:600">↳ ${sp?sp.name:'默认'}</div>
             </td>
@@ -2272,6 +2280,7 @@ function handleBookmarkParams() {
 
 // ===== 图片处理：本地上传压缩为base64 =====
 let _purImgBase64 = '';
+let _transitImgTarget = null; // 在途订单行图片粘贴目标
 let _editImgBase64 = '';
 let _productImgBase64 = '';
 let _specImgBase64 = '';
@@ -2461,12 +2470,42 @@ document.addEventListener('paste', function(e) {
         }
         else if(isProdOpen) { _productImgBase64=base64; setPreviewEl('pe-img-preview',base64); }
         else if(isSpecOpen) { _specImgBase64=base64; setPreviewEl('se-img-preview',base64); }
+        else if(_transitImgTarget !== null) {
+          // 粘贴到在途订单行图片
+          const tr = D.purchases[_transitImgTarget];
+          if(tr) {
+            tr.img = base64;
+            save(); renderTransitTable();
+            const prev = document.getElementById('transit-img-'+_transitImgTarget);
+            if(prev) { prev.innerHTML = `<img src="${base64}" style="width:56px;height:56px;object-fit:cover;border-radius:6px">`; }
+          }
+          _transitImgTarget = null;
+        }
         else { _purImgBase64=base64; setPreviewEl('pur-img-preview',base64); }
       });
       break;
     }
   }
 });
+
+
+window.setTransitImgTarget = function(idx) {
+  _transitImgTarget = idx;
+  // 高亮提示
+  document.querySelectorAll('[id^="transit-img-"]').forEach(el => el.style.borderColor = '');
+  const el = document.getElementById('transit-img-'+idx);
+  if(el) {
+    el.style.borderColor = 'var(--primary)';
+    el.style.borderStyle = 'solid';
+    setTimeout(()=>{ if(el) { el.style.borderColor=''; el.style.borderStyle='dashed'; } _transitImgTarget=null; }, 5000);
+  }
+  // 提示
+  const tip = document.createElement('div');
+  tip.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#4f46e5;color:#fff;padding:8px 20px;border-radius:8px;font-size:13px;z-index:9999;pointer-events:none';
+  tip.textContent = '📋 已选中图片位置，现在按 Ctrl+V 粘贴';
+  document.body.appendChild(tip);
+  setTimeout(()=>tip.remove(), 3000);
+};
 
 window.updateCostPreview = function(){
   const qty=parseFloat(document.getElementById('pur-qty').value)||0;
