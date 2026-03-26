@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v10.2 · 2026-03-26 23:00</div>
+      <div>v10.3 · 2026-03-26 23:00</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -356,7 +356,7 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">在途订单</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>图片</th><th>商品 / 日期</th><th>数量</th><th>单件成本(¥)</th><th>快递单号</th><th>预计到货</th><th>操作</th>
+      <th>图片</th><th>商品 / 日期</th><th>数量</th><th>单件成本(¥)</th><th style="color:var(--red)">采购总消费</th><th style="color:var(--green)">本单运费</th><th>操作</th>
     </tr></thead><tbody id="transit-table"></tbody></table></div>
   </div>
 
@@ -1247,8 +1247,8 @@ function renderTransitTable(){
         </td>
         <td>${r.qty}</td>
         <td>¥${uc.toFixed(2)}</td>
-        <td>${trackingLink(r.tracking)}</td>
-        <td class="c-muted">${r.eta||'-'}</td>
+        <td style="font-weight:600;color:var(--red)">¥${((r.price||0)+(r.shipPerUnit||0))*r.qty>0?''+((r.price||0)+(r.shipPerUnit||0))*r.qty:'—'}</td>
+        <td style="color:var(--green)">¥${r.shipTotal||(r.shipPerUnit||0)*r.qty>0?''+((r.shipTotal||(r.shipPerUnit||0)*r.qty).toFixed(2)):'-'}</td>
         <td>
           <div style="display:flex;gap:4px;flex-wrap:nowrap">
             <button class="btn btn-primary btn-sm" onclick="confirmReceive(${idx})" title="签收入库">✅ 签收</button>
@@ -1272,8 +1272,8 @@ function renderTransitTable(){
           <span style="font-size:12px;color:var(--primary)">${records.length}个型号</span>
           <span style="font-size:11px;color:var(--text3);margin-left:6px">${isExp?'▲ 收起':'▼ 展开'}</span>
         </td>
-        <td>${trackingLink(firstR.tracking)}</td>
-        <td class="c-muted">${firstR.eta||'-'}</td>
+        <td style="font-weight:700;color:var(--red)">¥${records.reduce((s,r)=>s+((r.price||0)+(r.shipPerUnit||0))*r.qty,0).toFixed(2)}</td>
+        <td style="color:var(--green)">¥${(records[0].shipTotal||(records[0].shipPerUnit||0)*totalQty||0).toFixed(2)}</td>
         <td style="white-space:nowrap" onclick="event.stopPropagation()">
           <button class="btn btn-primary btn-sm" onclick="confirmReceiveAll([${indices.join(',')}])">全部签收</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--red);margin-left:4px" onclick="deleteAllTransit([${indices.join(',')}])">全部删除</button>
@@ -1296,7 +1296,8 @@ function renderTransitTable(){
             </td>
             <td>${r.qty}</td>
             <td>¥${uc.toFixed(2)}</td>
-            <td></td><td></td>
+            <td style="font-size:12px;color:var(--red)">¥${(uc*r.qty).toFixed(2)}</td>
+            <td style="font-size:12px;color:var(--green)">¥${((r.shipPerUnit||0)*r.qty).toFixed(2)}</td>
             <td>
               <div style="display:flex;gap:4px;flex-wrap:nowrap">
                 <button class="btn btn-ghost btn-sm" onclick="confirmReceive(${idx})" title="签收">✅</button>
