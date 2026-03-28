@@ -1797,7 +1797,7 @@ window.smartParse = function() {
     const goods = [];
     for (let i=0; i<lines.length; i++) {
       // 支持「优惠后4.00元/个」连写 和「6.20 元/件」两种格式
-      const priceM = lines[i].match(/优惠后(\d+\.?\d*)元?/) || lines[i].match(/^(\d+\.?\d*)\s*元\/[件个只条]/);
+      const priceM = lines[i].match(/优惠后(\d+\.?\d*)元?/) || lines[i].match(/^(\d+\.?\d*)\s*元\/[件个只条对套组双副片张]/);
       if (!priceM) continue;
       const price = parseFloat(priceM[1]);
 
