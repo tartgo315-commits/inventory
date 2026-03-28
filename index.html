@@ -1349,18 +1349,37 @@ function renderPurchaseTable(){
     const groupId = 'pg-'+pid;
 
     // 产品汇总行
+    // 汇总行各列合计
+    const sumQty = records.reduce((s,{r})=>s+r.qty,0);
+    const sumRcv = records.reduce((s,{r})=>s+(r.receivedQty||r.qty),0);
+    const avgPrice = records.length ? records.reduce((s,{r})=>s+(r.price||0),0)/records.length : 0;
+    const avgShip  = records.length ? records.reduce((s,{r})=>s+(r.shipPerUnit||0),0)/records.length : 0;
+    const avgCost  = avgPrice + avgShip;
+    const sumBatch = records.reduce((s,{r})=>s+(r.status==='received'?(r.receivedQty||r.qty):r.qty)*((r.price||0)+(r.shipPerUnit||0)),0);
+    const trackings = records.map(({r})=>r.tracking).filter(Boolean);
+    const trackingCell = trackings.length ? trackings.slice(0,2).map(t=>trackingLink(t)).join('<br>') + (trackings.length>2?`<span style="color:var(--text3)"> +${trackings.length-2}</span>`:'') : '-';
+
     html+=`<tr style="background:#f5f6fa;cursor:pointer" onclick="togglePurchaseGroup('${groupId}')">
       <td style="width:36px;text-align:center"><input type="checkbox" class="pur-cb-group" data-pid="${pid}" onclick="event.stopPropagation();onPurCheckChange()" style="width:16px;height:16px;cursor:pointer"></td>
       <td style="width:64px;padding:4px 6px">${imgThumb(pid)}</td>
-      <td colspan="9">
-        <div style="display:flex;align-items:center;gap:8px">
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${pName(pid, 0, `<button onclick="event.stopPropagation();togglePurchaseGroup('${groupId}')" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap" id="${groupId}-arrow">${window._purchaseExpanded&&window._purchaseExpanded[groupId]===true?'▲ 收起':'▼ 展开'}</button>`)}
-          <span style="font-size:12px;color:var(--text3);flex-shrink:0">共${totalQty}件 · ¥${totalAmt.toFixed(2)}</span>
-          ${p&&p.price?`<span style="font-size:12px;color:var(--green);font-weight:600;flex-shrink:0">Temu ¥${(+p.price||0).toFixed(2)}</span>`:''}
+          ${p&&p.price?`<span style="font-size:11px;color:var(--green);font-weight:600;flex-shrink:0">Temu ¥${(+p.price||0).toFixed(2)}</span>`:''}
           ${statusBadge}
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openAddSpecPurchase(${pid})" style="margin-left:auto;flex-shrink:0">+ 添加型号</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--red);flex-shrink:0" onclick="event.stopPropagation();deletePurchaseGroup(${pid})">🗑 删除全组</button>
         </div>
+      </td>
+      <td style="font-weight:700">${sumQty}</td>
+      <td style="font-weight:700">${sumRcv}</td>
+      <td style="color:var(--text2)">均¥${avgPrice.toFixed(2)}</td>
+      <td style="color:var(--text2)">均¥${avgShip.toFixed(2)}</td>
+      <td style="font-weight:700">均¥${avgCost.toFixed(2)}</td>
+      <td style="font-weight:700;color:var(--primary)">¥${sumBatch.toFixed(2)}</td>
+      <td>${statusBadge}</td>
+      <td>${trackingCell}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openAddSpecPurchase(${pid})" style="flex-shrink:0">+ 添加型号</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--red);margin-left:4px;flex-shrink:0" onclick="event.stopPropagation();deletePurchaseGroup(${pid})">🗑 删除全组</button>
       </td>
     </tr>`;
 
