@@ -225,7 +225,23 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v10.5 · 2026-03-27 02:00</div>
+      <div id="ver-line">正在加载版本...</div>
+      <script>
+      (function(){
+        var REPO='tartgo315-commits/inventory';
+        var API='https://api.github.com/repos/'+REPO+'/commits?per_page=1';
+        fetch(API).then(function(r){
+          var link=r.headers.get('Link')||'';
+          var m=link.match(/page=(\d+)>;\s*rel="last"/);
+          var count=m?m[1]:'?';
+          var el=document.getElementById('ver-line');
+          if(el) el.textContent=count+'次修改 · 自动计数';
+        }).catch(function(){
+          var el=document.getElementById('ver-line');
+          if(el) el.textContent='版本加载失败';
+        });
+      })();
+      </script>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
