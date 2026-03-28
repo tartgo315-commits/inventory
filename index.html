@@ -175,8 +175,55 @@ input::placeholder{color:var(--text3)}
   .main-wrap{margin-left:0}
   .metric-grid,.flow-bar{grid-template-columns:1fr 1fr}
   .form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr}
-  .prod-thumb,.prod-placeholder{width:56px!important;height:56px!important}
+  .prod-thumb,.prod-placeholder{width:40px!important;height:40px!important}
+  .main{padding:12px}
+  .card{padding:14px}
+  table{font-size:12px}
+  th,td{padding:8px 10px}
+  .btn{height:34px;font-size:12px}
+  .topbar{padding:0 14px;height:48px}
+  .page-title{font-size:15px}
+  .tbl-wrap{border-radius:6px}
+  /* 手机底部导航栏 */
+  .mobile-nav{display:flex!important}
 }
+/* 手机底部导航 */
+.mobile-nav{
+  display:none;position:fixed;bottom:0;left:0;right:0;
+  background:var(--surface);border-top:1px solid var(--border);
+  z-index:200;padding:6px 0 env(safe-area-inset-bottom);
+  justify-content:space-around;align-items:center;
+}
+.mobile-nav-item{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  background:none;border:none;cursor:pointer;color:var(--text2);
+  font-size:10px;font-weight:600;padding:6px 10px;border-radius:8px;min-width:52px;
+  transition:color .15s;
+}
+.mobile-nav-item.active{color:var(--primary)}
+.mobile-nav-item .nav-ico{font-size:20px;line-height:1}
+@media(max-width:640px){
+  .main-wrap{padding-bottom:70px}
+}
+
+/* 深色模式 */
+body.dark{
+  --sidebar:#0f1117;--sidebar-hover:#1e2030;--sidebar-active:#4f46e5;
+  --bg:#13141f;--surface:#1a1b2e;--border:#2d2f4a;--border2:#3a3d5c;
+  --text:#e8e9f0;--text2:#9899b0;--text3:#5f6080;
+  --primary-bg:#1e1f3a;--primary-light:#2d2f5a;
+  --green-bg:#0d2218;--green-light:#1a4030;
+  --amber-bg:#2a1f00;--amber-light:#4a3800;
+  --red-bg:#2a0d0d;
+  --purple-bg:#1e1530;
+}
+body.dark .sidebar{background:#0f1117}
+body.dark input,body.dark select,body.dark textarea{background:var(--surface);color:var(--text);border-color:var(--border2)}
+body.dark .modal-box{background:#1a1b2e}
+body.dark tr:hover td{background:#1e2038}
+body.dark th{background:#141520}
+body.dark .cost-preview{background:#141520}
+body.dark .drop-zone{border-color:var(--border2)}
 </style>
 </head>
 <body>
@@ -254,7 +301,7 @@ input::placeholder{color:var(--text3)}
 <div class="main-wrap">
 <div class="topbar">
   <div class="page-title" id="page-title">总览</div>
-  <div class="topbar-right">
+  <div class="topbar-right"><button id="dark-toggle" class="btn btn-ghost btn-sm" onclick="toggleDark()" title="切换深色/浅色">🌙</button>
     <button class="btn btn-ghost btn-sm" onclick="resetConfig()">重置配置</button>
   </div>
 </div>
@@ -421,9 +468,10 @@ input::placeholder{color:var(--text3)}
     </div>
   </div>
   <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <div class="card-title" style="margin:0">出库记录 <span class="c-muted" style="font-size:12px;font-weight:400" id="out-total"></span></div>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="out-search" placeholder="搜索商品名..." style="height:30px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:150px" oninput="renderOutboundTable()">
         <span id="out-selected-count" style="font-size:12px;color:var(--text3);display:none"></span>
         <button class="btn btn-danger btn-sm" id="out-batch-del" style="display:none" onclick="batchDeleteOutbound()">删除所选</button>
       </div>
@@ -544,7 +592,9 @@ input::placeholder{color:var(--text3)}
     <div class="btns"><button class="btn btn-primary" onclick="addSupplier()">保存供应商</button></div>
   </div>
   <div class="card">
-    <div class="card-title">供应商列表 <span class="c-muted" style="font-size:12px;font-weight:400" id="sup-total"></span></div>
+    <div class="card-title" style="flex-wrap:wrap;gap:8px">供应商列表 <span class="c-muted" style="font-size:12px;font-weight:400" id="sup-total"></span>
+      <input type="text" id="sup-search" placeholder="搜索供应商..." style="height:30px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:160px;margin-left:auto" oninput="renderSupplierTable()">
+    </div>
     <div class="tbl-wrap"><table><thead><tr>
       <th>供应商名称</th><th>联系人</th><th>电话</th><th>主营品类</th><th>采购次数</th><th>平均到货天数</th><th>1688链接</th><th>备注</th><th>操作</th>
     </tr></thead><tbody id="supplier-table"></tbody></table></div>
@@ -594,7 +644,9 @@ input::placeholder{color:var(--text3)}
     <div class="btns"><button class="btn btn-amber" onclick="addReturn()">确认退货</button></div>
   </div>
   <div class="card">
-    <div class="card-title">退货记录 <span class="c-muted" style="font-size:12px;font-weight:400" id="ret-total"></span></div>
+    <div class="card-title" style="flex-wrap:wrap;gap:8px">退货记录 <span class="c-muted" style="font-size:12px;font-weight:400" id="ret-total"></span>
+      <input type="text" id="ret-search" placeholder="搜索商品..." style="height:30px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:150px;margin-left:auto" oninput="renderReturnsTable()">
+    </div>
     <div class="tbl-wrap"><table><thead><tr>
       <th>日期</th><th>类型</th><th>商品/型号</th><th>数量</th><th>退款金额(¥)</th><th>原因</th><th>备注</th><th>操作</th>
     </tr></thead><tbody id="returns-table"></tbody></table></div>
@@ -1228,7 +1280,11 @@ function renderMetrics(){
 function renderTransitTable(){
   const el=document.getElementById('transit-table'); if(!el) return;
   const items=D.purchases.filter(r=>r.status==='transit');
+  // 5天未到提醒
+  const today_str=today();
+  function daysDiff(dateStr){ if(!dateStr) return 0; const d=new Date(today_str)-new Date(dateStr); return Math.floor(d/86400000); }
   if(!items.length){el.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">暂无在途订单</td></tr>`;return;}
+  const _today=today(); function _days(d){if(!d)return 0;return Math.floor((new Date(_today)-new Date(d))/86400000);}
 
   // 按产品分组
   const groups={}, order=[];
@@ -1258,7 +1314,7 @@ function renderTransitTable(){
         </td>
         <td>
           ${pName(r.pid, r.sid)}
-          <div style="font-size:11px;color:var(--text3);margin-top:1px">${r.date}${r.order?' · '+r.order:''}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:1px">${r.date}${r.order?' · '+r.order:''} ${(()=>{const d=_days(r.date);return d>=5?'<span style="background:#fef2f2;color:#dc2626;border-radius:4px;padding:1px 6px;font-weight:700;font-size:10px">⚠️ 已'+d+'天未到</span>':(d>=3?'<span style="background:#fffbeb;color:#d97706;border-radius:4px;padding:1px 6px;font-size:10px">'+d+'天</span>':'<span style="color:var(--text3);font-size:10px">'+d+'天</span>');})()}</div>
         </td>
         <td>${r.qty}</td>
         <td>¥${uc.toFixed(2)}</td>
@@ -1572,11 +1628,18 @@ window.toggleCostRow = function(pid){
 };
 
 function renderOutboundTable(){
+  const searchQ=(document.getElementById('out-search')||{}).value||'';
+  const filtered=D.outbounds.map((r,i)=>({r,i})).filter(({r})=>{
+    if(!searchQ) return true;
+    const p=gp(r.pid); const sp=gs(r.pid,r.sid);
+    const name=(p?p.name:'')+(sp?' '+sp.name:'');
+    return name.toLowerCase().includes(searchQ.toLowerCase());
+  });
   const tot=D.outbounds.reduce((s,r)=>s+r.qty,0);
-  const el=document.getElementById('out-total'); if(el) el.textContent=`共${D.outbounds.length}次，合计${tot}件`;
+  const el=document.getElementById('out-total'); if(el) el.textContent=`共${filtered.length}条（全部${D.outbounds.length}条），合计${tot}件`;
   const tbody=document.getElementById('outbound-table'); if(!tbody) return;
-  tbody.innerHTML=D.outbounds.slice().reverse().map((r,i)=>{
-    const p=gp(r.pid),idx=D.outbounds.length-1-i;
+  tbody.innerHTML=filtered.slice().reverse().map(({r,i})=>{
+    const p=gp(r.pid),idx=i;
     const sp=gs(r.pid,r.sid);
     const temuPrice=sp&&sp.price?sp.price:(p&&p.price?p.price:0);
     return `<tr>
@@ -3271,9 +3334,14 @@ window.addSupplier = function(){
 
 function renderSupplierTable(){
   if(!D.suppliers) D.suppliers=[];
-  const el=document.getElementById('sup-total'); if(el) el.textContent=`共${D.suppliers.length}家`;
+  const searchQ=(document.getElementById('sup-search')||{}).value||'';
+  const filtered=D.suppliers.map((s,i)=>({s,i})).filter(({s})=>{
+    if(!searchQ) return true;
+    return (s.name||'').includes(searchQ)||(s.category||'').includes(searchQ)||(s.contact||'').includes(searchQ);
+  });
+  const el=document.getElementById('sup-total'); if(el) el.textContent=`共${filtered.length}家（全部${D.suppliers.length}家）`;
   const tbody=document.getElementById('supplier-table'); if(!tbody) return;
-  tbody.innerHTML=D.suppliers.map((s,i)=>{
+  tbody.innerHTML=filtered.map(({s,i})=>{
     // 统计该供应商的采购次数和总额（匹配订单号或链接）
     const purCount=D.purchases.filter(r=>r.order&&s.name&&r.order.includes(s.name.slice(0,4))).length;
     // 计算平均到货天数
@@ -3794,7 +3862,47 @@ const FIREBASE_CFG = {
   messagingSenderId: "494416286810",
   appId: "1:494416286810:web:27029fe80e61a137b37463"
 };
+
+window.toggleDark = function(){
+  document.body.classList.toggle('dark');
+  const isDark=document.body.classList.contains('dark');
+  localStorage.setItem('tartgo_dark',isDark?'1':'0');
+  document.getElementById('dark-toggle').textContent=isDark?'☀️':'🌙';
+};
+(function(){
+  if(localStorage.getItem('tartgo_dark')==='1'){
+    document.body.classList.add('dark');
+    const btn=document.getElementById('dark-toggle');
+    if(btn)btn.textContent='☀️';
+  }
+})();
+
 initFirebase(FIREBASE_CFG);
+</script>
+
+<!-- 手机底部导航 -->
+<div class="mobile-nav">
+  <button class="mobile-nav-item active" id="mn-dashboard" onclick="showPage('dashboard');setMobileActive('mn-dashboard')">
+    <span class="nav-ico">📊</span>总览
+  </button>
+  <button class="mobile-nav-item" id="mn-purchase" onclick="showPage('purchase');setMobileActive('mn-purchase')">
+    <span class="nav-ico">📦</span>进货
+  </button>
+  <button class="mobile-nav-item" id="mn-outbound" onclick="showPage('outbound');setMobileActive('mn-outbound')">
+    <span class="nav-ico">🚚</span>出库
+  </button>
+  <button class="mobile-nav-item" id="mn-sales" onclick="showPage('sales');setMobileActive('mn-sales')">
+    <span class="nav-ico">💰</span>销售
+  </button>
+  <button class="mobile-nav-item" id="mn-products" onclick="showPage('products');setMobileActive('mn-products')">
+    <span class="nav-ico">🏷️</span>商品
+  </button>
+</div>
+<script>
+window.setMobileActive = function(id){
+  document.querySelectorAll('.mobile-nav-item').forEach(el=>el.classList.remove('active'));
+  const el=document.getElementById(id); if(el) el.classList.add('active');
+};
 </script>
 </body>
 </html>
