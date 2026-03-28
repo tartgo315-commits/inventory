@@ -330,7 +330,14 @@ body.dark .drop-zone{border-color:var(--border2)}
   <div class="card">
     <div class="card-title">各商品库存状态</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>均价成本/件</th><th style="color:var(--green)">Temu售价</th><th>历史均价/件</th><th>利润率</th><th>库存价值(¥)</th>
+      <th>商品名</th><th>货源</th>
+      <th onclick="sortStock('transit')" style="cursor:pointer;user-select:none;white-space:nowrap">在途 <span id="sort-arrow-transit">↕</span></th>
+      <th onclick="sortStock('local')" style="cursor:pointer;user-select:none;white-space:nowrap">本地库存 <span id="sort-arrow-local">↓</span></th>
+      <th onclick="sortStock('cost')" style="cursor:pointer;user-select:none;white-space:nowrap">均价成本/件 <span id="sort-arrow-cost">↕</span></th>
+      <th onclick="sortStock('price')" style="cursor:pointer;user-select:none;white-space:nowrap;color:var(--green)">Temu售价 <span id="sort-arrow-price">↕</span></th>
+      <th onclick="sortStock('wavg')" style="cursor:pointer;user-select:none;white-space:nowrap">历史均价/件 <span id="sort-arrow-wavg">↕</span></th>
+      <th onclick="sortStock('profit')" style="cursor:pointer;user-select:none;white-space:nowrap">利润率 <span id="sort-arrow-profit">↕</span></th>
+      <th onclick="sortStock('value')" style="cursor:pointer;user-select:none;white-space:nowrap">库存价值(¥) <span id="sort-arrow-value">↕</span></th>
     </tr></thead><tbody id="stock-table"></tbody></table></div>
   </div>
 </div>
@@ -1655,20 +1662,49 @@ function renderOutboundTable(){
 
 
 function renderStockTable(){
-  if(window._stockEditing) return; // 有内联编辑进行中，不重建DOM
+  if(window._stockEditing) return;
   const tbody=document.getElementById('stock-table'); if(!tbody) return;
   if(!window._stockExpanded) window._stockExpanded={};
-  let html='';
-  D.products.forEach(p=>{
+  if(!window._stockSort) window._stockSort={key:'local',dir:-1};
+
+  // 构建排序数据
+  const rows=D.products.map(p=>{
     const specs=p.specs||[];
     const hasSpecs=specs.length>0;
     const local=hasSpecs?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
     const transit=getTransitQty(p.id);
     const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    // 库存价值：有型号时累加各型号，无型号时用产品级均价
     const totalValue=hasSpecs
-      ? specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid)*getFifoCostPerUnitSpec(p.id,sp.sid),0)
-      : local*fifo;
+      ?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid)*getFifoCostPerUnitSpec(p.id,sp.sid),0)
+      :local*fifo;
+    return {p,specs,hasSpecs,local,transit,fifo,wavg,pr,totalValue};
+  });
+
+  // 排序：默认本地库存降序，库存相同按在途降序
+  const {key,dir}=window._stockSort;
+  rows.sort((a,b)=>{
+    const valMap={
+      local: r=>r.local, transit: r=>r.transit, cost: r=>r.fifo,
+      price: r=>r.p.price||0, wavg: r=>r.wavg, profit: r=>r.pr, value: r=>r.totalValue
+    };
+    const av=valMap[key]?valMap[key](a):0;
+    const bv=valMap[key]?valMap[key](b):0;
+    if(av!==bv) return (bv-av)*dir;
+    // 次排序：本地库存为主键时，库存为0按在途降序
+    if(key==='local') return b.transit-a.transit;
+    return 0;
+  });
+
+  // 更新箭头
+  ['transit','local','cost','price','wavg','profit','value'].forEach(k=>{
+    const el=document.getElementById('sort-arrow-'+k);
+    if(el) el.textContent=k===key?(dir===-1?'↓':'↑'):'↕';
+    const th=el&&el.parentElement;
+    if(th) th.style.color=k===key?'var(--primary)':(k==='price'?'var(--green)':'');
+  });
+
+  let html='';
+  rows.forEach(({p,specs,hasSpecs,local,transit,fifo,wavg,pr,totalValue})=>{
     const isExp=window._stockExpanded[p.id]===true;
     const expandBtn=hasSpecs
       ?`<button onclick="toggleStockRow(${p.id})" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap">${isExp?'▲ 收起':'▼ '+specs.length+'个型号'}</button>`
@@ -1754,6 +1790,17 @@ window.inlineEditStock = function(el, pid, sid){
     if(e.key==='Enter'){ confirmEdit(); }
     if(e.key==='Escape'){ input.removeEventListener('blur', ()=>{}); cancel(); }
   });
+};
+
+
+window.sortStock = function(key){
+  if(!window._stockSort) window._stockSort={key:'local',dir:-1};
+  if(window._stockSort.key===key){
+    window._stockSort.dir *= -1; // 同列点击反转方向
+  } else {
+    window._stockSort={key, dir:-1}; // 新列默认降序
+  }
+  renderStockTable();
 };
 
 window.toggleStockRow = function(pid){
