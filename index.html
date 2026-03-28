@@ -379,8 +379,7 @@ input::placeholder{color:var(--text3)}
         <input type="date" id="pur-date-to" style="height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:6px;font-size:12px" onchange="renderPurchaseTable()">
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pur-search').value='';document.getElementById('pur-date-from').value='';document.getElementById('pur-date-to').value='';renderPurchaseTable()">重置</button>
         <span id="pur-selected-count" style="font-size:12px;color:var(--text3);display:none"></span>
-        <button class="btn btn-danger btn-sm" id="pur-batch-del" style="display:none" onclick="batchDeletePurchase()">删除所选</button>
-        <button class="btn btn-ghost btn-sm" id="pur-clean-orphan" style="color:var(--red);border-color:var(--red)" onclick="cleanOrphanPurchases()" title="删除商品已不存在的进货记录">🗑 清理已删除商品</button>      </div>
+        <button class="btn btn-danger btn-sm" id="pur-batch-del" style="display:none" onclick="batchDeletePurchase()">删除所选</button>      </div>
     </div>
     <div class="tbl-wrap"><table><thead><tr>
       <th style="width:36px"><input type="checkbox" id="pur-check-all" onchange="toggleAllPurchase(this)" style="width:16px;height:16px;cursor:pointer"></th>
@@ -1360,6 +1359,7 @@ function renderPurchaseTable(){
           ${p&&p.price?`<span style="font-size:12px;color:var(--green);font-weight:600;flex-shrink:0">Temu ¥${(+p.price||0).toFixed(2)}</span>`:''}
           ${statusBadge}
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openAddSpecPurchase(${pid})" style="margin-left:auto;flex-shrink:0">+ 添加型号</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--red);flex-shrink:0" onclick="event.stopPropagation();deletePurchaseGroup(${pid})">🗑 删除全组</button>
         </div>
       </td>
     </tr>`;
@@ -2835,8 +2835,21 @@ window.openEditSpec = function(pid, sid){
 };
 
 window.deleteProduct = function(id){
-  if(!confirm('确认删除此产品及其所有型号？'))return;
-  D.products=D.products.filter(p=>p.id!=id); save(); render();
+  const p=gp(id);
+  const purCount=D.purchases.filter(r=>r.pid==id).length;
+  const outCount=D.outbounds.filter(r=>r.pid==id).length;
+  const saleCount=D.sales.filter(r=>r.pid==id).length;
+  const details=[];
+  if(purCount) details.push('进货记录'+purCount+'条');
+  if(outCount) details.push('出库记录'+outCount+'条');
+  if(saleCount) details.push('销售记录'+saleCount+'条');
+  const msg='确认删除「'+(p?p.name:'此产品')+'」？\n同时删除：'+(details.length?details.join('、'):'无关联记录');
+  if(!confirm(msg))return;
+  D.products=D.products.filter(pp=>pp.id!=id);
+  D.purchases=D.purchases.filter(r=>r.pid!=id);
+  D.outbounds=D.outbounds.filter(r=>r.pid!=id);
+  D.sales=D.sales.filter(r=>r.pid!=id);
+  save(); render();
 };
 window.toggleAllPurchase = function(cb) {
   document.querySelectorAll('.pur-cb').forEach(el=>el.checked=cb.checked);
@@ -3063,6 +3076,14 @@ window.closeEditModal = function(e) {
 };
 
 window.deletePurchase = function(idx){ if(!confirm('删除此进货记录？'))return; D.purchases.splice(idx,1); save(); render(); };
+
+window.deletePurchaseGroup = function(pid){
+  const p=gp(pid);
+  const count=D.purchases.filter(r=>r.pid==pid).length;
+  if(!confirm('删除「'+(p?p.name:'此商品')+'」的全部 '+count+' 条进货记录？\n（不删除商品本身）'))return;
+  D.purchases=D.purchases.filter(r=>r.pid!=pid);
+  save(); render();
+};
 
 window.cleanOrphanPurchases = function(){
   const orphans = D.purchases.filter(r=>!gp(r.pid));
