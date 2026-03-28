@@ -328,7 +328,9 @@ body.dark .drop-zone{border-color:var(--border2)}
   <div id="pending-alerts"></div>
   <div id="low-stock-alert"></div>
   <div class="card">
-    <div class="card-title">各商品库存状态</div>
+    <div class="card-title" style="flex-wrap:wrap;gap:8px">各商品库存状态
+      <input type="text" id="stock-search" placeholder="搜索商品名..." style="height:30px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:150px;margin-left:auto" oninput="renderStockTable()">
+    </div>
     <div class="tbl-wrap"><table><thead><tr>
       <th>商品名</th><th>货源</th>
       <th onclick="sortStock('transit')" style="cursor:pointer;user-select:none;white-space:nowrap">在途 <span id="sort-arrow-transit">↕</span></th>
@@ -509,6 +511,7 @@ body.dark .drop-zone{border-color:var(--border2)}
   <!-- 筛选栏 -->
   <div class="card" style="padding:12px 16px">
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="sale-search" placeholder="搜索商品名..." style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:150px" oninput="renderSalesTable()">
       <span style="font-size:13px;color:var(--text2);font-weight:600">筛选：</span>
       <select id="sale-filter-product" onchange="renderSalesTable()" style="height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
         <option value="">全部产品</option>
@@ -542,9 +545,10 @@ body.dark .drop-zone{border-color:var(--border2)}
     </div>
   </div>
   <div class="card">
-    <div class="card-title">
+    <div class="card-title" style="flex-wrap:wrap;gap:8px">
       所有产品
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+        <input type="text" id="prod-search" placeholder="搜索商品名/SKU..." style="height:30px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:160px" oninput="renderProductsTable()">
         <span id="prod-selected-count" style="font-size:12px;color:var(--text3);display:none"></span>
         <button class="btn btn-danger btn-sm" id="prod-batch-del" style="display:none" onclick="batchDeleteProduct()">删除所选产品</button>
       </div>
@@ -611,7 +615,9 @@ body.dark .drop-zone{border-color:var(--border2)}
 <!-- 库存盘点 -->
 <div id="page-stocktake" class="page">
   <div class="card">
-    <div class="card-title">库存盘点</div>
+    <div class="card-title" style="flex-wrap:wrap;gap:8px">库存盘点
+      <input type="text" id="st-search" placeholder="搜索商品名..." style="height:30px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px;width:150px;margin-left:auto" oninput="renderStocktakeTable()">
+    </div>
     <div class="alert alert-info">📋 盘点时填写实际库存数量，系统会自动计算差异并调整库存记录。</div>
     <div id="stocktake-table-wrap">
       <div class="tbl-wrap"><table><thead><tr>
@@ -1668,7 +1674,8 @@ function renderStockTable(){
   if(!window._stockSort) window._stockSort={key:'local',dir:-1};
 
   // 构建排序数据
-  const rows=D.products.map(p=>{
+  const searchQ=(document.getElementById('stock-search')||{}).value||'';
+  const rows=(searchQ?D.products.filter(p=>(p.name||'').includes(searchQ)):D.products).map(p=>{
     const specs=p.specs||[];
     const hasSpecs=specs.length>0;
     const local=hasSpecs?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
@@ -1816,7 +1823,9 @@ function renderProductsTable(){
     return;
   }
   if(!window._prodExpanded) window._prodExpanded={};
-  el.innerHTML=D.products.map(p=>{
+  const searchQ=(document.getElementById('prod-search')||{}).value||'';
+  const prods=searchQ?D.products.filter(p=>(p.name||'').includes(searchQ)||(p.sku||'').includes(searchQ)):D.products;
+  el.innerHTML=prods.map(p=>{
     const specs=p.specs||[];
     const totalLocal=specs.length?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
     const isExpanded=window._prodExpanded[p.id]===true;
@@ -3417,8 +3426,10 @@ window.deleteSupplier = function(i){
 // ===== 库存盘点 =====
 function renderStocktakeTable(){
   const tbody=document.getElementById('stocktake-table'); if(!tbody) return;
+  const searchQ=(document.getElementById('st-search')||{}).value||'';
   let rows='';
-  D.products.forEach(p=>{
+  const prods=searchQ?D.products.filter(p=>(p.name||'').includes(searchQ)):D.products;
+  prods.forEach(p=>{
     const specs=p.specs||[];
     if(specs.length===0){
       const stock=getLocalStock(p.id);
@@ -3586,9 +3597,11 @@ function renderSalesMonthlyStas(){
 function renderSalesTable(){
   const search=(document.getElementById('sale-filter-product')||{}).value||'';
   const month=(document.getElementById('sale-filter-month')||{}).value||'';
+  const searchQ=(document.getElementById('sale-search')||{}).value||'';
   let filtered=D.sales;
   if(search) filtered=filtered.filter(r=>r.pid==search);
   if(month) filtered=filtered.filter(r=>r.date&&r.date.startsWith(month));
+  if(searchQ) filtered=filtered.filter(r=>{const p=gp(r.pid);const sp=gs(r.pid,r.sid);return (p?p.name:'').includes(searchQ)||(sp?sp.name:'').includes(searchQ)||(r.order||'').includes(searchQ);});
 
   const tr2=filtered.reduce((s,r)=>s+r.qty*(r.price||0),0);
   const el=document.getElementById('sale-total');
