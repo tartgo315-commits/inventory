@@ -380,7 +380,7 @@ input::placeholder{color:var(--text3)}
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pur-search').value='';document.getElementById('pur-date-from').value='';document.getElementById('pur-date-to').value='';renderPurchaseTable()">重置</button>
         <span id="pur-selected-count" style="font-size:12px;color:var(--text3);display:none"></span>
         <button class="btn btn-danger btn-sm" id="pur-batch-del" style="display:none" onclick="batchDeletePurchase()">删除所选</button>
-      </div>
+        <button class="btn btn-ghost btn-sm" id="pur-clean-orphan" style="color:var(--red);border-color:var(--red)" onclick="cleanOrphanPurchases()" title="删除商品已不存在的进货记录">🗑 清理已删除商品</button>      </div>
     </div>
     <div class="tbl-wrap"><table><thead><tr>
       <th style="width:36px"><input type="checkbox" id="pur-check-all" onchange="toggleAllPurchase(this)" style="width:16px;height:16px;cursor:pointer"></th>
@@ -3063,6 +3063,15 @@ window.closeEditModal = function(e) {
 };
 
 window.deletePurchase = function(idx){ if(!confirm('删除此进货记录？'))return; D.purchases.splice(idx,1); save(); render(); };
+
+window.cleanOrphanPurchases = function(){
+  const orphans = D.purchases.filter(r=>!gp(r.pid));
+  if(!orphans.length){ alert("没有发现残留记录，无需清理。"); return; }
+  if(!confirm("发现 "+orphans.length+" 条已删除商品的进货记录，确认全部删除？")) return;
+  D.purchases = D.purchases.filter(r=>gp(r.pid));
+  save(); render();
+  alert("已清理 "+orphans.length+" 条残留记录。");
+};
 
 window.addOutbound = function(){
   const val=document.getElementById('out-product').value;
