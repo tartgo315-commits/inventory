@@ -1724,8 +1724,8 @@ function renderStockTable(){
         :`<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})">+ 添加</span>`}</td>
       <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
       <td>${hasSpecs
-        ? `<strong>${local}</strong>`
-        : `<span onclick="inlineEditStock(this,${p.id},0)" title="点击修改库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary);color:var(--text)">${local}</span>`
+        ? `<span onclick="toggleStockRow(${p.id})" title="点击展开型号分别修改" style="cursor:pointer;font-weight:700;color:var(--text2)">${local} <span style="font-size:10px;color:var(--primary)">${isExp?'↑收起':'↓明细'}</span></span>`
+        : `<span onclick="inlineEditStock(this,${p.id},0)" title="点击直接修改库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary);color:var(--text)">${local}</span>`
       }</td>
       <td>¥${fifo.toFixed(2)}</td>
       <td style="font-weight:600;color:var(--green)">${p.price?'¥'+p.price:'-'}</td>
@@ -1770,16 +1770,22 @@ window.inlineEditStock = function(el, pid, sid){
   input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
   el.replaceWith(input);
   input.focus(); input.select();
-  window._stockEditing = true; // 编辑中，禁止 renderStockTable 重建DOM
+  window._stockEditing = true;
+  let done = false; // 防止blur和Enter双触发
 
   const cancel = ()=>{
+    if(done) return; done=true;
     window._stockEditing = false;
     if(input.parentNode) input.replaceWith(el);
   };
   const confirmEdit = ()=>{
+    if(done) return; done=true;
     const newVal = parseInt(input.value);
     window._stockEditing = false;
-    if(isNaN(newVal)||newVal<0||newVal===current){ cancel(); return; }
+    if(isNaN(newVal)||newVal<0||newVal===current){
+      if(input.parentNode) input.replaceWith(el);
+      return;
+    }
     const diff = newVal - current;
     if(!D.stockAdjustments) D.stockAdjustments=[];
     D.stockAdjustments.push({date:today(),pid,sid:sid||0,diff,note:'总览快速调整'});
@@ -1791,10 +1797,10 @@ window.inlineEditStock = function(el, pid, sid){
     }
     save(); renderStockTable(); render();
   };
-  input.addEventListener('blur', ()=>{ confirmEdit(); });
+  input.addEventListener('blur', ()=>{ setTimeout(confirmEdit, 100); });
   input.addEventListener('keydown', e=>{
-    if(e.key==='Enter'){ confirmEdit(); }
-    if(e.key==='Escape'){ input.removeEventListener('blur', ()=>{}); cancel(); }
+    if(e.key==='Enter'){ e.preventDefault(); confirmEdit(); }
+    if(e.key==='Escape'){ e.preventDefault(); cancel(); }
   });
 };
 
