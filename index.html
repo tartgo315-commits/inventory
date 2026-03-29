@@ -389,7 +389,8 @@ body.dark .drop-zone{border-color:var(--border2)}
 
     <div class="form-grid form-grid-3">
       <div class="fg"><label>采购数量</label><input type="number" id="pur-qty" placeholder="100" min="1" oninput="updateCostPreview()"></div>
-      <div class="fg"><label>单件进价（¥）</label><input type="number" id="pur-price" placeholder="21.85" step="0.01" min="0" oninput="updateCostPreview()"></div>
+      <div class="fg"><label>采购总价（¥）<span style="font-weight:400;color:var(--text3)"> — 填后自动算单价</span></label><input type="number" id="pur-total-goods" placeholder="2185.00" step="0.01" min="0" oninput="onPurTotalGoodsInput()"></div>
+      <div class="fg"><label>单件进价（¥）<span style="font-weight:400;color:var(--text3)"> — 或直接填单价</span></label><input type="number" id="pur-price" placeholder="21.85" step="0.01" min="0" oninput="onPurPriceInput()"></div>
       <div class="fg"><label>这批总运费（¥，自动均摊）</label><input type="number" id="pur-ship-total" placeholder="50.00" step="0.01" min="0" oninput="updateCostPreview()"></div>
     </div>
     <div class="form-grid form-grid-3">
@@ -2166,6 +2167,7 @@ window.fillFromGoods = function(g) {
   document.getElementById('pur-price').value=g.price.toFixed(2);
   document.getElementById('pur-qty').value=g.qty;
   document.getElementById('pur-ship-total').value=(g.ship||0).toFixed(2);
+  const tgEl=document.getElementById('pur-total-goods'); if(tgEl&&g.price&&g.qty) tgEl.value=(g.price*g.qty).toFixed(2);
   if(g.orderId) document.getElementById('pur-order').value=g.orderId;
   if(g.sourceLink) document.getElementById('pur-link').value=g.sourceLink;
   updateCostPreview();
@@ -2694,6 +2696,25 @@ window.setTransitImgTarget = function(idx) {
   setTimeout(()=>tip.remove(), 3000);
 };
 
+// 用户改"采购总价" → 反算单件进价
+window.onPurTotalGoodsInput = function(){
+  const qty=parseFloat(document.getElementById('pur-qty').value)||0;
+  const totalGoods=parseFloat(document.getElementById('pur-total-goods').value);
+  if(!isNaN(totalGoods) && qty>0){
+    const unitPrice=totalGoods/qty;
+    document.getElementById('pur-price').value=unitPrice.toFixed(2);
+  }
+  updateCostPreview();
+};
+// 用户改"单件进价" → 反算采购总价
+window.onPurPriceInput = function(){
+  const qty=parseFloat(document.getElementById('pur-qty').value)||0;
+  const price=parseFloat(document.getElementById('pur-price').value);
+  if(!isNaN(price) && qty>0){
+    document.getElementById('pur-total-goods').value=(price*qty).toFixed(2);
+  }
+  updateCostPreview();
+};
 window.updateCostPreview = function(){
   const qty=parseFloat(document.getElementById('pur-qty').value)||0;
   const price=parseFloat(document.getElementById('pur-price').value)||0;
@@ -3124,7 +3145,7 @@ window.addPurchase = function(status){
   D.purchases.push(record);
   save();
 
-  ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link',
+  ['pur-qty','pur-price','pur-total-goods','pur-ship-total','pur-tracking','pur-order','pur-link',
    'new-p-name','new-p-spec','new-p-sku','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('pur-img-file').value='';
   _purImgBase64='';
