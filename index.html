@@ -382,15 +382,30 @@ body.dark .drop-zone{border-color:var(--border2)}
       </div>
     </div>
 
-    <!-- 行1：数量 + 总价 + 运费 + 成本预览 -->
-    <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap">
-      <div class="fg" style="width:110px;flex-shrink:0"><label>采购数量</label><input type="number" id="pur-qty" placeholder="100" min="1" oninput="updateCostPreview()"></div>
-      <div class="fg" style="flex:1;min-width:130px"><label>采购总价（¥）<span style="font-weight:400;color:var(--text3)">含运费</span></label><input type="number" id="pur-total-goods" placeholder="2185.00" step="0.01" min="0" oninput="updateCostPreview()"></div>
-      <div class="fg" style="flex:1;min-width:110px"><label>总运费（¥）<span style="font-weight:400;color:var(--text3)">均摊</span></label><input type="number" id="pur-ship-total" placeholder="23.00" step="0.01" min="0" oninput="updateCostPreview()"></div>
-      <div class="cost-preview" id="pur-cost-preview" style="flex:2;min-width:160px;height:40px">填数量和总价后显示</div>
+    <!-- 全部一行：数量 + 总价 + 运费 + 成本预览 + 图片 + 快递 + 订单号 + 链接 + 按钮 -->
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px">
+      <div class="fg" style="width:90px;flex-shrink:0"><label>采购数量</label><input type="number" id="pur-qty" placeholder="100" min="1" oninput="updateCostPreview()"></div>
+      <div class="fg" style="width:130px;flex-shrink:0"><label>采购总价（¥）<span style="font-weight:400;color:var(--text3)">含运费</span></label><input type="number" id="pur-total-goods" placeholder="2185.00" step="0.01" min="0" oninput="updateCostPreview()"></div>
+      <div class="fg" style="width:100px;flex-shrink:0"><label>总运费（¥）<span style="font-weight:400;color:var(--text3)">均摊</span></label><input type="number" id="pur-ship-total" placeholder="23.00" step="0.01" min="0" oninput="updateCostPreview()"></div>
+      <div class="cost-preview" id="pur-cost-preview" style="height:40px;flex:1;min-width:140px;white-space:nowrap">填数量和总价后显示</div>
+      <!-- 图片（小图标） -->
+      <div id="pur-img-drop" onclick="document.getElementById('pur-img-file').click()"
+        title="点击上传 / Ctrl+V粘贴图片"
+        style="width:40px;height:40px;flex-shrink:0;border-radius:var(--radius-sm);border:2px dashed var(--primary-light);display:flex;align-items:center;justify-content:center;background:var(--primary-bg);cursor:pointer;overflow:hidden;transition:all .15s"
+        ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
+        ondragleave="this.style.borderColor='var(--primary-light)'"
+        ondrop="handleImgDrop(event)">
+        <div id="pur-img-preview" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>
+        <input type="file" id="pur-img-file" accept="image/*" style="display:none" onchange="handlePurImg(this)">
+      </div>
+      <div class="fg" style="width:140px;flex-shrink:0"><label>快递单号（可选）</label><input type="text" id="pur-tracking" placeholder="SF1234567890123"></div>
+      <div class="fg" style="width:130px;flex-shrink:0"><label>1688订单号（可选）</label><input type="text" id="pur-order" placeholder="1688-xxxxxxxx"></div>
+      <div class="fg" style="flex:1;min-width:120px"><label>1688商品链接</label><input type="text" id="pur-link" placeholder="https://detail.1688.com/offer/..."></div>
+      <button class="btn btn-primary" onclick="addPurchase('transit')" style="flex-shrink:0;white-space:nowrap">确认下单（在途）</button>
+      <button class="btn btn-success" onclick="addPurchase('received')" style="flex-shrink:0;white-space:nowrap">货已到 直接入库</button>
     </div>
-    <!-- 自动计算明细行（填写后显示） -->
-    <div id="pur-calc-row" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;margin-bottom:10px;font-size:12px;color:var(--text2);display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+    <!-- 自动计算明细（填写后才出现） -->
+    <div id="pur-calc-row" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;color:var(--text2);display:flex;gap:14px;flex-wrap:wrap;align-items:center">
       <span style="color:var(--text3)">自动计算 →</span>
       <span>货款 <strong id="calc-goods-amt" style="color:var(--text)">—</strong></span>
       <span style="color:var(--text3)">÷ 数量 <strong id="calc-qty-show" style="color:var(--text)">—</strong> =</span>
@@ -398,25 +413,7 @@ body.dark .drop-zone{border-color:var(--border2)}
       <span style="color:var(--border2)">|</span>
       <span>单件运费 <strong id="calc-unit-ship" style="color:var(--green)">—</strong></span>
       <span style="color:var(--border2)">|</span>
-      <span>单件总成本 <strong id="calc-unit-cost" style="color:var(--primary);font-size:13px;font-weight:800">—</strong></span>
-    </div>
-    <!-- 行2：图片 + 单号信息 + 按钮 -->
-    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <!-- 图片上传（紧凑版） -->
-      <div id="pur-img-drop" onclick="document.getElementById('pur-img-file').click()"
-        style="width:40px;height:40px;border-radius:var(--radius-sm);border:2px dashed var(--primary-light);display:flex;align-items:center;justify-content:center;background:var(--primary-bg);cursor:pointer;flex-shrink:0;transition:all .15s;overflow:hidden"
-        title="点击上传图片 / 或 Ctrl+V 粘贴"
-        ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
-        ondragleave="this.style.borderColor='var(--primary-light)'"
-        ondrop="handleImgDrop(event)">
-        <div id="pur-img-preview" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>
-        <input type="file" id="pur-img-file" accept="image/*" style="display:none" onchange="handlePurImg(this)">
-      </div>
-      <div class="fg" style="flex:1;min-width:120px"><label>快递单号（可选）</label><input type="text" id="pur-tracking" placeholder="SF1234567890123"></div>
-      <div class="fg" style="flex:1;min-width:110px"><label>1688订单号（可选）</label><input type="text" id="pur-order" placeholder="1688-xxxxxxxx"></div>
-      <div class="fg" style="flex:1.5;min-width:140px"><label>1688商品链接</label><input type="text" id="pur-link" placeholder="https://detail.1688.com/offer/..."></div>
-      <button class="btn btn-primary" onclick="addPurchase('transit')" style="flex-shrink:0">确认下单（在途）</button>
-      <button class="btn btn-success" onclick="addPurchase('received')" style="flex-shrink:0">货已到 直接入库</button>
+      <span>单件总成本 <strong id="calc-unit-cost" style="color:var(--primary);font-weight:800">—</strong></span>
     </div>
   </div>
 
