@@ -365,10 +365,37 @@ body.dark .drop-zone{border-color:var(--border2)}
   <div class="card">
     <div class="card-title">新建采购单</div>
 
-    <!-- 商品选择或新建 -->
+    <!-- 商品选择或新建（两步：先选产品，再选型号） -->
     <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:10px">
-      <div class="fg" style="flex:1"><label>选择已有商品</label><select id="pur-product" onchange="toggleNewProduct()"></select></div>
-      <button class="btn btn-ghost btn-sm" onclick="toggleNewProduct('new')" id="btn-new-product" style="color:var(--primary);border-color:var(--primary);flex-shrink:0;height:40px">＋ 这是新品</button>
+      <div class="fg" style="flex:2;min-width:0">
+        <label>选择产品</label>
+        <div id="pur-product-wrap" style="position:relative">
+          <div id="pur-product-btn" onclick="togglePurProductDropdown()" style="display:flex;align-items:center;gap:8px;padding:0 12px;height:40px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer;user-select:none;transition:border-color .15s" title="点击选择产品">
+            <img id="pur-product-thumb" src="" style="width:28px;height:28px;object-fit:cover;border-radius:4px;border:1px solid var(--border);display:none;flex-shrink:0">
+            <span id="pur-product-label" style="flex:1;color:var(--text3);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">请选择产品...</span>
+            <span style="color:var(--text3);font-size:12px">▾</span>
+          </div>
+          <div id="pur-product-dropdown" style="display:none;position:absolute;top:44px;left:0;right:0;background:var(--surface);border:1.5px solid var(--primary);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);z-index:300;max-height:280px;overflow:hidden;flex-direction:column">
+            <input type="text" id="pur-product-search" placeholder="搜索产品..." oninput="filterPurProducts()" style="margin:8px 8px 4px;width:calc(100% - 16px);height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:6px;font-size:13px">
+            <div id="pur-product-list" style="overflow-y:auto;max-height:220px;padding:4px 0"></div>
+          </div>
+        </div>
+        <input type="hidden" id="pur-product" value="">
+      </div>
+      <!-- 型号选择（有型号时显示） -->
+      <div class="fg" id="pur-spec-wrap" style="flex:1;min-width:0;display:none">
+        <label>选择型号</label>
+        <div id="pur-spec-selector-wrap" style="position:relative">
+          <div id="pur-spec-btn" onclick="togglePurSpecDropdown()" style="display:flex;align-items:center;gap:8px;padding:0 12px;height:40px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer;user-select:none;transition:border-color .15s" title="点击选择型号">
+            <img id="pur-spec-thumb" src="" style="width:28px;height:28px;object-fit:cover;border-radius:4px;border:1px solid var(--border);display:none;flex-shrink:0">
+            <span id="pur-spec-label" style="flex:1;color:var(--text3);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">请选择型号...</span>
+            <span style="color:var(--text3);font-size:12px">▾</span>
+          </div>
+          <div id="pur-spec-dropdown" style="display:none;position:absolute;top:44px;left:0;right:0;background:var(--surface);border:1.5px solid var(--primary);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);z-index:300;max-height:240px;overflow-y:auto;padding:4px 0"></div>
+        </div>
+        <input type="hidden" id="pur-spec" value="0">
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="toggleNewProduct('new')" id="btn-new-product" style="color:var(--primary);border-color:var(--primary);flex-shrink:0;height:40px">＋ 这是新品，直接创建</button>
     </div>
 
     <!-- 新品信息（默认隐藏） -->
@@ -1903,27 +1930,158 @@ window.toggleProductSpecs = function(pid){
 };
 
 function populateSelects(){
-  // 展开产品+型号到选项
-  let purO='', outO='', salO='';
+  // 出库/销售 select（保持不变）
+  let outO='', salO='';
   D.products.forEach(p=>{
     const specs=p.specs||[];
     if(specs.length===0){
-      // 无型号，直接用产品
-      purO+=`<option value="${p.id}|0">${p.name}</option>`;
       outO+=`<option value="${p.id}|0">${p.name}（本地${getLocalStock(p.id)}件）</option>`;
       salO+=`<option value="${p.id}|0">${p.name}（Temu${getTemuStock(p.id)}件）</option>`;
     } else {
-      // 有型号，展开各型号
       specs.forEach(sp=>{
         const local=getLocalStockSpec(p.id,sp.sid), temu=getTemuStockSpec(p.id,sp.sid);
-        purO+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}</option>`;
         outO+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}（本地${local}件）</option>`;
         salO+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}（Temu${temu}件）</option>`;
       });
     }
   });
-  [['pur-product',purO],['out-product',outO],['sale-product',salO]].forEach(([id,o])=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});
+  [['out-product',outO],['sale-product',salO]].forEach(([id,o])=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});
+  // 重建两步进货下拉数据
+  renderPurProductList();
 }
+
+// ===== 两步进货商品选择器 =====
+window._purSelectedPid = 0;
+window._purSelectedSid = 0;
+
+function renderPurProductList(filter){
+  const listEl=document.getElementById('pur-product-list'); if(!listEl) return;
+  const q=(filter||'').toLowerCase();
+  const prods=q?D.products.filter(p=>(p.name||'').toLowerCase().includes(q)):D.products;
+  if(!prods.length){listEl.innerHTML='<div style="padding:12px;text-align:center;color:var(--text3);font-size:13px">无匹配产品</div>';return;}
+  listEl.innerHTML=prods.map(p=>{
+    const img=getProductImg(p.id,0);
+    const specs=p.specs||[];
+    const local=specs.length?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
+    return `<div class="pur-prod-item" data-pid="${p.id}" onclick="selectPurProduct(${p.id})" style="display:flex;align-items:center;gap:10px;padding:7px 12px;cursor:pointer;border-radius:6px;margin:0 4px;transition:background .1s" onmouseover="this.style.background='var(--primary-bg)'" onmouseout="this.style.background=''">
+      ${img?`<img src="${img}" style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--border);flex-shrink:0">`:`<div style="width:36px;height:36px;background:var(--bg);border:1.5px dashed var(--border2);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📦</div>`}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+        <div style="font-size:11px;color:var(--text3)">${specs.length?specs.length+'个型号':'无型号'} · 库存${local}件</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.filterPurProducts = function(){
+  const q=document.getElementById('pur-product-search').value;
+  renderPurProductList(q);
+};
+
+window.togglePurProductDropdown = function(){
+  const drop=document.getElementById('pur-product-dropdown');
+  const isOpen=drop.style.display==='flex';
+  closePurDropdowns();
+  if(!isOpen){
+    drop.style.display='flex';
+    drop.style.flexDirection='column';
+    document.getElementById('pur-product-btn').style.borderColor='var(--primary)';
+    setTimeout(()=>{const s=document.getElementById('pur-product-search');if(s)s.focus();},50);
+    renderPurProductList(document.getElementById('pur-product-search').value);
+  }
+};
+
+window.togglePurSpecDropdown = function(){
+  const drop=document.getElementById('pur-spec-dropdown');
+  const isOpen=drop.style.display!=='none';
+  closePurDropdowns();
+  if(!isOpen){
+    drop.style.display='block';
+    document.getElementById('pur-spec-btn').style.borderColor='var(--primary)';
+  }
+};
+
+function closePurDropdowns(){
+  const pd=document.getElementById('pur-product-dropdown');
+  const sd=document.getElementById('pur-spec-dropdown');
+  if(pd) pd.style.display='none';
+  if(sd) sd.style.display='none';
+  const pb=document.getElementById('pur-product-btn');
+  const sb=document.getElementById('pur-spec-btn');
+  if(pb) pb.style.borderColor='';
+  if(sb) sb.style.borderColor='';
+}
+
+document.addEventListener('click',function(e){
+  const wrap=document.getElementById('pur-product-wrap');
+  const specWrap=document.getElementById('pur-spec-selector-wrap');
+  if(wrap&&!wrap.contains(e.target)&&specWrap&&!specWrap.contains(e.target)){
+    closePurDropdowns();
+  }
+});
+
+window.selectPurProduct = function(pid){
+  window._purSelectedPid=pid;
+  window._purSelectedSid=0;
+  const p=gp(pid); if(!p) return;
+  // 更新产品按钮显示
+  const img=getProductImg(pid,0);
+  const thumb=document.getElementById('pur-product-thumb');
+  const label=document.getElementById('pur-product-label');
+  if(thumb){if(img){thumb.src=img;thumb.style.display='inline-block';}else{thumb.style.display='none';}}
+  if(label){label.style.color='var(--text)';label.textContent=p.name;}
+  // 更新hidden input
+  document.getElementById('pur-product').value=pid+'|0';
+  // 关闭产品下拉
+  closePurDropdowns();
+  document.getElementById('pur-product-search').value='';
+  // 检查是否有型号
+  const specs=p.specs||[];
+  const specWrap=document.getElementById('pur-spec-wrap');
+  const specDrop=document.getElementById('pur-spec-dropdown');
+  const specLabel=document.getElementById('pur-spec-label');
+  const specThumb=document.getElementById('pur-spec-thumb');
+  if(specs.length>0){
+    // 重置型号选择
+    if(specLabel){specLabel.textContent='请选择型号...';specLabel.style.color='var(--text3)';}
+    if(specThumb){specThumb.style.display='none';}
+    document.getElementById('pur-spec').value='0';
+    // 渲染型号列表
+    if(specDrop){
+      specDrop.innerHTML=specs.map(sp=>{
+        const spImg=getProductImg(pid,sp.sid);
+        const local=getLocalStockSpec(pid,sp.sid);
+        return `<div onclick="selectPurSpec(${pid},${sp.sid})" style="display:flex;align-items:center;gap:10px;padding:7px 12px;cursor:pointer;border-radius:6px;margin:0 4px;transition:background .1s" onmouseover="this.style.background='var(--primary-bg)'" onmouseout="this.style.background=''">
+          ${spImg?`<img src="${spImg}" style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--border);flex-shrink:0">`:`<div style="width:36px;height:36px;background:var(--bg);border:1.5px dashed var(--border2);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📦</div>`}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600">${sp.name}</div>
+            <div style="font-size:11px;color:var(--text3)">库存${local}件${sp.price?` · ¥${sp.price}`:''}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    if(specWrap) specWrap.style.display='';
+  } else {
+    if(specWrap) specWrap.style.display='none';
+    window._purSelectedSid=0;
+  }
+};
+
+window.selectPurSpec = function(pid,sid){
+  window._purSelectedPid=pid;
+  window._purSelectedSid=sid;
+  const p=gp(pid); if(!p) return;
+  const sp=(p.specs||[]).find(s=>s.sid==sid); if(!sp) return;
+  // 更新型号按钮显示
+  const img=getProductImg(pid,sid);
+  const thumb=document.getElementById('pur-spec-thumb');
+  const label=document.getElementById('pur-spec-label');
+  if(thumb){if(img){thumb.src=img;thumb.style.display='inline-block';}else{thumb.style.display='none';}}
+  if(label){label.style.color='var(--text)';label.textContent=sp.name;}
+  document.getElementById('pur-product').value=pid+'|'+sid;
+  document.getElementById('pur-spec').value=sid;
+  closePurDropdowns();
+};
 
 // ===== 操作 =====
 // ===== 智能解析1688文字 =====
@@ -2060,7 +2218,7 @@ window.smartParse = function() {
     if (price) { document.getElementById('pur-price').value=price; updateCostPreview(); }
     if (name) {
       const matched=D.products.find(p=>p.name.includes(name.slice(0,6))||name.includes(p.name.slice(0,6)));
-      if(matched) document.getElementById('pur-product').value=matched.id;
+      if(matched) { window.toggleNewProduct('existing'); window.selectPurProduct(matched.id); }
     }
     resultEl.innerHTML=`<div style="padding:10px 12px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:13px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
       ${name?`<span>📦 <strong>${name.slice(0,30)}${name.length>30?'...':''}</strong></span>`:''}
@@ -2151,7 +2309,7 @@ window.fillFromGoods = function(g) {
   const matched = D.products.find(p=>p.name.includes(g.name.slice(0,6))||g.name.includes(p.name.slice(0,6)));
   if(matched) {
     window.toggleNewProduct('existing');
-    document.getElementById('pur-product').value=matched.id;
+    window.selectPurProduct(matched.id);
   } else {
     window.toggleNewProduct('new');
     const nEl=document.getElementById('new-p-name'); if(nEl) nEl.value=g.name;
@@ -2386,8 +2544,8 @@ function handleBookmarkParams() {
         p.name.includes(bName.slice(0,6)) || bName.includes(p.name.slice(0,6))
       );
       if (matched) {
-        document.getElementById('pur-product').value = matched.id;
         window.toggleNewProduct('existing');
+        window.selectPurProduct(matched.id);
       } else {
         window.toggleNewProduct('new');
         const nameEl = document.getElementById('new-p-name');
@@ -3061,18 +3219,25 @@ window.batchDeleteProduct = function() {
 
 window.toggleNewProduct = function(force) {
   const fields = document.getElementById('new-product-fields');
-  const sel = document.getElementById('pur-product');
+  const purWrap = document.getElementById('pur-product-wrap');
+  const specWrap = document.getElementById('pur-spec-wrap');
   const btn = document.getElementById('btn-new-product');
-  if(!fields||!sel||!btn) return;
+  if(!fields||!btn) return;
   const showNew = force==='new' || (force===undefined && fields.style.display==='none');
   if(showNew){
     fields.style.display='block';
-    sel.disabled=true; sel.style.opacity='.4';
+    if(purWrap) purWrap.style.opacity='.4';
+    if(specWrap) specWrap.style.opacity='.4';
+    const pb=document.getElementById('pur-product-btn');
+    if(pb) pb.style.pointerEvents='none';
     btn.textContent='← 选择已有商品';
     btn.onclick=()=>window.toggleNewProduct('existing');
   } else {
     fields.style.display='none';
-    sel.disabled=false; sel.style.opacity='1';
+    if(purWrap) purWrap.style.opacity='1';
+    if(specWrap) specWrap.style.opacity='1';
+    const pb=document.getElementById('pur-product-btn');
+    if(pb) pb.style.pointerEvents='';
     btn.textContent='＋ 这是新品，直接创建';
     btn.onclick=()=>window.toggleNewProduct('new');
   }
@@ -3139,6 +3304,15 @@ window.addPurchase = function(status){
   setPreviewEl('pur-img-preview','');
   document.getElementById('pur-cost-preview').textContent='填写数量、总价、运费后自动计算';
   const calcRow=document.getElementById('pur-calc-row'); if(calcRow) calcRow.style.display='none';
+  // 重置两步选择器
+  window._purSelectedPid=0; window._purSelectedSid=0;
+  document.getElementById('pur-product').value='';
+  const purLabel=document.getElementById('pur-product-label');
+  if(purLabel){purLabel.textContent='请选择产品...';purLabel.style.color='var(--text3)';}
+  const purThumb=document.getElementById('pur-product-thumb');
+  if(purThumb){purThumb.style.display='none';}
+  const specWrapReset=document.getElementById('pur-spec-wrap');
+  if(specWrapReset) specWrapReset.style.display='none';
   window.toggleNewProduct('existing');
   render();
   const statusTxt = status==='received'?'已直接入库':'在途';
