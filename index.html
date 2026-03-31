@@ -267,7 +267,15 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">各商品库存状态</div>
     <div class="tbl-wrap"><table><thead><tr>
-      <th>商品名</th><th>货源</th><th>在途</th><th>本地库存</th><th>均价成本/件</th><th style="color:var(--green)">Temu售价</th><th>历史均价/件</th><th>利润率</th><th>库存价值(¥)</th>
+      <th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="sortStockTable('composite')" title="默认：本地库存从高到低，相同则按在途从高到低">商品名</th>
+      <th>货源</th>
+      <th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="sortStockTable('transit')" title="点击排序，再点反转">在途</th>
+      <th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="sortStockTable('local')" title="点击排序，再点反转">本地库存</th>
+      <th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="sortStockTable('fifo')" title="点击排序">均价成本/件</th>
+      <th style="cursor:pointer;user-select:none;white-space:nowrap;color:var(--green)" onclick="sortStockTable('price')" title="点击排序">Temu售价</th>
+      <th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="sortStockTable('wavg')" title="点击排序">历史均价/件</th>
+      <th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="sortStockTable('profit')" title="点击排序">利润率</th>
+      <th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="sortStockTable('value')" title="点击排序">库存价值(¥)</th>
     </tr></thead><tbody id="stock-table"></tbody></table></div>
   </div>
 </div>
@@ -1607,21 +1615,102 @@ function renderOutboundTable(){
 }
 
 
+function stockSortArrow(key){
+  const s = window._stockSort || { type: 'composite', dir: -1 };
+  if (s.type === 'composite') {
+    if (key === 'local' || key === 'transit') return ' \u2193';
+    if (key === 'composite') return ' \u00B7';
+    return '';
+  }
+  if (s.type !== key) return '';
+  return s.dir === -1 ? ' \u2193' : ' \u2191';
+}
+
+window.sortStockTable = function(key){
+  if (!window._stockSort) window._stockSort = { type: 'composite', dir: -1 };
+  const s = window._stockSort;
+  if (key === 'composite') {
+    s.type = 'composite';
+    s.dir = -1;
+    renderStockTable();
+    return;
+  }
+  if (s.type === key) s.dir = -(s.dir || -1);
+  else { s.type = key; s.dir = -1; }
+  renderStockTable();
+};
+
 function renderStockTable(){
   if(window._stockEditing) return; // 有内联编辑进行中，不重建DOM
   const tbody=document.getElementById('stock-table'); if(!tbody) return;
   if(!window._stockExpanded) window._stockExpanded={};
+  if(!window._stockSort) window._stockSort = { type: 'composite', dir: -1 };
+  const sortState = window._stockSort;
+
+  const rows = D.products.map(p => {
+    const specs = p.specs || [];
+    const hasSpecs = specs.length > 0;
+    const local = hasSpecs ? specs.reduce((s, sp) => s + getLocalStockSpec(p.id, sp.sid), 0) : getLocalStock(p.id);
+    const transit = getTransitQty(p.id);
+    const fifo = getFifoCostPerUnit(p.id);
+    const wavg = getWeightedAvgCost(p.id);
+    const pr = calcProfitFifo(p);
+    const totalValue = hasSpecs
+      ? specs.reduce((s, sp) => s + getLocalStockSpec(p.id, sp.sid) * getFifoCostPerUnitSpec(p.id, sp.sid), 0)
+      : local * fifo;
+    return { p, specs, hasSpecs, local, transit, fifo, wavg, pr, totalValue };
+  });
+
+  rows.sort((a, b) => {
+    const dir = sortState.dir === -1 ? -1 : 1;
+    const desc = (va, vb) => (vb !== va ? (vb - va) : 0);
+    const asc = (va, vb) => (va !== vb ? (va - vb) : 0);
+    const cmp = (va, vb) => (dir === -1 ? desc(va, vb) : asc(va, vb));
+
+    if (sortState.type === 'composite') {
+      if (b.local !== a.local) return b.local - a.local;
+      return b.transit - a.transit;
+    }
+    if (sortState.type === 'local') {
+      const c = cmp(a.local, b.local);
+      if (c !== 0) return c;
+      return b.transit - a.transit;
+    }
+    if (sortState.type === 'transit') {
+      const c = cmp(a.transit, b.transit);
+      if (c !== 0) return c;
+      return b.local - a.local;
+    }
+    if (sortState.type === 'fifo') {
+      const c = cmp(a.fifo, b.fifo);
+      if (c !== 0) return c;
+      return b.local - a.local;
+    }
+    if (sortState.type === 'price') {
+      const c = cmp(a.p.price || 0, b.p.price || 0);
+      if (c !== 0) return c;
+      return b.local - a.local;
+    }
+    if (sortState.type === 'wavg') {
+      const c = cmp(a.wavg, b.wavg);
+      if (c !== 0) return c;
+      return b.local - a.local;
+    }
+    if (sortState.type === 'profit') {
+      const c = cmp(a.pr, b.pr);
+      if (c !== 0) return c;
+      return b.local - a.local;
+    }
+    if (sortState.type === 'value') {
+      const c = cmp(a.totalValue, b.totalValue);
+      if (c !== 0) return c;
+      return b.local - a.local;
+    }
+    return 0;
+  });
+
   let html='';
-  D.products.forEach(p=>{
-    const specs=p.specs||[];
-    const hasSpecs=specs.length>0;
-    const local=hasSpecs?specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid),0):getLocalStock(p.id);
-    const transit=getTransitQty(p.id);
-    const fifo=getFifoCostPerUnit(p.id),wavg=getWeightedAvgCost(p.id),pr=calcProfitFifo(p);
-    // 库存价值：有型号时累加各型号，无型号时用产品级均价
-    const totalValue=hasSpecs
-      ? specs.reduce((s,sp)=>s+getLocalStockSpec(p.id,sp.sid)*getFifoCostPerUnitSpec(p.id,sp.sid),0)
-      : local*fifo;
+  rows.forEach(({ p, specs, hasSpecs, local, transit, fifo, wavg, pr, totalValue })=>{
     const isExp=window._stockExpanded[p.id]===true;
     const expandBtn=hasSpecs
       ?`<button onclick="toggleStockRow(${p.id})" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap">${isExp?'▲ 收起':'▼ '+specs.length+'个型号'}</button>`
@@ -1672,6 +1761,21 @@ function renderStockTable(){
     }
   });
   tbody.innerHTML=html||`<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px">暂无商品</td></tr>`;
+
+  const trh = tbody.closest('table') && tbody.closest('table').querySelector('thead tr');
+  if (trh) {
+    const cells = trh.querySelectorAll('th');
+    if (cells.length >= 9) {
+      cells[0].textContent = '商品名' + stockSortArrow('composite');
+      cells[2].textContent = '在途' + stockSortArrow('transit');
+      cells[3].textContent = '本地库存' + stockSortArrow('local');
+      cells[4].textContent = '均价成本/件' + stockSortArrow('fifo');
+      cells[5].textContent = 'Temu售价' + stockSortArrow('price');
+      cells[6].textContent = '历史均价/件' + stockSortArrow('wavg');
+      cells[7].textContent = '利润率' + stockSortArrow('profit');
+      cells[8].textContent = '库存价值(¥)' + stockSortArrow('value');
+    }
+  }
 }
 
 window.inlineEditStock = function(el, pid, sid){
