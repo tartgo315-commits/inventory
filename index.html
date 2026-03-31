@@ -908,9 +908,12 @@ function getProductImg(pid, sid) {
     if (sp && sp.img) return sp.img;
   }
   if (p && p.img) return p.img;
-  // 兜底：从进货记录取
-  const records = D.purchases.filter(r=>r.pid==pid&&((!sid&&!r.sid)||r.sid==sid)&&r.img)
-    .sort((a,b)=>b.date.localeCompare(a.date));
+  // 兜底：从进货记录取（未传 sid 时任意型号上有图即可，便于在途「多型号」父行显示缩略图）
+  const records = D.purchases.filter(r => {
+    if (r.pid !== pid || !r.img) return false;
+    if (sid) return r.sid === sid;
+    return true;
+  }).sort((a, b) => b.date.localeCompare(a.date));
   return records.length ? records[0].img : '';
 }
 
@@ -2071,8 +2074,18 @@ window.importAllGoods = function(status) {
       productMap[pName] = pid;
     }
 
+    const imgData = g.imgB64 ? ('data:image/jpeg;base64,' + g.imgB64) : '';
+    if (imgData) {
+      const pApply = gp(pid);
+      if (specName) {
+        const spApply = gs(pid, sid);
+        if (spApply) spApply.img = imgData;
+      }
+      if (pApply && !pApply.img) pApply.img = imgData;
+    }
+
     const shipPerUnit = totalGoodsQty > 0 ? (g.ship || 0) / totalGoodsQty : 0;
-    const img = g.imgB64 ? 'data:image/jpeg;base64,' + g.imgB64 : '';
+    const img = imgData || '';
     const rec = {
       date: today(), pid, sid, qty: g.qty, price: g.price,
       shipPerUnit, shipTotal: g.ship || 0,
@@ -2152,7 +2165,8 @@ window._handleImportData = function(data) {
     ship: data.ship || 0,
     paid: data.paid || 0,
     orderId: data.orderId || '',
-    sourceLink: data.sourceLink || ''
+    sourceLink: data.sourceLink || '',
+    imgB64: g.imgB64 || ''
   }));
   mapped = attachProductNamesFromLines(lines, mapped);
   window._parsedGoods = mapped;
@@ -2195,6 +2209,10 @@ window.createMultiSpecProductAt = function(idx) {
       p.specs.push(sp);
     }
     const img = g.imgB64 ? 'data:image/jpeg;base64,' + g.imgB64 : '';
+    if (img) {
+      sp.img = img;
+      if (!p.img) p.img = img;
+    }
     D.purchases.push({
       date: today(), pid: p.id, sid: sp.sid, qty: g.qty,
       price: g.price, shipPerUnit: totalQty > 0 ? ship / totalQty : 0, shipTotal: ship,
@@ -2218,6 +2236,24 @@ window.createMultiSpecProduct = function(nameKey) {
 function handleBookmarkParams() {
   const params = new URLSearchParams(window.location.search);
   const source = params.get('source');
+
+  // ★ 含商品图时用 window.name 传递（同标签页跳转保留 name，体积不受 URL 上限限制）
+  const WN_PREFIX = '__TARTGO_IMPORT__:';
+  if (typeof window.name === 'string' && window.name.indexOf(WN_PREFIX) === 0) {
+    try {
+      const raw = decodeURIComponent(window.name.slice(WN_PREFIX.length));
+      window.name = '';
+      const data = JSON.parse(raw);
+      if (data && data.goods && data.goods.length) {
+        history.replaceState(null, '', location.pathname + location.search);
+        showPage('purchase');
+        setTimeout(() => { _handleImportData(data); }, 400);
+        return;
+      }
+    } catch (e) {
+      try { window.name = ''; } catch (e2) {}
+    }
+  }
 
   // ★ 书签脚本方式：数据编码在 URL hash 里（跨域安全）
   if(location.hash && location.hash.startsWith('#tartgo=')) {
