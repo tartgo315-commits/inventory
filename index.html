@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div>v10.5 · 2026-03-27 02:00</div>
+      <div id="build-info">Build · 加载中...</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -953,6 +953,7 @@ async function initFirebase(cfg) {
     db = getFirestore(app);
     docRef = doc(db,'inventory','main');
     setSyncStatus('syncing');
+    updateBuildInfo();
     onSnapshot(docRef, snap=>{
       if(snap.exists()){
         const remote = snap.data();
@@ -999,6 +1000,41 @@ function save(){
   setSyncStatus('syncing');
   clearTimeout(_t);
   _t = setTimeout(pushData, 800);
+}
+
+// ===== Build 信息：显示 Git 提交总数（近似）=====
+function updateBuildInfo(){
+  const el = document.getElementById('build-info');
+  if(!el) return;
+  const owner = 'tartgo315-commits';
+  const repo = 'inventory';
+  const cacheKey = 'tartgo_build_info_v1';
+  const cacheTTL = 6*60*60*1000; // 6h
+  try{
+    const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+    if(cached && cached.ts && (Date.now()-cached.ts)<cacheTTL && cached.text){
+      el.textContent = cached.text;
+      return;
+    }
+  }catch(e){}
+
+  // 通过 GitHub API 读取 commits 总数（Link header 的最后一页页码）
+  fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=1`, {cache:'no-store'})
+    .then(res=>{
+      const link = res.headers.get('link') || res.headers.get('Link') || '';
+      let count = 0;
+      if(link){
+        // ...&page=123>; rel="last"
+        const m = link.match(/<[^>]*[?&]page=(\d+)[^>]*>\s*;\s*rel="last"/i);
+        if(m) count = parseInt(m[1], 10) || 0;
+      }
+      // 没有 Link（仓库提交很少）就当作 1
+      if(!count && res.ok) count = 1;
+      const txt = count ? `Build #${count}` : 'Build';
+      el.textContent = txt;
+      try{ localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), text:txt})); }catch(e){}
+    })
+    .catch(()=>{ el.textContent = 'Build'; });
 }
 
 async function pushData() {
