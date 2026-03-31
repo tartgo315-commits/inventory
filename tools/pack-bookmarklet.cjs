@@ -1,0 +1,10 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const src = path.join(__dirname, 'bookmarklet-1688-tartgo.js');
+let body = fs.readFileSync(src, 'utf8');
+body = body.replace(/^\/\*\*[\s\S]*?\*\/\s*/, '');
+body = body.replace(/\s+/g, ' ').trim();
+const out = 'javascript:' + body;
+fs.writeFileSync(path.join(__dirname, 'bookmarklet-1688-tartgo-oneline.txt'), out, 'utf8');
+console.log('Wrote bookmarklet-1688-tartgo-oneline.txt, length', out.length);

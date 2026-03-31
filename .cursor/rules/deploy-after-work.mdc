@@ -1,0 +1,17 @@
+---
+description: After substantive code changes, commit and push so GitHub Pages can deploy
+alwaysApply: true
+---
+
+# 完成后推送到远程（上线）
+
+当在本仓库完成**一批有意义的修改**（功能/修复/文案等，而非仅临时试验）时：
+
+1. 用 `git status` 确认要纳入的变更；不要提交密钥、`.env`、仅本地的垃圾文件。
+2. `git add` 相关文件后 `git commit -m "…"`，说明用简短中文或英文完整句。
+3. **推送到会触发 GitHub Pages 的分支**：远程 `origin` 的默认分支为 `main`，本地工作分支常为 `master` 且无上游时，使用：
+   - `git push origin HEAD:main`
+   若已设置上游为 `origin/main`，则 `git push` 即可。
+4. 若 `git push` 因认证失败，向用户说明需在终端完成登录或配置凭据，不要反复无意义重试。
+
+不要为极小的、用户明确表示「先别提交」的改动自动 push。
