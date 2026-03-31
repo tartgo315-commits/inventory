@@ -225,7 +225,7 @@ input::placeholder{color:var(--text3)}
       <div class="sync-text" id="save-status">连接中...</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
-      <div id="build-info">Build · 加载中...</div>
+      <div id="build-info">Build · …</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -956,7 +956,6 @@ async function initFirebase(cfg) {
     db = getFirestore(app);
     docRef = doc(db,'inventory','main');
     setSyncStatus('syncing');
-    updateBuildInfo();
     onSnapshot(docRef, snap=>{
       if(snap.exists()){
         const remote = snap.data();
@@ -1005,14 +1004,14 @@ function save(){
   _t = setTimeout(pushData, 800);
 }
 
-// ===== Build 信息：显示 Git 提交总数（近似）=====
+// ===== Build 信息：提交数（Link）+ 仓库 pushed_at（每次 push 会变；短缓存避免刷爆 API）=====
 function updateBuildInfo(){
   const el = document.getElementById('build-info');
   if(!el) return;
   const owner = 'tartgo315-commits';
   const repo = 'inventory';
-  const cacheKey = 'tartgo_build_info_v1';
-  const cacheTTL = 6*60*60*1000; // 6h
+  const cacheKey = 'tartgo_build_info_v3';
+  const cacheTTL = 2*60*1000; // 2min：上传后稍等再开会看到新时间
   try{
     const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
     if(cached && cached.ts && (Date.now()-cached.ts)<cacheTTL && cached.text){
@@ -1021,23 +1020,36 @@ function updateBuildInfo(){
     }
   }catch(e){}
 
-  // 通过 GitHub API 读取 commits 总数（Link header 的最后一页页码）
-  fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=1`, {cache:'no-store'})
-    .then(res=>{
-      const link = res.headers.get('link') || res.headers.get('Link') || '';
-      let count = 0;
-      if(link){
-        // ...&page=123>; rel="last"
-        const m = link.match(/<[^>]*[?&]page=(\d+)[^>]*>\s*;\s*rel="last"/i);
-        if(m) count = parseInt(m[1], 10) || 0;
+  const repoUrl = `https://api.github.com/repos/${owner}/${repo}`;
+  const commitsUrl = `${repoUrl}/commits?per_page=1`;
+
+  Promise.all([
+    fetch(commitsUrl, { cache: 'no-store' }),
+    fetch(repoUrl, { cache: 'no-store' }).then(r => r.json())
+  ]).then(([cRes, repoJson]) => {
+    let count = 0;
+    const link = cRes.headers.get('link') || cRes.headers.get('Link') || '';
+    if(link){
+      const parts = link.split(',');
+      for(let i = 0; i < parts.length; i++){
+        if(/rel\s*=\s*"last"/i.test(parts[i])){
+          const m = parts[i].match(/[?&]page=(\d+)/i);
+          if(m) count = parseInt(m[1], 10) || 0;
+          break;
+        }
       }
-      // 没有 Link（仓库提交很少）就当作 1
-      if(!count && res.ok) count = 1;
-      const txt = count ? `Build #${count}` : 'Build';
-      el.textContent = txt;
-      try{ localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), text:txt})); }catch(e){}
-    })
-    .catch(()=>{ el.textContent = 'Build'; });
+    }
+    if(!count && cRes.ok) count = 1;
+
+    const pushAt = (repoJson && repoJson.pushed_at)
+      ? repoJson.pushed_at.replace('T', ' ').replace(/Z$/, '').slice(0, 16)
+      : '';
+
+    let txt = count ? `Build #${count}` : 'Build';
+    if(pushAt) txt += ` · ${pushAt}`;
+    el.textContent = txt;
+    try{ localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(), text:txt})); }catch(e){}
+  }).catch(()=>{ el.textContent = 'Build'; });
 }
 
 async function pushData() {
@@ -3836,6 +3848,11 @@ const FIREBASE_CFG = {
   messagingSenderId: "494416286810",
   appId: "1:494416286810:web:27029fe80e61a137b37463"
 };
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', ()=> updateBuildInfo());
+}else{
+  updateBuildInfo();
+}
 initFirebase(FIREBASE_CFG);
 </script>
 </body>
