@@ -89,7 +89,52 @@
     });
   }
 
-  /** 从页面 HTML 内嵌 JSON 抠品名/单价/数量（新版页 DOM 不可读时的兜底） */
+  function normMoney(p) {
+    var x = parseFloat(p);
+    if (!(x > 0)) return 0;
+    if (x > 500 && x === Math.floor(x)) {
+      var y = x / 100;
+      if (y >= 0.01 && y <= 99999) return y;
+    }
+    return x;
+  }
+
+  function dedupeGoodsArr(arr) {
+    var seen = {},
+      res = [];
+    for (var di = 0; di < arr.length; di++) {
+      var g = arr[di];
+      var k = (g.name || '').slice(0, 14) + '_' + g.price + '_' + (g.qty || 1);
+      if (seen[k]) continue;
+      seen[k] = 1;
+      res.push(g);
+    }
+    return res;
+  }
+
+  /** 猜测订单明细 iframe，跳转后同页可读到 DOM（跨域 iframe 内书签读不到） */
+  function findOrderIframeJumpUrl() {
+    var list = document.querySelectorAll('iframe[src]');
+    var cur = location.href.replace(/#.*$/, '');
+    for (var fi = 0; fi < list.length; fi++) {
+      var s = list[fi].getAttribute('src') || '';
+      if (!s || /^about:/i.test(s)) continue;
+      var u = '';
+      try {
+        u = new URL(s, location.href).href;
+      } catch (e) {
+        continue;
+      }
+      if (!/1688\.com/i.test(u)) continue;
+      if (/redirect|trace|spm=/i.test(u) && !/order|trade|detail|offer|purchase|ctf-page/i.test(u)) continue;
+      if (!/trade|order|detail|purchase|ctf-page|orderId|offer\/|offer\.html|page\/offer/i.test(u)) continue;
+      if (u.split('#')[0] === cur.split('#')[0]) continue;
+      return u;
+    }
+    return '';
+  }
+
+  /** 从页面 HTML 内嵌 JSON 抠品名/单价/数量（邻近配对 + 全局兜底） */
   function parseGoodsFromHtmlBlob(html) {
     var out = [];
     if (!html || html.length < 200) return out;
@@ -103,20 +148,35 @@
       t = unesc(String(t || '').replace(/\\"/g, '"').replace(/\\n/g, ' ')).trim();
       if (t.length < 4 || t.length > 220) return '';
       if (!/[\u4e00-\u9fff]/.test(t)) return '';
-      if (/aplus|userid|cookie|exparams|function\s*\(/i.test(t)) return '';
+      if (/aplus|userid|cookie|exparams|function\s*\(|padding:\s*0|1688首页/i.test(t)) return '';
       return t;
     }
+    var m;
+    var rePair =
+      /"(?:subject|title|skuName|offerTitle|offerSubject|productName|cargoName|cargoTitle|itemName|offerName)"\s*:\s*"((?:[^"\\]|\\.)*)"\s*[\s\S]{0,1800}?"(?:price|unitPrice|salePrice|retailPrice|finalPrice|itemPrice|cargoMoney|consignPrice|entryUnitPrice)"\s*:\s*"?(\d+\.?\d*)"?/gi;
+    while ((m = rePair.exec(h)) !== null) {
+      var tit = cleanTitle(m[1]);
+      var pr = normMoney(m[2]);
+      if (!tit || !pr || pr > 999999) continue;
+      var chunk = h.slice(m.index, Math.min(h.length, m.index + 2200));
+      var qm = chunk.match(/"(?:quantity|num|amount|buyAmount|itemCount|skuAmount)"\s*:\s*(\d+)/);
+      var qty = qm ? parseInt(qm[1], 10) : 1;
+      if (qty < 1 || qty > 99999) qty = 1;
+      out.push({ name: tit, spec: '', price: pr, qty: qty });
+    }
+    out = dedupeGoodsArr(out);
+    if (out.length) return out;
+
     var titles = [];
     var reT = /"(?:subject|title|skuName|offerTitle|offerSubject|productName|cargoName)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
-    var m;
     while ((m = reT.exec(h)) !== null) {
       var ct = cleanTitle(m[1]);
       if (ct) titles.push(ct);
     }
     var prices = [];
-    var reP = /"(?:price|unitPrice|salePrice|retailPrice|finalPrice)"\s*:\s*"?(\d+\.?\d*)"?/g;
+    var reP = /"(?:price|unitPrice|salePrice|retailPrice|finalPrice|itemPrice)"\s*:\s*"?(\d+\.?\d*)"?/g;
     while ((m = reP.exec(h)) !== null) {
-      var p = parseFloat(m[1]);
+      var p = normMoney(m[1]);
       if (p > 0 && p < 1e7) prices.push(p);
     }
     var qtys = [];
@@ -125,7 +185,7 @@
       var q = parseInt(m[1], 10);
       if (q >= 1 && q <= 99999) qtys.push(q);
     }
-    if (!titles.length || !prices.length) return out;
+    if (!titles.length || !prices.length) return [];
     var title = titles[0];
     var price = 0;
     for (var pi = 0; pi < prices.length; pi++) {
@@ -136,13 +196,9 @@
       }
     }
     if (!price && prices.length) price = prices[0];
-    if (price > 500 && price === Math.floor(price)) {
-      var y = price / 100;
-      if (y >= 0.01 && y <= 9999) price = y;
-    }
     var qty = qtys.length ? qtys[0] : 1;
-    if (title && price > 0 && price < 1e6) out.push({ name: title, spec: '', price: price, qty: qty });
-    return out;
+    if (title && price > 0 && price < 1e6) return [{ name: title, spec: '', price: price, qty: qty }];
+    return [];
   }
 
   function runBookmarklet() {
@@ -280,6 +336,39 @@
       } catch (e3) {}
     }
 
+    /* 一行内：品名 ¥15.00 × 5 或 品名 15.00元 ×5 */
+    if (!goods.length) {
+      for (var ri = 0; ri < lines.length; ri++) {
+        var rl = lines[ri].replace(/\s+/g, ' ').trim();
+        var rm =
+          rl.match(/^(.{4,72}?)\s+[¥￥]\s*(\d+\.?\d*)\s*[×xX＊*]\s*(\d+)\s*$/) ||
+          rl.match(/^(.{4,72}?)\s+(\d+\.?\d*)\s*元\s*[×xX＊*]\s*(\d+)\s*$/);
+        if (rm) {
+          var tname = rm[1].trim();
+          var pRow = parseFloat(rm[2]);
+          var qRow = parseInt(rm[3], 10);
+          var minLR = /[\u4e00-\u9fff]/.test(tname) ? 4 : 6;
+          if (tname.length >= minLR && pRow > 0 && pRow < 99999 && qRow >= 1 && qRow <= 99999 && !SKIP.test(tname)) {
+            goods.push({ name: tname, spec: '', price: pRow, qty: qRow });
+          }
+        }
+      }
+    }
+
+    /* 有订单内嵌 iframe：跳到内页再点书签，才能读到 DOM */
+    if (!goods.length) {
+      var jump = findOrderIframeJumpUrl();
+      if (jump) {
+        if (
+          confirm(
+            '当前页未识别到商品。\n1688 常把明细放在内嵌框架里，书签读不到。\n\n点「确定」打开订单内页，然后请再点一次本书签。\n点「取消」可改用：本页 Ctrl+A 复制 → TARTGO 进货页粘贴。'
+          )
+        ) {
+          location.href = jump;
+        }
+      }
+    }
+
     if (!goods.length) {
       var ic = 0,
         ib = 0;
@@ -297,9 +386,9 @@
       var sample = lines.filter(function (ln) { return /\d/.test(ln); }).slice(0, 12).join('\n');
       var hint =
         ic > 0
-          ? '\n\n【常见原因】订单详情在「跨域 iframe」里，任何书签都读不到正文。\n请在本页按 Ctrl+A 全选 → Ctrl+C，打开 TARTGO 进货页 → 粘贴到智能识别框。'
+          ? '\n\n【说明】若存在跨域 iframe，可复制整页到 TARTGO 粘贴；或在上一步同意跳转到内页后再点书签。'
           : '';
-      alert('❌ 未识别到商品' + hint + '\n\n（若使用浏览器扩展，请与书签同样更新逻辑或改用复制粘贴。）\n\n调试片段：\n' + sample);
+      alert('❌ 未识别到商品' + hint + '\n\n调试片段：\n' + sample);
       return;
     }
 

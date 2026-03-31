@@ -2144,8 +2144,28 @@ window.smartParse = function() {
     }
 
     if (!goods.length) {
+      const SKIP_ROW = /^(规格|颜色|型号|款式|货号|数量|单价|价格|优惠|货品|极速|售后|交期|订单|交易)/;
+      for (let ri = 0; ri < lines.length; ri++) {
+        const rl = lines[ri].replace(/\s+/g, ' ').trim();
+        const rm = rl.match(/^(.{4,72}?)\s+[¥￥]\s*(\d+\.?\d*)\s*[×xX＊*]\s*(\d+)\s*$/)
+          || rl.match(/^(.{4,72}?)\s+(\d+\.?\d*)\s*元\s*[×xX＊*]\s*(\d+)\s*$/);
+        if (!rm) continue;
+        const tname = rm[1].trim();
+        const minLR = /[\u4e00-\u9fff]/.test(tname) ? 4 : 6;
+        if (tname.length < minLR || SKIP_ROW.test(tname)) continue;
+        const pRow = parseFloat(rm[2]);
+        const qRow = parseInt(rm[3], 10);
+        if (pRow <= 0 || pRow >= 99999 || qRow < 1 || qRow > 99999) continue;
+        const existLink3 = D.purchases.filter(r=>r.link&&r.pid&&gp(r.pid)&&
+          (gp(r.pid).name===tname||gp(r.pid).name.slice(0,10)===tname.slice(0,10)))
+          .map(r=>r.link)[0]||'';
+        goods.push({name:tname, productName:tname, spec:'', price:pRow, qty:qRow, ship, paid, orderId, sourceLink:existLink3});
+      }
+    }
+
+    if (!goods.length) {
       resultEl.innerHTML=`<div style="padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e">
-        ⚠️ 未识别到商品。请确认已复制<strong>完整订单页</strong>文字；新版页请含「优惠后xx元」或「单价」+金额+「数量」。若订单在子页面里，请在订单页<strong>Ctrl+A、Ctrl+C</strong>后再粘贴。</div>`;
+        ⚠️ 未识别到商品。请确认已复制<strong>完整订单页</strong>文字；新版页请含「优惠后xx元」或「单价」+金额+「数量」或「品名 ¥价 × 件数」一行。若仍不行，换用本书签在<strong>订单内页</strong>再试或联系内嵌框架跳转提示。</div>`;
       return;
     }
 
