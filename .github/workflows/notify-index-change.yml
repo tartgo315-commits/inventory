@@ -1,0 +1,113 @@
+# index.html 推送到 main/master 时发通知。
+#
+# 【个人微信 —— 推荐】Server酱（免费额度足够个人用）：
+#   1. 打开 https://sct.ftqq.com/ 注册并登录（微信扫码）。
+#   2. 在「消息通道」里绑定你的个人微信（按页面提示关注公众号 / 绑定）。
+#   3. 复制「SendKey」（形如 SCTxxxx…）。
+#   4. GitHub 仓库 Settings → Secrets → Actions → New secret：
+#        名称 SERVERCHAN_SENDKEY，值粘贴 SendKey。
+#   推送 index.html 后，GitHub Actions 会调 Server酱 API，消息推到你绑定的个人微信。
+#
+# 【可选】企业微信群：另配 Secret WECOM_WEBHOOK_URL（群机器人 Webhook），可与 Server酱同时配置。
+
+name: Notify on index.html change
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'index.html'
+  workflow_dispatch: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send WeChat-related notifications
+        env:
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+          SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+        run: |
+          python3 << 'PY'
+          import json, os, urllib.request
+
+          def trunc(s, n=800):
+              s = (s or "").replace("\r", "").strip()
+              return s if len(s) <= n else s[: n - 1] + "…"
+
+          repo = os.environ.get("GITHUB_REPOSITORY", "")
+          sha = (os.environ.get("GITHUB_SHA") or "")[:12]
+          actor = os.environ.get("GITHUB_ACTOR", "")
+          msg = trunc(os.environ.get("COMMIT_MSG", ""))
+          url = os.environ.get("COMMIT_URL", "")
+
+          lines = [
+              "【TARTGO】index.html 已更新并推送",
+              f"仓库: {repo}",
+              f"提交: {sha}",
+              f"操作: {actor}",
+              f"说明: {msg or '—'}",
+          ]
+          if url:
+              lines.append(f"链接: {url}")
+          text = "\n".join(lines)
+
+          wecom = (os.environ.get("WECOM_WEBHOOK_URL") or "").strip()
+          skey = (os.environ.get("SERVERCHAN_SENDKEY") or "").strip()
+
+          if not wecom and not skey:
+              print("未配置 SERVERCHAN_SENDKEY（个人微信）或 WECOM_WEBHOOK_URL，跳过通知。")
+              raise SystemExit(0)
+
+          err = 0
+          if wecom:
+              try:
+                  body = json.dumps(
+                      {"msgtype": "text", "text": {"content": text}},
+                      ensure_ascii=False,
+                  ).encode("utf-8")
+                  req = urllib.request.Request(
+                      wecom,
+                      data=body,
+                      headers={"Content-Type": "application/json; charset=utf-8"},
+                      method="POST",
+                  )
+                  with urllib.request.urlopen(req, timeout=25) as r:
+                      out = r.read().decode("utf-8", errors="replace")
+                      print("WeCom response:", out)
+                      try:
+                          j = json.loads(out)
+                          if j.get("errcode") not in (0, None):
+                              err = 1
+                      except Exception:
+                          pass
+              except Exception as e:
+                  print("WeCom failed:", e)
+                  err = 1
+
+          if skey:
+              try:
+                  api = f"https://sctapi.ftqq.com/{skey}.send"
+                  sc_body = json.dumps(
+                      {"title": "【TARTGO】index.html 已更新", "desp": text},
+                      ensure_ascii=False,
+                  ).encode("utf-8")
+                  sc_req = urllib.request.Request(
+                      api,
+                      data=sc_body,
+                      headers={"Content-Type": "application/json; charset=utf-8"},
+                      method="POST",
+                  )
+                  with urllib.request.urlopen(sc_req, timeout=25) as r:
+                      print("ServerChan response:", r.read().decode("utf-8", errors="replace")[:800])
+              except Exception as e:
+                  print("ServerChan failed:", e)
+                  err = 1
+
+          raise SystemExit(err)
+PY
