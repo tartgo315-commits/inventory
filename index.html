@@ -1109,6 +1109,18 @@ function getTemuStockSpec(pid,sid){
   return Math.max(0,sent-sold);
 }
 function getTransitQty(pid){ return D.purchases.filter(r=>r.pid==pid&&r.status==='transit').reduce((s,r)=>s+r.qty,0); }
+/** 按数组顺序从在途记录中扣减件数，返回未扣完的数量（0 表示成功） */
+function reduceTransitQty(pid, needReduce){
+  let left = Math.max(0, parseInt(needReduce,10)||0);
+  while(left>0){
+    const i=D.purchases.findIndex(r=>r.pid==pid&&r.status==='transit');
+    if(i<0) return left;
+    const r=D.purchases[i], take=Math.min(r.qty,left);
+    r.qty-=take; left-=take;
+    if(r.qty<=0) D.purchases.splice(i,1);
+  }
+  return 0;
+}
 // ===== 成本计算（均价） =====
 function buildFifoQueue(pid){ return []; } // 保留兼容，不再使用
 function buildFifoQueueSpec(pid,sid){ return []; }
@@ -1270,6 +1282,7 @@ function renderMetrics(){
 }
 
 function renderTransitTable(){
+  if(window._inlineQtyEditing) return;
   const el=document.getElementById('transit-table'); if(!el) return;
   const items=D.purchases.filter(r=>r.status==='transit');
   if(!items.length){el.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">暂无在途订单</td></tr>`;return;}
@@ -1304,7 +1317,7 @@ function renderTransitTable(){
           ${pName(r.pid, r.sid)}
           <div style="font-size:11px;color:var(--text3);margin-top:1px">${r.date}${r.order?' · '+r.order:''}</div>
         </td>
-        <td>${r.qty}</td>
+        <td><span onclick="inlineEditPurchaseQty(this,${idx})" title="点击修改数量" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${r.qty}</span></td>
         <td>¥${uc.toFixed(2)}</td>
         <td style="font-weight:600;color:var(--red)">¥${((r.price||0)+(r.shipPerUnit||0))*r.qty>0?(((r.price||0)+(r.shipPerUnit||0))*r.qty).toFixed(2):'—'}</td>
         <td style="color:var(--green)">¥${r.shipTotal||(r.shipPerUnit||0)*r.qty>0?''+((r.shipTotal||(r.shipPerUnit||0)*r.qty).toFixed(2)):'-'}</td>
@@ -1326,7 +1339,7 @@ function renderTransitTable(){
           ${pName(pid, 0, `<button onclick="event.stopPropagation();toggleTransitGroup(${pid})" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--primary);padding:2px 6px;border-radius:4px;white-space:nowrap">${isExp?'▲ 收起':'▼ '+records.length+'个型号'}</button>`)}
           <div style="font-size:11px;color:var(--text3);margin-top:2px">${firstR.date}${firstR.order?' · '+firstR.order:''}</div>
         </td>
-        <td style="font-weight:700">${totalQty}</td>
+        <td style="font-weight:700"><span onclick="event.stopPropagation();inlineEditTransit(this,${pid})" title="点击修改在途合计" style="cursor:pointer;border-bottom:1.5px dashed var(--primary)">${totalQty}</span></td>
         <td>
           <span style="font-size:12px;color:var(--primary)">${records.length}个型号</span>
           <span style="font-size:11px;color:var(--text3);margin-left:6px">${isExp?'▲ 收起':'▼ 展开'}</span>
@@ -1353,7 +1366,7 @@ function renderTransitTable(){
             <td style="padding-left:32px">
               <div style="font-size:13px;color:var(--primary);font-weight:600">↳ ${sp?sp.name:'默认'}</div>
             </td>
-            <td>${r.qty}</td>
+            <td><span onclick="event.stopPropagation();inlineEditPurchaseQty(this,${idx})" title="点击修改数量" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${r.qty}</span></td>
             <td>¥${uc.toFixed(2)}</td>
             <td style="font-size:12px;color:var(--red)">¥${(uc*r.qty).toFixed(2)}</td>
             <td style="font-size:12px;color:var(--green)">¥${((r.shipPerUnit||0)*r.qty).toFixed(2)}</td>
@@ -1373,6 +1386,7 @@ function renderTransitTable(){
 }
 
 function renderPurchaseTable(){
+  if(window._inlineQtyEditing) return;
   const searchQ=(document.getElementById('pur-search')||{}).value||'';
   const dateFrom=(document.getElementById('pur-date-from')||{}).value||'';
   const dateTo=(document.getElementById('pur-date-to')||{}).value||'';
@@ -1438,7 +1452,7 @@ function renderPurchaseTable(){
           <div style="font-size:11px;color:var(--text3);margin-top:1px">${r.date}${r.order?' · '+r.order:''}</div>
           ${(()=>{const tp=sp&&sp.price?sp.price:(p&&p.price?p.price:0);return tp?`<div style="font-size:11px;color:var(--green);font-weight:600;margin-top:1px">Temu ¥${(+tp||0).toFixed(2)}</div>`:''})()}
         </td>
-        <td>${r.qty}</td><td>${rqty}</td>
+        <td><span onclick="event.stopPropagation();inlineEditPurchaseQty(this,${idx})" title="点击修改采购数量" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${r.qty}</span></td><td>${rqty}</td>
         <td>¥${(r.price||0).toFixed(2)}</td>
         <td>¥${(r.shipPerUnit||0).toFixed(2)}</td>
         <td><strong>¥${uc.toFixed(2)}</strong></td>
@@ -1596,6 +1610,7 @@ window.toggleCostRow = function(pid){
 };
 
 function renderOutboundTable(){
+  if(window._inlineQtyEditing) return;
   const tot=D.outbounds.reduce((s,r)=>s+r.qty,0);
   const el=document.getElementById('out-total'); if(el) el.textContent=`共${D.outbounds.length}次，合计${tot}件`;
   const tbody=document.getElementById('outbound-table'); if(!tbody) return;
@@ -1606,7 +1621,7 @@ function renderOutboundTable(){
     return `<tr>
       <td style="text-align:center"><input type="checkbox" class="out-cb" data-idx="${idx}" onchange="onOutCheckChange()" style="width:16px;height:16px;cursor:pointer"></td>
       <td>${r.date}</td><td>${pName(r.pid, r.sid)}</td>
-      <td><strong>${r.qty}</strong></td>
+      <td><span onclick="inlineEditOutboundQty(this,${idx})" title="点击修改发出数量" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${r.qty}</span></td>
       <td style="font-weight:700;color:var(--green)">${temuPrice?'¥'+temuPrice:'<span class="c-muted">-</span>'}</td>
       <td>${r.shipTotal?'¥'+r.shipTotal.toFixed(2):'<span class="c-muted">-</span>'}</td>
       <td class="c-muted">${r.tracking||'-'}</td>
@@ -1641,7 +1656,7 @@ window.sortStockTable = function(key){
 };
 
 function renderStockTable(){
-  if(window._stockEditing) return; // 有内联编辑进行中，不重建DOM
+  if(window._inlineQtyEditing) return; // 有内联编辑进行中，不重建DOM
   const tbody=document.getElementById('stock-table'); if(!tbody) return;
   if(!window._stockExpanded) window._stockExpanded={};
   if(!window._stockSort) window._stockSort = { type: 'composite', dir: -1 };
@@ -1722,11 +1737,8 @@ function renderStockTable(){
       <td>${getProductLink(p.id)
         ?`<a href="${getProductLink(p.id)}" target="_blank" style="font-size:13px;color:var(--primary);text-decoration:none;font-weight:600">🔗 查看</a>`
         :`<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})">+ 添加</span>`}</td>
-      <td>${transit>0?`<span class="badge badge-transit">${transit}</span>`:'<span class="c-muted">0</span>'}</td>
-      <td>${hasSpecs
-        ? `<strong>${local}</strong>`
-        : `<span onclick="inlineEditStock(this,${p.id},0)" title="点击修改库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary);color:var(--text)">${local}</span>`
-      }</td>
+      <td>${transit>0?`<span class="badge badge-transit" onclick="inlineEditTransit(this,${p.id})" title="点击修改在途" style="cursor:pointer">${transit}</span>`:'<span class="c-muted" onclick="inlineEditTransit(this,'+p.id+')" title="点击修改在途" style="cursor:pointer;border-bottom:1.5px dashed var(--border2)">0</span>'}</td>
+      <td><span onclick="inlineEditStock(this,${p.id},0)" title="点击修改本地库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary);color:var(--text)">${local}</span></td>
       <td>¥${fifo.toFixed(2)}</td>
       <td style="font-weight:600;color:var(--green)">${p.price?'¥'+p.price:'-'}</td>
       <td>¥${wavg.toFixed(2)}</td>
@@ -1785,19 +1797,22 @@ window.inlineEditStock = function(el, pid, sid){
   input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
   el.replaceWith(input);
   input.focus(); input.select();
-  window._stockEditing = true; // 编辑中，禁止 renderStockTable 重建DOM
+  window._inlineQtyEditing = true; // 编辑中，禁止相关表格重建 DOM
 
   const cancel = ()=>{
-    window._stockEditing = false;
+    window._inlineQtyEditing = false;
     if(input.parentNode) input.replaceWith(el);
   };
+  let confirmingS=false;
   const confirmEdit = ()=>{
-    const newVal = parseInt(input.value);
-    window._stockEditing = false;
+    if(confirmingS||!input.parentNode) return;
+    confirmingS=true;
+    const newVal = parseInt(input.value,10);
+    window._inlineQtyEditing = false;
     if(isNaN(newVal)||newVal<0||newVal===current){ cancel(); return; }
     const diff = newVal - current;
     if(!D.stockAdjustments) D.stockAdjustments=[];
-    D.stockAdjustments.push({date:today(),pid,sid:sid||0,diff,note:'总览快速调整'});
+    D.stockAdjustments.push({date:today(),pid,sid:sid||0,diff,note:'库存快速调整'});
     if(diff>0){
       D.purchases.push({date:today(),pid,sid:sid||0,qty:diff,price:0,shipPerUnit:0,shipTotal:0,
         tracking:'',order:'快速调整',link:'',img:'',status:'received',receivedQty:diff,receivedDate:today(),isAdjust:true});
@@ -1808,8 +1823,156 @@ window.inlineEditStock = function(el, pid, sid){
   };
   input.addEventListener('blur', ()=>{ confirmEdit(); });
   input.addEventListener('keydown', e=>{
-    if(e.key==='Enter'){ confirmEdit(); }
-    if(e.key==='Escape'){ input.removeEventListener('blur', ()=>{}); cancel(); }
+    if(e.key==='Enter'){ e.preventDefault(); confirmEdit(); }
+    if(e.key==='Escape'){ cancel(); }
+  });
+};
+
+window.inlineEditTransit = function(el, pid){
+  const current = getTransitQty(pid);
+  const input = document.createElement('input');
+  input.type='number'; input.value=current; input.min='0';
+  input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
+  el.replaceWith(input);
+  input.focus(); input.select();
+  window._inlineQtyEditing = true;
+  const cancel = ()=>{
+    window._inlineQtyEditing = false;
+    if(input.parentNode){
+      const wrap=document.createElement('span');
+      if(current>0){ wrap.className='badge badge-transit'; wrap.textContent=String(current); wrap.title='点击修改在途'; wrap.style.cursor='pointer'; wrap.setAttribute('onclick','inlineEditTransit(this,'+pid+')'); }
+      else{ wrap.className='c-muted'; wrap.textContent='0'; wrap.title='点击修改在途'; wrap.style.cursor='pointer'; wrap.style.borderBottom='1.5px dashed var(--border2)'; wrap.setAttribute('onclick','inlineEditTransit(this,'+pid+')'); }
+      input.replaceWith(wrap);
+    }
+  };
+  let confirmingT=false;
+  const confirmEdit = ()=>{
+    if(confirmingT||!input.parentNode) return;
+    confirmingT=true;
+    const newVal = parseInt(input.value,10);
+    window._inlineQtyEditing = false;
+    if(isNaN(newVal)||newVal<0){ cancel(); return; }
+    if(newVal===current){ cancel(); return; }
+    const diff = newVal - current;
+    if(diff<0){
+      const avail=D.purchases.filter(r=>r.pid==pid&&r.status==='transit').reduce((s,r)=>s+r.qty,0);
+      if(-diff>avail){ alert('在途数量不足，当前在途合计 '+avail+' 件'); cancel(); return; }
+      reduceTransitQty(pid, -diff);
+    } else if(diff>0){
+      if(!D.stockAdjustments) D.stockAdjustments=[];
+      D.stockAdjustments.push({date:today(),pid,sid:0,diff,note:'在途快速调整'});
+      D.purchases.push({date:today(),pid,sid:0,qty:diff,price:0,shipPerUnit:0,shipTotal:0,
+        tracking:'',order:'快速调整-在途',link:'',img:'',status:'transit',isAdjust:true});
+    }
+    save(); render();
+  };
+  input.addEventListener('blur', ()=>{ confirmEdit(); });
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); confirmEdit(); }
+    if(e.key==='Escape'){ cancel(); }
+  });
+};
+
+window.inlineEditOutboundQty = function(el, idx){
+  const r=D.outbounds[idx]; if(!r) return;
+  const current=parseInt(r.qty,10)||0;
+  const input=document.createElement('input');
+  input.type='number'; input.value=current; input.min='1';
+  input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
+  el.replaceWith(input);
+  input.focus(); input.select();
+  window._inlineQtyEditing = true;
+  const spanHtml=`<span onclick="inlineEditOutboundQty(this,${idx})" title="点击修改发出数量" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${current}</span>`;
+  const cancel=()=>{
+    window._inlineQtyEditing = false;
+    if(input.parentNode){ const t=document.createElement('template'); t.innerHTML=spanHtml.trim(); input.replaceWith(t.content.firstChild); }
+  };
+  let confirming=false;
+  const confirmEdit=()=>{
+    if(confirming||!input.parentNode) return;
+    confirming=true;
+    const newVal=parseInt(input.value,10);
+    window._inlineQtyEditing = false;
+    if(isNaN(newVal)||newVal<1){ cancel(); return; }
+    if(newVal===current){ cancel(); return; }
+    const ls=r.sid?getLocalStockSpec(r.pid,r.sid):getLocalStock(r.pid);
+    const delta=newVal-current;
+    if(delta>0&&delta>ls){ alert('本地库存不足！当前最多再增加 '+ls+' 件'); cancel(); return; }
+    r.qty=newVal;
+    save(); render();
+  };
+  input.addEventListener('blur', ()=>{ confirmEdit(); });
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); confirmEdit(); }
+    if(e.key==='Escape'){ cancel(); }
+  });
+};
+
+window.inlineEditSaleQty = function(el, saleIdx){
+  const r=D.sales[saleIdx]; if(!r) return;
+  const current=parseInt(r.qty,10)||0;
+  const input=document.createElement('input');
+  input.type='number'; input.value=current; input.min='1';
+  input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
+  el.replaceWith(input);
+  input.focus(); input.select();
+  window._inlineQtyEditing = true;
+  const spanHtml=`<span onclick="inlineEditSaleQty(this,${saleIdx})" title="点击修改销售数量" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${current}</span>`;
+  const cancel=()=>{
+    window._inlineQtyEditing = false;
+    if(input.parentNode){ const t=document.createElement('template'); t.innerHTML=spanHtml.trim(); input.replaceWith(t.content.firstChild); }
+  };
+  let confirming=false;
+  const confirmEdit=()=>{
+    if(confirming||!input.parentNode) return;
+    confirming=true;
+    const newVal=parseInt(input.value,10);
+    window._inlineQtyEditing = false;
+    if(isNaN(newVal)||newVal<1){ cancel(); return; }
+    if(newVal===current){ cancel(); return; }
+    const ts=r.sid?getTemuStockSpec(r.pid,r.sid):getTemuStock(r.pid);
+    const delta=newVal-current;
+    if(delta>0&&delta>ts){ alert('Temu 可售库存不足！当前约 '+ts+' 件'); cancel(); return; }
+    r.qty=newVal;
+    save(); render();
+  };
+  input.addEventListener('blur', ()=>{ confirmEdit(); });
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); confirmEdit(); }
+    if(e.key==='Escape'){ cancel(); }
+  });
+};
+
+window.inlineEditPurchaseQty = function(el, idx){
+  const r=D.purchases[idx]; if(!r) return;
+  const current=parseInt(r.qty,10)||0;
+  const input=document.createElement('input');
+  input.type='number'; input.value=current; input.min='1';
+  input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
+  el.replaceWith(input);
+  input.focus(); input.select();
+  window._inlineQtyEditing = true;
+  const spanHtml=`<span onclick="inlineEditPurchaseQty(this,${idx})" title="点击修改数量" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${current}</span>`;
+  const cancel=()=>{
+    window._inlineQtyEditing = false;
+    if(input.parentNode){ const t=document.createElement('template'); t.innerHTML=spanHtml.trim(); input.replaceWith(t.content.firstChild); }
+  };
+  let confirming=false;
+  const confirmEdit=()=>{
+    if(confirming||!input.parentNode) return;
+    confirming=true;
+    const newVal=parseInt(input.value,10);
+    window._inlineQtyEditing = false;
+    if(isNaN(newVal)||newVal<1){ cancel(); return; }
+    if(newVal===current){ cancel(); return; }
+    r.qty=newVal;
+    if(r.status==='received') r.receivedQty=newVal;
+    save(); render();
+  };
+  input.addEventListener('blur', ()=>{ confirmEdit(); });
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); confirmEdit(); }
+    if(e.key==='Escape'){ cancel(); }
   });
 };
 
@@ -1820,6 +1983,7 @@ window.toggleStockRow = function(pid){
 };
 
 function renderProductsTable(){
+  if(window._inlineQtyEditing) return;
   const el=document.getElementById('products-list'); if(!el) return;
   if(!D.products.length){
     el.innerHTML='<div style="text-align:center;color:var(--text3);padding:30px">还没有产品，先在上方创建</div>';
@@ -1848,7 +2012,7 @@ function renderProductsTable(){
         <td class="c-muted">${sp.sku||'-'}</td>
         <td style="font-weight:700;color:var(--green)">${spPrice?'¥'+spPrice:'<span style=\"color:var(--amber);font-size:11px\">未设置</span>'}</td>
         <td>¥${fifo.toFixed(2)}</td>
-        <td><strong>${local}</strong></td>
+        <td><span onclick="inlineEditStock(this,${p.id},${sp.sid})" title="点击修改库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${local}</span></td>
         <td class="${profit>20?'c-green':profit>0?'':'c-red'}">${spPrice?profit.toFixed(1)+'%':'-'}</td>
         <td style="white-space:nowrap">
           <button class="btn btn-ghost btn-sm" onclick="openEditSpec(${p.id},${sp.sid})">编辑</button>
@@ -1866,7 +2030,7 @@ function renderProductsTable(){
       <td colspan="5"><button class="btn btn-primary btn-sm" onclick="addSpec(${p.id})">＋ 添加型号</button></td>
     </tr>`;
 
-    const collapsedSummary=!isExpanded&&specs.length>0?`<div style="padding:8px 16px;background:#f9fafb;border-top:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap">${specs.map(sp=>{const cLocal=getLocalStockSpec(p.id,sp.sid);const cPrice=sp.price||p.price||0;return `<span style="font-size:12px;color:var(--text2)"><span style="color:var(--primary);font-weight:600">${sp.name}</span> 库存<strong>${cLocal}</strong>${cPrice?` · <span style="color:var(--green)">¥${(+cPrice||0).toFixed(2)}</span>`:''}</span>`;}).join('')}</div>`:'';
+    const collapsedSummary=!isExpanded&&specs.length>0?`<div style="padding:8px 16px;background:#f9fafb;border-top:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap">${specs.map(sp=>{const cLocal=getLocalStockSpec(p.id,sp.sid);const cPrice=sp.price||p.price||0;return `<span style="font-size:12px;color:var(--text2)"><span style="color:var(--primary);font-weight:600">${sp.name}</span> 库存<span onclick="event.stopPropagation();inlineEditStock(this,${p.id},${sp.sid})" title="点击修改" style="cursor:pointer;font-weight:700;border-bottom:1px dashed var(--primary)">${cLocal}</span>${cPrice?` · <span style="color:var(--green)">¥${(+cPrice||0).toFixed(2)}</span>`:''}</span>`;}).join('')}</div>`:'';
 
     return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
       <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:${isExpanded?'1px solid var(--border)':'none'}">
@@ -1874,7 +2038,7 @@ function renderProductsTable(){
         <div style="flex-shrink:0">${imgThumb(p.id)}</div>
         <div style="flex:1;min-width:0;cursor:pointer" onclick="openEditProduct(${p.id})">
           <div>${pName(p.id, 0, specs.length>0?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleProductSpecs(${p.id})" id="expand-btn-${p.id}" style="font-size:12px;height:24px;padding:0 8px">${isExpanded?'▲ 收起':'▼ '+specs.length+'个型号'}</button>`:'')}</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px">总库存: <strong>${totalLocal}</strong>${p.price?` · 售价: <span style="color:var(--green);font-weight:600">¥${(+p.price||0).toFixed(2)}</span>`:''}${p.sku?` · SKU: ${p.sku}`:''}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">总库存: <span onclick="event.stopPropagation();inlineEditStock(this,${p.id},0)" title="点击修改库存" style="cursor:pointer;font-weight:700;border-bottom:1px dashed var(--primary)">${totalLocal}</span>${p.price?` · 售价: <span style="color:var(--green);font-weight:600">¥${(+p.price||0).toFixed(2)}</span>`:''}${p.sku?` · SKU: ${p.sku}`:''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
           <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProduct(${p.id})">删除</button>
@@ -3539,6 +3703,7 @@ window.deleteSupplier = function(i){
 
 // ===== 库存盘点 =====
 function renderStocktakeTable(){
+  if(window._inlineQtyEditing) return;
   const tbody=document.getElementById('stocktake-table'); if(!tbody) return;
   let rows='';
   D.products.forEach(p=>{
@@ -3549,7 +3714,7 @@ function renderStocktakeTable(){
         <td style="width:64px;padding:4px 6px">${imgThumb(p.id,0)}</td>
         <td>${p.name}</td>
         <td style="font-weight:700;color:var(--green)">${p.price?'¥'+p.price:'-'}</td>
-        <td>${stock}</td>
+        <td><span onclick="inlineEditStock(this,${p.id},0)" title="点击直接改为系统库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${stock}</span></td>
         <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="0" value="${stock}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
         <td class="st-diff" id="std-${p.id}-0" style="font-weight:600">0</td>
         <td><input type="text" class="st-note" data-pid="${p.id}" data-sid="0" placeholder="盘点备注" style="width:120px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:12px"></td>
@@ -3561,7 +3726,7 @@ function renderStocktakeTable(){
           <td style="width:64px;padding:4px 6px">${imgThumb(p.id,sp.sid)}</td>
           <td>${pName(p.id, sp.sid)}</td>
           <td style="font-weight:700;color:var(--green)">${sp.price||p.price?'¥'+(sp.price||p.price):'-'}</td>
-          <td>${stock2}</td>
+          <td><span onclick="inlineEditStock(this,${p.id},${sp.sid})" title="点击直接改为系统库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${stock2}</span></td>
           <td><input type="number" class="st-input" data-pid="${p.id}" data-sid="${sp.sid}" value="${stock2}" min="0" style="width:80px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:13px"></td>
           <td class="st-diff" id="std-${p.id}-${sp.sid}" style="font-weight:600">0</td>
           <td><input type="text" class="st-note" data-pid="${p.id}" data-sid="${sp.sid}" placeholder="盘点备注" style="width:120px;height:30px;padding:0 8px;border:1px solid var(--border2);border-radius:4px;font-size:12px"></td>
@@ -3707,6 +3872,7 @@ function renderSalesMonthlyStas(){
 
 // ===== 销售筛选和导出 =====
 function renderSalesTable(){
+  if(window._inlineQtyEditing) return;
   const search=(document.getElementById('sale-filter-product')||{}).value||'';
   const month=(document.getElementById('sale-filter-month')||{}).value||'';
   let filtered=D.sales;
@@ -3726,7 +3892,7 @@ function renderSalesTable(){
     return `<tr>
       <td>${r.date}</td>
       <td>${pName(r.pid, r.sid)}</td>
-      <td>${r.qty}</td>
+      <td><span onclick="inlineEditSaleQty(this,${origIdx})" title="点击修改数量" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${r.qty}</span></td>
       <td>¥${(r.price||0).toFixed(2)}</td>
       <td>¥${cost.toFixed(2)}</td>
       <td class="${profit>=0?'c-green':'c-red'}">${profit>=0?'+':''}¥${profit.toFixed(2)}</td>
@@ -3809,6 +3975,7 @@ function renderAnalysis(){
 
 
 function renderTurnoverTable(){
+  if(window._inlineQtyEditing) return;
   const tbody=document.getElementById('turnover-table'); if(!tbody) return;
   const now=new Date();
   const rows=[];
@@ -3830,7 +3997,7 @@ function renderTurnoverTable(){
       else{ status='<span style="color:var(--green)">✅ 充裕</span>'; advice='暂无需'; }
       rows.push(`<tr>
         <td>${name}</td>
-        <td><strong>${stock}</strong></td>
+        <td><span onclick="inlineEditStock(this,${pid},${sid||0})" title="点击修改本地库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary)">${stock}</span></td>
         <td>${monthlyAvg.toFixed(1)}/月</td>
         <td>${daysLeft===9999?'-':daysLeft+'天'}</td>
         <td>${status}</td>
