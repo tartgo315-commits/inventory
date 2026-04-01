@@ -394,10 +394,11 @@ input::placeholder{color:var(--text3)}
       </div>
     </div>
 
-    <div class="form-grid form-grid-3">
-      <div class="fg"><label>采购数量</label><input type="number" id="pur-qty" placeholder="100" min="1" oninput="updateCostPreview()"></div>
-      <div class="fg"><label>单件进价（¥）</label><input type="number" id="pur-price" placeholder="21.85" step="0.01" min="0" oninput="updateCostPreview()"></div>
-      <div class="fg"><label>这批总运费（¥，自动均摊）</label><input type="number" id="pur-ship-total" placeholder="50.00" step="0.01" min="0" oninput="updateCostPreview()"></div>
+    <div class="form-grid form-grid-4">
+      <div class="fg"><label>采购数量</label><input type="number" id="pur-qty" placeholder="100" min="1" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
+      <div class="fg"><label>单件进价（¥）</label><input type="number" id="pur-price" placeholder="21.85" step="0.01" min="0" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
+      <div class="fg"><label>这批总运费（¥，自动均摊）</label><input type="number" id="pur-ship-total" placeholder="50.00" step="0.01" min="0" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
+      <div class="fg"><label title="含货款+运费；填写后按「总价−左侧总运费」÷数量自动回填单件进价">实付总价（¥，含运费）</label><input type="number" id="pur-grand-total" placeholder="实付合计" step="0.01" min="0" oninput="applyPurGrandTotal()" title="例如订单实付金额；会反算单件进价"></div>
     </div>
     <div class="form-grid form-grid-3">
       <div class="fg"><label>快递单号（可选）</label><input type="text" id="pur-tracking" placeholder="SF1234567890123"></div>
@@ -426,7 +427,7 @@ input::placeholder{color:var(--text3)}
     <div class="btns">
       <button class="btn btn-primary" onclick="addPurchase('transit')">确认下单（在途）</button>
       <button class="btn btn-success" onclick="addPurchase('received')">货已到 直接入库</button>
-      <div class="cost-preview" id="pur-cost-preview" style="flex:1;max-width:320px">填写数量+进价+运费后显示单件成本</div>
+      <div class="cost-preview" id="pur-cost-preview" style="flex:1;max-width:360px">填写数量与进价，或填实付总价反算</div>
     </div>
   </div>
 
@@ -2975,7 +2976,7 @@ window.smartParse = function() {
       const m=text.match(p); if(m){const v=parseFloat(m[1]);if(v>=0.1&&v<99999){price=v;break;}}
     }
     if (!name&&!price) { resultEl.innerHTML=`<span style="color:var(--amber)">未能识别，请确认复制了完整页面文字</span>`; return; }
-    if (price) { document.getElementById('pur-price').value=price; updateCostPreview(); }
+    if (price) { document.getElementById('pur-price').value=price; syncPurGrandFromParts(); updateCostPreview(); }
     if (name) {
       const matched=D.products.find(p=>p.name.includes(name.slice(0,6))||name.includes(p.name.slice(0,6)));
       if(matched){
@@ -3107,6 +3108,7 @@ window.fillFromGoods = function(g) {
   document.getElementById('pur-ship-total').value=(g.ship||0).toFixed(2);
   if(g.orderId) document.getElementById('pur-order').value=g.orderId;
   if(g.sourceLink) document.getElementById('pur-link').value=g.sourceLink;
+  syncPurGrandFromParts();
   updateCostPreview();
 
   const ship=g.ship||0, qty=g.qty||1;
@@ -3321,7 +3323,13 @@ function handleBookmarkParams() {
     if (bQty) document.getElementById('pur-qty').value = qty;
     if (bLink) document.getElementById('pur-link').value = bLink;
     if (bOrderId) document.getElementById('pur-order').value = bOrderId;
-    updateCostPreview();
+    if (paid > 0) {
+      document.getElementById('pur-grand-total').value = paid.toFixed(2);
+      window.applyPurGrandTotal();
+    } else {
+      syncPurGrandFromParts();
+      updateCostPreview();
+    }
 
     if (bName) {
       const matched = D.products.find(p =>
@@ -3642,6 +3650,32 @@ window.setTransitImgTarget = function(idx) {
   setTimeout(()=>tip.remove(), 3000);
 };
 
+window.syncPurGrandFromParts=function(){
+  const qty=parseFloat(document.getElementById('pur-qty').value)||0;
+  const price=parseFloat(document.getElementById('pur-price').value)||0;
+  const ship=parseFloat(document.getElementById('pur-ship-total').value)||0;
+  const ge=document.getElementById('pur-grand-total');
+  if(!ge) return;
+  if(qty<=0&&ship<=0&&price<=0){ ge.value=''; return; }
+  ge.value=(price*qty+ship).toFixed(2);
+};
+
+window.applyPurGrandTotal=function(){
+  const qty=parseFloat(document.getElementById('pur-qty').value)||0;
+  const ship=parseFloat(document.getElementById('pur-ship-total').value)||0;
+  const ge=document.getElementById('pur-grand-total');
+  const pe=document.getElementById('pur-price');
+  if(!ge||!pe) return;
+  const raw=String(ge.value||'').trim();
+  if(!raw){ window.updateCostPreview(); return; }
+  const grand=parseFloat(raw);
+  if(!qty||grand<=0||isNaN(grand)){ window.updateCostPreview(); return; }
+  const net=grand-ship;
+  if(net<0){ showToast('实付总价不能小于总运费','err'); return; }
+  pe.value=(net/qty).toFixed(2);
+  window.updateCostPreview();
+};
+
 window.updateCostPreview = function(){
   const qty=parseFloat(document.getElementById('pur-qty').value)||0;
   const price=parseFloat(document.getElementById('pur-price').value)||0;
@@ -3659,7 +3693,7 @@ window.updateCostPreview = function(){
       +`<strong style="color:var(--primary);font-size:15px">¥${totalCost.toFixed(2)}</strong>`
       +`<span style="font-size:11px;color:var(--text3);margin-left:8px">（进¥${price.toFixed(2)}+运¥${shipPer.toFixed(2)}/件）</span>`;
   } else {
-    el.textContent='填写数量+进价+运费后显示';
+    el.textContent='填写数量与单件进价，或填右侧实付总价自动反算';
   }
 };
 
@@ -4136,11 +4170,18 @@ window.addPurchase = function(status){
   }
 
   const qty=parseInt(document.getElementById('pur-qty').value);
-  const price=parseFloat(document.getElementById('pur-price').value);
   const shipTotal=parseFloat(document.getElementById('pur-ship-total').value)||0;
+  const grandStr=(document.getElementById('pur-grand-total')?.value||'').trim();
+  const grand=grandStr?parseFloat(grandStr):NaN;
+  let price=parseFloat(document.getElementById('pur-price').value);
+  if(grandStr&&qty>0&&isFinite(grand)&&grand>0){
+    const net=grand-shipTotal;
+    if(net<0){ alert('实付总价不能小于总运费'); return; }
+    price=net/qty;
+  }
   const tracking=document.getElementById('pur-tracking').value.trim();
   const order=document.getElementById('pur-order').value.trim();
-  if(!qty||isNaN(price)||price<0){alert('请填写数量和进价');return;}
+  if(!qty||isNaN(price)||price<0){alert('请填写采购数量，并填写单件进价或实付总价（含运费）');return;}
   const shipPerUnit=qty>0?shipTotal/qty:0;
   const link=document.getElementById('pur-link').value.trim();
   const img=_purImgBase64||'';
@@ -4159,13 +4200,13 @@ window.addPurchase = function(status){
   D.purchases.push(record);
   save();
 
-  ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link',
+  ['pur-qty','pur-price','pur-ship-total','pur-grand-total','pur-tracking','pur-order','pur-link',
    'new-p-name','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   initNewProductSpecRows();
   document.getElementById('pur-img-file').value='';
   _purImgBase64='';
   setPreviewEl('pur-img-preview','');
-  document.getElementById('pur-cost-preview').textContent='填写数量+进价+运费后显示单件成本';
+  document.getElementById('pur-cost-preview').textContent='填写数量与进价，或填实付总价反算';
   window.toggleNewProduct('existing');
   render();
   const p=gp(pid);
