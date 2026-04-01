@@ -176,7 +176,35 @@ input::placeholder{color:var(--text3)}
   .metric-grid,.flow-bar{grid-template-columns:1fr 1fr}
   .form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr}
   .prod-thumb,.prod-placeholder{width:56px!important;height:56px!important}
+  .global-search-wrap{display:none!important}
 }
+
+/* 顶栏搜索 */
+.global-search-wrap{position:relative;flex:1;max-width:440px;margin:0 16px;min-width:0}
+.global-search-wrap .gsi{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.45;pointer-events:none;z-index:1}
+#global-search{width:100%;height:36px;padding:0 12px 0 38px;border-radius:var(--radius-sm);font-size:13px;background:var(--bg);border:1.5px solid var(--border2);transition:border-color .15s,box-shadow .15s}
+#global-search:focus{outline:none;background:var(--surface);border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,.1)}
+.global-search-dd{position:absolute;left:0;right:0;top:calc(100%+6px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);max-height:min(400px,56vh);overflow-y:auto;z-index:70;display:none}
+.global-search-dd.open{display:block}
+.global-search-h{font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;padding:8px 14px 4px;background:#fafbfc}
+.global-search-item{padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);line-height:1.35}
+.global-search-item:hover{background:var(--primary-bg)}
+.global-search-item small{display:block;color:var(--text3);font-size:11px;margin-top:3px;font-weight:500}
+
+/* 表格：可滚动 + 表头吸附 */
+.tbl-wrap.tbl-scroll{max-height:min(72vh,900px);overflow:auto;position:relative;-webkit-overflow-scrolling:touch}
+.tbl-scroll table thead th{position:sticky;top:0;z-index:2;background:#fafbfc;box-shadow:0 1px 0 var(--border)}
+.tbl-scroll tbody tr:hover td{background:#f8f9ff}
+.tbl-scroll td{padding:12px 14px}
+.tbl-scroll th{padding:10px 14px}
+
+/* Toast */
+#toast-host{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:300;pointer-events:none}
+.toast{padding:12px 20px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;box-shadow:var(--shadow-md);animation:toastIn .25s ease;max-width:90vw}
+.toast.ok{background:var(--green);color:#fff}
+.toast.err{background:var(--red);color:#fff}
+.toast.info{background:var(--text);color:#fff}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
@@ -216,6 +244,8 @@ input::placeholder{color:var(--text3)}
     <button class="nav-item" onclick="showPage('supplier')"><span class="nav-icon">🏭</span><span>供应商</span></button>
     <button class="nav-item" onclick="showPage('stocktake')"><span class="nav-icon">📋</span><span>库存盘点</span></button>
     <button class="nav-item" onclick="showPage('returns')"><span class="nav-icon">↩️</span><span>退货记录</span></button>
+    <button class="nav-item" onclick="showPage('ledger')"><span class="nav-icon">📜</span><span>库存流水</span></button>
+    <button class="nav-item" onclick="showPage('trash')"><span class="nav-icon">🗑️</span><span>回收站</span></button>
     <button class="nav-item" onclick="showPage('backup')"><span class="nav-icon">💾</span><span>备份/恢复</span></button>
     <button class="nav-item" onclick="showPage('settings')"><span class="nav-icon">⚙️</span><span>设置</span></button>
   </nav>
@@ -226,6 +256,7 @@ input::placeholder{color:var(--text3)}
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
       <div id="build-info">Build · …</div>
+      <div>顶栏搜索 · 库存流水 · 回收站 · 二次确认</div>
       <div>补货预警·成本走势·周转率·月报·筛选导出</div>
       <div>数据分析 · 销售统计 · 搜索筛选 · CSV导出 · 补货预警</div>
       <div>供应商 · 盘点 · 退货 · 月度报表 · 趋势图</div>
@@ -238,10 +269,16 @@ input::placeholder{color:var(--text3)}
 <div class="main-wrap">
 <div class="topbar">
   <div class="page-title" id="page-title">总览</div>
+  <div class="global-search-wrap">
+    <span class="gsi" aria-hidden="true">🔍</span>
+    <input type="search" id="global-search" placeholder="搜索商品、SKU、运单号、订单号…" autocomplete="off" aria-label="全局搜索">
+    <div id="global-search-dd" class="global-search-dd" role="listbox"></div>
+  </div>
   <div class="topbar-right">
     <button class="btn btn-ghost btn-sm" onclick="resetConfig()">重置配置</button>
   </div>
 </div>
+<div id="toast-host"></div>
 <div class="main">
 
 <!-- 总览 -->
@@ -266,7 +303,7 @@ input::placeholder{color:var(--text3)}
   <div id="low-stock-alert"></div>
   <div class="card">
     <div class="card-title">各商品库存状态</div>
-    <div class="tbl-wrap"><table><thead><tr>
+    <div class="tbl-wrap tbl-scroll"><table><thead><tr>
       <th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="sortStockTable('composite')" title="默认：本地库存从高到低，相同则按在途从高到低">商品名</th>
       <th>货源</th>
       <th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="sortStockTable('transit')" title="点击排序，再点反转">在途</th>
@@ -363,7 +400,7 @@ input::placeholder{color:var(--text3)}
   <div class="section-sep">第二步：待签收 — 货到后确认入库</div>
   <div class="card">
     <div class="card-title">在途订单</div>
-    <div class="tbl-wrap"><table><thead><tr>
+    <div class="tbl-wrap tbl-scroll"><table><thead><tr>
       <th>图片</th><th>商品 / 日期</th><th>数量</th><th>单件成本(¥)</th><th style="color:var(--red)">采购总消费</th><th style="color:var(--green)">本单运费</th><th>操作</th>
     </tr></thead><tbody id="transit-table"></tbody></table></div>
   </div>
@@ -390,7 +427,7 @@ input::placeholder{color:var(--text3)}
         <button class="btn btn-danger btn-sm" id="pur-batch-del" style="display:none" onclick="batchDeletePurchase()">删除所选</button>
       </div>
     </div>
-    <div class="tbl-wrap"><table><thead><tr>
+    <div class="tbl-wrap tbl-scroll"><table><thead><tr>
       <th style="width:36px"><input type="checkbox" id="pur-check-all" onchange="toggleAllPurchase(this)" style="width:16px;height:16px;cursor:pointer"></th>
       <th>图片</th><th>商品 / 日期</th><th>采购量</th><th>入库量</th><th>进价(¥)</th><th>运费(¥)</th><th>总成本(¥)</th><th>批次金额(¥)</th><th>状态</th><th>快递单号</th><th>操作</th>
     </tr></thead><tbody id="purchase-table"></tbody></table></div>
@@ -421,7 +458,7 @@ input::placeholder{color:var(--text3)}
         <button class="btn btn-danger btn-sm" id="out-batch-del" style="display:none" onclick="batchDeleteOutbound()">删除所选</button>
       </div>
     </div>
-    <div class="tbl-wrap"><table><thead><tr>
+    <div class="tbl-wrap tbl-scroll"><table><thead><tr>
       <th style="width:36px"><input type="checkbox" id="out-cb-all" onchange="onOutCheckChange(this)" style="width:16px;height:16px;cursor:pointer"></th>
       <th>日期</th><th>商品/型号</th><th>发出数量</th><th>Temu售价</th><th>头程运费</th><th>运单号</th><th>操作</th>
     </tr></thead><tbody id="outbound-table"></tbody></table></div>
@@ -459,7 +496,7 @@ input::placeholder{color:var(--text3)}
 
   <div class="card">
     <div class="card-title">销售明细 <span class="c-muted" style="font-size:12px;font-weight:400" id="sale-total"></span></div>
-    <div class="tbl-wrap"><table><thead><tr>
+    <div class="tbl-wrap tbl-scroll"><table><thead><tr>
       <th>日期</th><th>商品/型号</th><th>数量</th><th>售价(¥)</th><th>均价成本(¥)</th><th>毛利(¥)</th><th>毛利率</th><th>订单号</th><th>操作</th>
     </tr></thead><tbody id="sales-table"></tbody></table></div>
   </div>
@@ -627,6 +664,13 @@ input::placeholder{color:var(--text3)}
     <div class="form-grid">
       <div class="fg"><label>低库存预警阈值（件）</label><input type="number" id="s-lowstock" step="1" min="1"></div>
     </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2);cursor:pointer;font-weight:600">
+        <input type="checkbox" id="s-confirm-qty" style="width:18px;height:18px;cursor:pointer">
+        修改库存数量前弹出二次确认（总览/商品/盘点等点击改数）
+      </label>
+      <p style="font-size:12px;color:var(--text3);margin-top:8px;margin-left:28px;line-height:1.5">关闭后点数字直接保存，适合熟练操作。</p>
+    </div>
     <div class="btns"><button class="btn btn-primary" onclick="saveSettings()">保存设置</button></div>
   </div>
   <div class="card">
@@ -651,8 +695,57 @@ input::placeholder{color:var(--text3)}
   </div>
 </div>
 
+<!-- 库存流水 -->
+<div id="page-ledger" class="page">
+  <div class="card">
+    <div class="card-title">库存流水</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.65">按时间汇总进货、在途、出库、销售与调整记录。<strong>结余(本地)</strong>仅统计影响本地库存的行；Temu 销售不影响本地结余。</p>
+    <div class="form-grid" style="max-width:800px;align-items:end">
+      <div class="fg"><label>商品</label><select id="ledger-product" onchange="onLedgerProductChange()"></select></div>
+      <div class="fg"><label>型号</label><select id="ledger-spec"></select></div>
+      <div class="fg"><button type="button" class="btn btn-primary" onclick="renderLedgerTable()">刷新流水</button></div>
+    </div>
+    <div class="tbl-wrap tbl-scroll" style="margin-top:18px">
+      <table><thead><tr>
+        <th>日期</th><th>类型</th><th>渠道</th><th>数量±</th><th>结余(本地)</th><th>备注 / 单号</th>
+      </tr></thead><tbody id="ledger-table"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- 回收站 -->
+<div id="page-trash" class="page">
+  <div class="card">
+    <div class="card-title">回收站 <span class="card-title-sub">删除的进货/出库/销售等可恢复；永久删除后无法找回</span></div>
+    <div class="btns" style="margin-bottom:14px">
+      <button type="button" class="btn btn-danger btn-sm" onclick="emptyTrashPermanent()">清空回收站（永久删除全部）</button>
+    </div>
+    <div class="tbl-wrap tbl-scroll">
+      <table><thead><tr>
+        <th>删除时间</th><th>类型</th><th>摘要</th><th>操作</th>
+      </tr></thead><tbody id="trash-table"></tbody></table>
+    </div>
+  </div>
+</div>
+
 </div>
 </div><!-- /main-wrap -->
+
+<!-- 统一确认弹窗（删除 / 危险操作） -->
+<div id="confirm-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)closeConfirmModal()">
+  <div class="modal-box" style="max-width:420px" onclick="event.stopPropagation()">
+    <div class="modal-title"><span id="cm-title">确认</span><button type="button" class="modal-close" onclick="closeConfirmModal()">✕</button></div>
+    <p id="cm-msg" style="font-size:14px;color:var(--text2);line-height:1.65;margin-bottom:14px;white-space:pre-wrap"></p>
+    <label id="cm-cb-wrap" style="display:none;align-items:flex-start;gap:10px;margin-bottom:16px;font-size:13px;cursor:pointer;line-height:1.45">
+      <input type="checkbox" id="cm-checkbox" style="width:18px;height:18px;margin-top:2px;flex-shrink:0;cursor:pointer">
+      <span id="cm-cb-label"></span>
+    </label>
+    <div class="btns">
+      <button type="button" class="btn btn-ghost" onclick="closeConfirmModal()">取消</button>
+      <button type="button" class="btn btn-primary" id="cm-ok">确认</button>
+    </div>
+  </div>
+</div>
 
 <!-- 添加型号入库弹窗 -->
 <div id="add-spec-modal" class="modal-mask" style="display:none" onclick="if(event.target===this)this.style.display='none'">
@@ -801,6 +894,7 @@ input::placeholder{color:var(--text3)}
 <script>
 const PWD_KEY = 'inv_pwd_v1';
 function getPassword() { return localStorage.getItem(PWD_KEY) || '1234'; }
+window.getPassword = getPassword;
 
 function checkPassword() {
   const input = document.getElementById('lock-input').value;
@@ -949,7 +1043,7 @@ let db, docRef;
 let D = defaultData();
 
 function defaultData() {
-  return { settings:{rate:1,lowStock:10}, products:[], purchases:[], outbounds:[], sales:[], nextId:1, nextSid:1, suppliers:[], returns:[], stockAdjustments:[] };
+  return { settings:{rate:1,lowStock:10,confirmQuantityChange:true}, products:[], purchases:[], outbounds:[], sales:[], nextId:1, nextSid:1, suppliers:[], returns:[], stockAdjustments:[], trash:[] };
 }
 
 // 标记：Firebase数据是否已加载完成
@@ -976,6 +1070,8 @@ async function initFirebase(cfg) {
           if(!D.purchases) D.purchases = [];
           if(!D.sales) D.sales = [];
           if(!D.products) D.products = [];
+          if(!D.trash) D.trash = [];
+          if(D.settings.confirmQuantityChange===undefined) D.settings.confirmQuantityChange = true;
         }
       } else {
         if(!_firebaseReady){
@@ -1071,6 +1167,7 @@ async function pushData() {
         // Firebase有数据，本地是空的，说明可能是读取时序问题，不覆盖
         D = {...defaultData(), ...snap.data()};
         if(!D.outbounds) D.outbounds=[];
+        if(!D.trash) D.trash=[];
         render();
         setSyncStatus('online');
         return;
@@ -1223,17 +1320,340 @@ function getDisplayName(pid,sid){ const p=gp(pid); const s=gs(pid,sid); if(!p) r
 function today(){ return new Date().toISOString().slice(0,10); }
 function calcProfitFifo(p){ const c=getFifoCostPerUnit(p.id),rv=p.price*D.settings.rate; return rv?(rv-c)/rv*100:0; }
 
+// ===== Toast / 确认弹窗 / 回收站 =====
+window.showToast=function(msg,type){
+  type=type||'ok';
+  const host=document.getElementById('toast-host'); if(!host) return;
+  const el=document.createElement('div');
+  el.className='toast '+(type==='err'?'err':type==='info'?'info':'ok');
+  el.textContent=msg;
+  host.innerHTML='';
+  host.appendChild(el);
+  clearTimeout(window._toastT);
+  window._toastT=setTimeout(()=>{ el.remove(); },3200);
+};
+let _confirmAction=null;
+window.showConfirmModal=function(opts){
+  opts=opts||{};
+  document.getElementById('cm-title').textContent=opts.title||'请确认';
+  document.getElementById('cm-msg').textContent=opts.message||'';
+  const wrap=document.getElementById('cm-cb-wrap'), cb=document.getElementById('cm-checkbox');
+  if(opts.checkboxLabel){
+    wrap.style.display='flex';
+    document.getElementById('cm-cb-label').textContent=opts.checkboxLabel;
+    cb.checked=false;
+  } else wrap.style.display='none';
+  const okBtn=document.getElementById('cm-ok');
+  okBtn.className=opts.danger?'btn btn-danger':'btn btn-primary';
+  okBtn.textContent=opts.okText||'确认';
+  _confirmAction=function(){
+    if(opts.requireCheckbox && !cb.checked){ showToast('请先勾选确认项','err'); return; }
+    if(opts.onConfirm) opts.onConfirm();
+    window.closeConfirmModal();
+  };
+  okBtn.onclick=function(){ _confirmAction(); };
+  document.getElementById('confirm-modal').style.display='flex';
+};
+window.closeConfirmModal=function(){
+  document.getElementById('confirm-modal').style.display='none';
+  _confirmAction=null;
+};
+
+function moveToTrash(kind,data){
+  if(!D.trash) D.trash=[];
+  D.trash.push({
+    id:'tr_'+Date.now()+'_'+Math.random().toString(36).slice(2,10),
+    kind,
+    data:JSON.parse(JSON.stringify(data)),
+    deletedAt:new Date().toISOString().slice(0,19).replace('T',' ')
+  });
+}
+
+function trashKindLabel(k){
+  return ({purchase:'进货记录',outbound:'出库记录',sale:'销售记录',return:'退货记录',supplier:'供应商',product:'商品'})[k]||k;
+}
+
+function trashSummary(it){
+  const d=it.data;
+  try{
+    if(it.kind==='product') return d.name||('ID '+d.id);
+    if(it.kind==='supplier') return d.name||'-';
+    const pid=d.pid, sid=d.sid||0;
+    return getDisplayName(pid,sid)+(d.date?' · '+d.date:'')+(d.qty!=null?' · qty '+d.qty:'');
+  }catch(e){ return '(数据)'; }
+}
+
+window.restoreTrashItem=function(id){
+  const ix=(D.trash||[]).findIndex(t=>t.id===id);
+  if(ix<0) return;
+  const it=D.trash[ix];
+  if(it.kind==='purchase') D.purchases.push(it.data);
+  else if(it.kind==='outbound') D.outbounds.push(it.data);
+  else if(it.kind==='sale') D.sales.push(it.data);
+  else if(it.kind==='return'){ if(!D.returns) D.returns=[]; D.returns.push(it.data); }
+  else if(it.kind==='supplier'){ if(!D.suppliers) D.suppliers=[]; D.suppliers.push(it.data); }
+  else if(it.kind==='product') D.products.push(it.data);
+  D.trash.splice(ix,1);
+  save(); render();
+  showToast('已从回收站恢复','ok');
+};
+
+window.permanentDeleteTrashItem=function(id){
+  showConfirmModal({
+    title:'永久删除',
+    message:'此条目将从回收站彻底删除，无法恢复。',
+    danger:true,
+    okText:'永久删除',
+    onConfirm:()=>{
+      D.trash=(D.trash||[]).filter(t=>t.id!==id);
+      save(); renderTrashTable(); showToast('已永久删除','info');
+    }
+  });
+};
+
+window.emptyTrashPermanent=function(){
+  if(!(D.trash||[]).length){ showToast('回收站已是空的','info'); return; }
+  showConfirmModal({
+    title:'清空回收站',
+    message:'将永久删除回收站内全部 '+D.trash.length+' 条记录，无法恢复。',
+    danger:true,
+    okText:'全部永久删除',
+    checkboxLabel:'我已了解，永久删除不可撤销',
+    requireCheckbox:true,
+    onConfirm:()=>{
+      D.trash=[];
+      save(); renderTrashTable(); showToast('回收站已清空','info');
+    }
+  });
+};
+
+function renderTrashTable(){
+  const tbody=document.getElementById('trash-table'); if(!tbody) return;
+  const list=(D.trash||[]).slice().reverse();
+  tbody.innerHTML=list.length?list.map(t=>`<tr>
+    <td class="c-muted" style="font-size:12px">${t.deletedAt}</td>
+    <td><span class="badge badge-info">${trashKindLabel(t.kind)}</span></td>
+    <td style="font-size:13px">${trashSummary(t)}</td>
+    <td style="white-space:nowrap">
+      <button type="button" class="btn btn-primary btn-sm" onclick="restoreTrashItem('${t.id}')">恢复</button>
+      <button type="button" class="btn btn-ghost btn-sm" style="color:var(--red);margin-left:6px" onclick="permanentDeleteTrashItem('${t.id}')">永久删除</button>
+    </td>
+  </tr>`).join(''):'<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:24px">回收站为空</td></tr>';
+}
+
+// ===== 库存流水 =====
+function populateLedgerSelects(){
+  const ps=document.getElementById('ledger-product'), sp=document.getElementById('ledger-spec');
+  if(!ps) return;
+  let h='<option value="">— 选择商品 —</option>';
+  D.products.forEach(p=>{ h+=`<option value="${p.id}">${p.name}</option>`; });
+  ps.innerHTML=h;
+  onLedgerProductChange();
+}
+
+window.onLedgerProductChange=function(){
+  const ps=document.getElementById('ledger-product'), sp=document.getElementById('ledger-spec');
+  if(!ps||!sp) return;
+  const pid=parseInt(ps.value,10);
+  const p=gp(pid);
+  const specs=(p&&p.specs)||[];
+  if(!specs.length){ sp.innerHTML='<option value="0">全部（单品）</option>'; return; }
+  let h='<option value="0">全部型号（合并）</option>';
+  specs.forEach(s=>{ h+=`<option value="${s.sid}">${s.name}</option>`; });
+  sp.innerHTML=h;
+};
+
+function ledgerEventSortKey(dateStr, tier){ return (dateStr||'')+'|'+tier; }
+
+window.renderLedgerTable=function(){
+  const tbody=document.getElementById('ledger-table'); if(!tbody) return;
+  const pid=parseInt((document.getElementById('ledger-product')||{}).value,10);
+  if(!pid){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">请先选择商品</td></tr>'; return; }
+  const sidF=parseInt((document.getElementById('ledger-spec')||{}).value,10);
+  const ev=[];
+  const matchSid=(sid)=>{ if(!sidF) return true; return (sid||0)===sidF; };
+
+  D.purchases.forEach(r=>{
+    if(r.pid!==pid||!matchSid(r.sid)) return;
+    if(r.status==='transit'){
+      ev.push({sk:ledgerEventSortKey(r.date,'a'),date:r.date,type:'进货·在途',ch:'在途',dQty:r.qty,bal:null,note:(r.order||'')+(r.tracking?' · '+r.tracking:'')});
+    } else {
+      const rq=r.receivedQty!=null?r.receivedQty:r.qty;
+      let typ='进货·入库';
+      if(r.order==='盘点调整'||r.isAdjustment) typ='盘点调整';
+      else if(r.isReturn) typ='采购退货(入负)';
+      else if(r.isAdjust) typ='库存调整·入';
+      ev.push({sk:ledgerEventSortKey(r.receivedDate||r.date,'b'),date:r.receivedDate||r.date,type:typ,ch:'本地',dQty:rq,bal:0,note:(r.order||'')+(r.tracking?' · '+r.tracking:'')});
+    }
+  });
+
+  D.outbounds.forEach(r=>{
+    if(r.pid!==pid||!matchSid(r.sid)) return;
+    const typ=r.isAdjust?'库存调整·出':'出库·Temu';
+    ev.push({sk:ledgerEventSortKey(r.date,'c'),date:r.date,type:typ,ch:'本地',dQty:-r.qty,bal:0,note:r.tracking||r.note||''});
+  });
+
+  D.sales.forEach(r=>{
+    if(r.pid!==pid||!matchSid(r.sid)) return;
+    if(!r.qty) return;
+    const typ=r.qty<0||r.isReturn?'销售退回':'Temu销售';
+    ev.push({sk:ledgerEventSortKey(r.date,'d'),date:r.date,type:typ,ch:'Temu',dQty:-r.qty,bal:null,note:r.order||''});
+  });
+
+  ev.sort((a,b)=>a.sk.localeCompare(b.sk));
+  let running=0;
+  ev.forEach(e=>{
+    if(e.ch==='本地'&&typeof e.dQty==='number'){
+      running+=e.dQty;
+      e.bal=running;
+    }
+  });
+
+  tbody.innerHTML=ev.length?ev.map(e=>`<tr>
+    <td style="white-space:nowrap">${e.date}</td>
+    <td>${e.type}</td>
+    <td><span class="badge ${e.ch==='本地'?'badge-received':e.ch==='在途'?'badge-transit':'badge-info'}">${e.ch}</span></td>
+    <td style="font-weight:800;color:${e.dQty>0?'var(--green)':e.dQty<0?'var(--red)':'var(--text2)'}">${e.dQty>0?'+':''}${e.dQty}</td>
+    <td style="font-weight:700">${e.bal==null?'—':e.bal}</td>
+    <td class="c-muted" style="font-size:12px;max-width:220px;word-break:break-all">${e.note||'-'}</td>
+  </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">暂无记录</td></tr>';
+};
+
+// ===== 全局搜索 =====
+function attachGlobalSearch(){
+  const inp=document.getElementById('global-search'), dd=document.getElementById('global-search-dd');
+  if(!inp||!dd) return;
+  let tmr;
+  inp.addEventListener('input',()=>{
+    clearTimeout(tmr);
+    tmr=setTimeout(()=>runGlobalSearch(inp.value.trim()),200);
+  });
+  inp.addEventListener('focus',()=>{ if(inp.value.trim()) runGlobalSearch(inp.value.trim()); });
+  document.addEventListener('click',e=>{
+    if(!e.target.closest('.global-search-wrap')){ dd.classList.remove('open'); }
+  });
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){ dd.classList.remove('open'); inp.blur(); }
+  });
+}
+
+function runGlobalSearch(q){
+  const dd=document.getElementById('global-search-dd');
+  if(!dd) return;
+  if(!q||q.length<1){ dd.innerHTML=''; dd.classList.remove('open'); return; }
+  const ql=q.toLowerCase();
+  const sections=[];
+
+  const prodHits=[];
+  D.products.forEach(p=>{
+    const blob=[p.name,p.sku,(p.specs||[]).map(s=>s.name+' '+s.sku).join(' ')].join(' ').toLowerCase();
+    if(blob.includes(ql)) prodHits.push(p);
+  });
+  if(prodHits.length){
+    let h='<div class="global-search-h">商品</div>';
+    prodHits.slice(0,12).forEach(p=>{
+      h+=`<div class="global-search-item" role="option" onclick="globalSearchGoProduct(${p.id})"><strong>${p.name}</strong><small>商品管理 · 本地库存 ${computeEditableLocalStock(p.id,0)}</small></div>`;
+    });
+    sections.push(h);
+  }
+
+  const purHits=[];
+  D.purchases.forEach((r,i)=>{
+    const p=gp(r.pid);
+    const track=(r.tracking||'')+' '+(r.order||'');
+    if(track.toLowerCase().includes(ql)||(p&&p.name&&p.name.toLowerCase().includes(ql))){
+      purHits.push({i,r,p});
+    }
+  });
+  if(purHits.length){
+    let h='<div class="global-search-h">进货 / 在途</div>';
+    purHits.slice(0,10).forEach(({i,r,p})=>{
+      h+=`<div class="global-search-item" onclick="globalSearchGoPurchase(${i})"><strong>${p?p.name:'商品'}</strong><small>${r.date} · ${r.tracking||r.order||'无单号'}</small></div>`;
+    });
+    sections.push(h);
+  }
+
+  const outHits=[];
+  D.outbounds.forEach((r,i)=>{
+    const p=gp(r.pid);
+    const tr=(r.tracking||'')+' '+(r.note||'');
+    if(tr.toLowerCase().includes(ql)||(p&&p.name&&p.name.toLowerCase().includes(ql))){
+      outHits.push({i,r,p});
+    }
+  });
+  if(outHits.length){
+    let h='<div class="global-search-h">出库</div>';
+    outHits.slice(0,10).forEach(({i,r,p})=>{
+      h+=`<div class="global-search-item" onclick="globalSearchGoOutbound()"><strong>${p?p.name:'商品'}</strong><small>${r.date} · ${r.tracking||'出库'} · ${r.qty}件</small></div>`;
+    });
+    sections.push(h);
+  }
+
+  const saleHits=[];
+  D.sales.forEach((r,i)=>{
+    const p=gp(r.pid);
+    const ord=(r.order||'').toLowerCase();
+    if(ord.includes(ql)||(p&&p.name&&p.name.toLowerCase().includes(ql))){
+      saleHits.push({i,r,p});
+    }
+  });
+  if(saleHits.length){
+    let h='<div class="global-search-h">销售</div>';
+    saleHits.slice(0,10).forEach(({r,p})=>{
+      h+=`<div class="global-search-item" onclick="globalSearchGoSales()"><strong>${p?p.name:'商品'}</strong><small>${r.date} · ${r.order||'无订单号'}</small></div>`;
+    });
+    sections.push(h);
+  }
+
+  if(!sections.length){
+    dd.innerHTML='<div class="global-search-item" style="cursor:default;color:var(--text3)">无匹配结果</div>';
+  } else dd.innerHTML=sections.join('');
+  dd.classList.add('open');
+}
+
+window.globalSearchGoProduct=function(pid){
+  document.getElementById('global-search-dd')?.classList.remove('open');
+  showPage('products');
+  setTimeout(()=>{ const el=document.querySelector(`[data-search-pid="${pid}"]`); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); },200);
+};
+
+window.globalSearchGoPurchase=function(idx){
+  document.getElementById('global-search-dd')?.classList.remove('open');
+  showPage('purchase');
+  setTimeout(()=>{ openEditPurchase(idx); },250);
+};
+
+window.globalSearchGoOutbound=function(){
+  document.getElementById('global-search-dd')?.classList.remove('open');
+  showPage('outbound');
+};
+
+window.globalSearchGoSales=function(){
+  document.getElementById('global-search-dd')?.classList.remove('open');
+  showPage('sales');
+};
+
 // ===== 页面切换 =====
-const PAGES=['dashboard','purchase','outbound','sales','products','analysis','supplier','stocktake','returns','backup','settings'];
-const PAGE_TITLES={'dashboard':'总览','purchase':'进货 / 入库','outbound':'出库到Temu','sales':'Temu销售','products':'商品管理','analysis':'数据分析','supplier':'供应商管理','stocktake':'库存盘点','returns':'退货记录','backup':'备份/恢复','settings':'设置'};
+const PAGES=['dashboard','purchase','outbound','sales','products','analysis','supplier','stocktake','returns','ledger','trash','backup','settings'];
+const PAGE_TITLES={'dashboard':'总览','purchase':'进货 / 入库','outbound':'出库到Temu','sales':'Temu销售','products':'商品管理','analysis':'数据分析','supplier':'供应商管理','stocktake':'库存盘点','returns':'退货记录','ledger':'库存流水','trash':'回收站','backup':'备份/恢复','settings':'设置'};
 window.showPage = function(name){
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
-  document.querySelectorAll('.nav-item')[PAGES.indexOf(name)].classList.add('active');
+  const pageEl=document.getElementById('page-'+name);
+  if(pageEl) pageEl.classList.add('active');
+  const ni=PAGES.indexOf(name);
+  if(ni>=0){
+    const items=document.querySelectorAll('.nav-item');
+    if(items[ni]) items[ni].classList.add('active');
+  }
   const pt=document.getElementById('page-title');if(pt)pt.textContent=PAGE_TITLES[name]||name;
   render();
-  if(name==='settings'){document.getElementById('s-lowstock').value=D.settings.lowStock;}
+  if(name==='settings'){
+    document.getElementById('s-lowstock').value=D.settings.lowStock;
+    const cq=document.getElementById('s-confirm-qty'); if(cq) cq.checked=D.settings.confirmQuantityChange!==false;
+  }
+  if(name==='ledger'){ populateLedgerSelects(); renderLedgerTable(); }
+  if(name==='trash') renderTrashTable();
 };
 
 // ===== 渲染 =====
@@ -1244,6 +1664,8 @@ function render(){
   renderSupplierTable(); renderStocktakeTable(); renderReturnsTable(); renderMonthlySales(); renderCostTrend();
   renderSalesChart(); renderAnalysis();
   populateSelects(); populateReturnSelect();
+  if(document.getElementById('page-ledger')?.classList.contains('active')){ renderLedgerTable(); }
+  if(document.getElementById('page-trash')?.classList.contains('active')){ renderTrashTable(); }
 }
 
 function renderFlow(){
@@ -1864,10 +2286,28 @@ window.inlineEditStock = function(el, pid, sid){
     if(confirmingS||!input.parentNode) return;
     confirmingS=true;
     const newVal = parseInt(input.value,10);
+    if(isNaN(newVal)||newVal<0||newVal===current){ cancel(); confirmingS=false; return; }
+    if(D.settings.confirmQuantityChange!==false){
+      window._inlineQtyEditing = false;
+      confirmingS=false;
+      if(input.parentNode) input.replaceWith(el);
+      showConfirmModal({
+        title:'确认修改本地库存',
+        message:`${getDisplayName(pid,sidN)}\n从 ${current} 改为 ${newVal} ？`,
+        okText:'确认修改',
+        onConfirm:()=>{
+          applyLocalStockTarget(pid,sidN,newVal);
+          save(); renderStockTable(); render();
+          showToast('库存已更新','ok');
+        }
+      });
+      return;
+    }
     window._inlineQtyEditing = false;
-    if(isNaN(newVal)||newVal<0||newVal===current){ cancel(); return; }
+    confirmingS=false;
     applyLocalStockTarget(pid,sidN,newVal);
     save(); renderStockTable(); render();
+    showToast('库存已更新','ok');
   };
   input.addEventListener('blur', ()=>{ confirmEdit(); });
   input.addEventListener('keydown', e=>{
@@ -2080,7 +2520,7 @@ function renderProductsTable(){
 
     const collapsedSummary=!isExpanded&&specs.length>0?`<div style="padding:8px 16px;background:#f9fafb;border-top:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap">${specs.map(sp=>{const cLocal=getLocalStockSpec(p.id,sp.sid);const cPrice=sp.price||p.price||0;return `<span style="font-size:12px;color:var(--text2)"><span style="color:var(--primary);font-weight:600">${sp.name}</span> 库存<span onclick="event.stopPropagation();inlineEditStock(this,${p.id},${sp.sid})" title="点击修改" style="cursor:pointer;font-weight:700;border-bottom:1px dashed var(--primary)">${cLocal}</span>${cPrice?` · <span style="color:var(--green)">¥${(+cPrice||0).toFixed(2)}</span>`:''}</span>`;}).join('')}</div>`:'';
 
-    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
+    return `<div data-search-pid="${p.id}" style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden">
       <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:${isExpanded?'1px solid var(--border)':'none'}">
         <input type="checkbox" class="prod-cb" data-pid="${p.id}" onchange="onProdCheckChange()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
         <div style="flex-shrink:0">${imgThumb(p.id)}</div>
@@ -3350,8 +3790,18 @@ window.openEditSpec = function(pid, sid){
 };
 
 window.deleteProduct = function(id){
-  if(!confirm('确认删除此产品及其所有型号？'))return;
-  D.products=D.products.filter(p=>p.id!=id); save(); render();
+  const p=gp(id); if(!p) return;
+  showConfirmModal({
+    title:'删除商品',
+    message:`将「${p.name}」移入回收站（进货/出库等记录仍保留，可继续关联原商品 ID）。\n稍后在侧栏「回收站」可恢复。`,
+    okText:'移入回收站',
+    onConfirm:()=>{
+      moveToTrash('product',p);
+      D.products=D.products.filter(x=>x.id!=id);
+      save(); render();
+      showToast('商品已移入回收站','ok');
+    }
+  });
 };
 window.toggleAllPurchase = function(cb) {
   document.querySelectorAll('.pur-cb').forEach(el=>el.checked=cb.checked);
@@ -3373,10 +3823,17 @@ window.onPurCheckChange = function() {
 window.batchDeletePurchase = function() {
   const checked=[...document.querySelectorAll('.pur-cb:checked')];
   if(!checked.length) return;
-  if(!confirm(`确认删除选中的 ${checked.length} 条进货记录？`)) return;
-  const idxs=checked.map(cb=>parseInt(cb.dataset.idx)).sort((a,b)=>b-a);
-  idxs.forEach(idx=>D.purchases.splice(idx,1));
-  save(); render();
+  showConfirmModal({
+    title:'批量删除进货记录',
+    message:`将选中的 ${checked.length} 条进货记录移入回收站，可在「回收站」单独恢复。`,
+    okText:'移入回收站',
+    onConfirm:()=>{
+      const idxs=checked.map(cb=>parseInt(cb.dataset.idx)).sort((a,b)=>b-a);
+      idxs.forEach(idx=>{ moveToTrash('purchase',D.purchases[idx]); D.purchases.splice(idx,1); });
+      save(); render();
+      showToast('已移入回收站','ok');
+    }
+  });
 };
 
 window.onProdCheckChange = function() {
@@ -3391,9 +3848,17 @@ window.batchDeleteProduct = function() {
   const checked=[...document.querySelectorAll('.prod-cb:checked')];
   if(!checked.length) return;
   const pids=checked.map(cb=>parseInt(cb.dataset.pid));
-  if(!confirm(`确认删除选中的 ${pids.length} 个产品？相关进货记录不会删除。`)) return;
-  D.products=D.products.filter(p=>!pids.includes(p.id));
-  save(); render();
+  showConfirmModal({
+    title:'批量删除商品',
+    message:`将 ${pids.length} 个商品移入回收站（进货等记录保留）。`,
+    okText:'移入回收站',
+    onConfirm:()=>{
+      pids.forEach(pid=>{ const p=gp(pid); if(p) moveToTrash('product',p); });
+      D.products=D.products.filter(p=>!pids.includes(p.id));
+      save(); render();
+      showToast('已移入回收站','ok');
+    }
+  });
 };
 
 window.toggleNewProduct = function(force) {
@@ -3492,9 +3957,16 @@ window.toggleTransitGroup = function(pid) {
 };
 
 window.deleteAllTransit = function(indices) {
-  if (!confirm('删除这批在途记录（共'+indices.length+'个型号）？此操作不可恢复。')) return;
-  indices.slice().sort((a,b)=>b-a).forEach(idx=>{ D.purchases.splice(idx,1); });
-  save(); render();
+  showConfirmModal({
+    title:'删除在途批次',
+    message:`将 ${indices.length} 条在途进货记录移入回收站，可在「回收站」恢复。`,
+    okText:'移入回收站',
+    onConfirm:()=>{
+      indices.slice().sort((a,b)=>b-a).forEach(idx=>{ moveToTrash('purchase',D.purchases[idx]); D.purchases.splice(idx,1); });
+      save(); render();
+      showToast('已移入回收站','ok');
+    }
+  });
 };
 
 window.confirmReceiveAll = function(indices) {
@@ -3577,7 +4049,20 @@ window.closeEditModal = function(e) {
     document.getElementById('edit-modal').style.display = 'none';
 };
 
-window.deletePurchase = function(idx){ if(!confirm('删除此进货记录？'))return; D.purchases.splice(idx,1); save(); render(); };
+window.deletePurchase = function(idx){
+  const r=D.purchases[idx]; if(!r) return;
+  showConfirmModal({
+    title:'删除进货记录',
+    message:'本条将移入回收站，可在侧栏「回收站」恢复。',
+    okText:'移入回收站',
+    onConfirm:()=>{
+      moveToTrash('purchase',r);
+      D.purchases.splice(idx,1);
+      save(); render();
+      showToast('已移入回收站','ok');
+    }
+  });
+};
 
 window.addOutbound = function(){
   const val=document.getElementById('out-product').value;
@@ -3614,12 +4099,32 @@ window.onOutCheckChange = function(allCb) {
 window.batchDeleteOutbound = function() {
   const indices = Array.from(document.querySelectorAll('.out-cb:checked')).map(cb => parseInt(cb.dataset.idx)).sort((a,b)=>b-a);
   if (!indices.length) return;
-  if (!confirm(`删除选中的 ${indices.length} 条出库记录？`)) return;
-  indices.forEach(idx => D.outbounds.splice(idx, 1));
-  save(); render();
+  showConfirmModal({
+    title:'批量删除出库',
+    message:`将 ${indices.length} 条出库记录移入回收站。`,
+    okText:'移入回收站',
+    onConfirm:()=>{
+      indices.forEach(idx=>{ moveToTrash('outbound',D.outbounds[idx]); D.outbounds.splice(idx,1); });
+      save(); render();
+      showToast('已移入回收站','ok');
+    }
+  });
 };
 
-window.deleteOutbound = function(idx){ if(!confirm('删除？'))return; D.outbounds.splice(idx,1); save(); render(); };
+window.deleteOutbound = function(idx){
+  const r=D.outbounds[idx]; if(!r) return;
+  showConfirmModal({
+    title:'删除出库记录',
+    message:'将移入回收站，可稍后恢复。',
+    okText:'移入回收站',
+    onConfirm:()=>{
+      moveToTrash('outbound',r);
+      D.outbounds.splice(idx,1);
+      save(); render();
+      showToast('已移入回收站','ok');
+    }
+  });
+};
 
 window.updateOutCostPreview = function(){
   const qty=parseInt(document.getElementById('out-qty').value)||0;
@@ -3646,11 +4151,28 @@ window.addSale = function(){
   render(); alert('销售已记录！');
 };
 
-window.deleteSale = function(idx){ if(!confirm('删除？'))return; D.sales.splice(idx,1); save(); render(); };
+window.deleteSale = function(idx){
+  const r=D.sales[idx]; if(!r) return;
+  showConfirmModal({
+    title:'删除销售记录',
+    message:'将移入回收站。若曾影响 Temu 库存，恢复后请自行核对数量。',
+    okText:'移入回收站',
+    onConfirm:()=>{
+      moveToTrash('sale',r);
+      D.sales.splice(idx,1);
+      save(); render();
+      showToast('已移入回收站','ok');
+    }
+  });
+};
 
 window.saveSettings = function(){
   const low=parseInt(document.getElementById('s-lowstock').value);
-  D.settings.lowStock=low||10; save(); render(); alert('已保存');
+  D.settings.lowStock=low||10;
+  const cq=document.getElementById('s-confirm-qty');
+  D.settings.confirmQuantityChange= cq ? !!cq.checked : true;
+  save(); render();
+  showToast('设置已保存','ok');
 };
 
 // ===== 本月指标 =====
@@ -3745,8 +4267,18 @@ function renderSupplierTable(){
 }
 
 window.deleteSupplier = function(i){
-  if(!confirm('确认删除此供应商？'))return;
-  D.suppliers.splice(i,1); save(); render();
+  const s=D.suppliers[i]; if(!s) return;
+  showConfirmModal({
+    title:'删除供应商',
+    message:'将移入回收站，可随时恢复。',
+    okText:'移入回收站',
+    onConfirm:()=>{
+      moveToTrash('supplier',s);
+      D.suppliers.splice(i,1);
+      save(); render();
+      showToast('已移入回收站','ok');
+    }
+  });
 };
 
 // ===== 库存盘点 =====
@@ -3897,8 +4429,18 @@ function renderReturnsTable(){
 }
 
 window.deleteReturn = function(i){
-  if(!confirm('删除退货记录？注意：库存调整不会自动撤销。'))return;
-  D.returns.splice(i,1); save(); render();
+  const r=D.returns[i]; if(!r) return;
+  showConfirmModal({
+    title:'删除退货记录',
+    message:'记录将移入回收站。\n注意：当时的采购/销售库存调整不会自动撤销，恢复本条后请自行核对库存。',
+    okText:'移入回收站',
+    onConfirm:()=>{
+      moveToTrash('return',r);
+      D.returns.splice(i,1);
+      save(); render();
+      showToast('已移入回收站','ok');
+    }
+  });
 };
 
 // ===== 销售月度统计 =====
@@ -4163,7 +4705,7 @@ window.clearAll = function(){
   if(!confirm('确定清空所有数据？此操作不可恢复！'))return;
   const pwd = prompt('请输入访问密码以确认：');
   if(pwd === null) return;
-  if(pwd !== getPassword()){ alert('密码错误，操作已取消'); return; }
+  if(pwd !== window.getPassword()){ alert('密码错误，操作已取消'); return; }
   D=defaultData(); save(); render(); alert('已清空');
 };
 
@@ -4230,6 +4772,7 @@ window.importExcel = function(input){
       if(wb.SheetNames.includes('出库记录'))D.outbounds=XLSX.utils.sheet_to_json(wb.Sheets['出库记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['发出量']||0,tracking:r['运单号']||'',note:r['备注']||''}));
       if(wb.SheetNames.includes('销售记录'))D.sales=XLSX.utils.sheet_to_json(wb.Sheets['销售记录']).map(r=>({date:r['日期']||'',pid:+r['商品ID'],qty:+r['数量']||0,price:+r['售价(¥)']||0,order:r['订单号']||''}));
       if(wb.SheetNames.includes('配置')){const rows2=XLSX.utils.sheet_to_json(wb.Sheets['配置']);if(rows[0]){D.settings.rate=+rows[0]['汇率']||7.2;D.settings.lowStock=+rows[0]['低库存阈值']||10;}}
+      if(!D.trash) D.trash=[];
       save(); render();
       document.getElementById('import-status').innerHTML=`<div class="alert alert-ok" style="margin-top:10px">✅ 导入成功！</div>`;
       input.value='';
@@ -4248,9 +4791,10 @@ const FIREBASE_CFG = {
   appId: "1:494416286810:web:27029fe80e61a137b37463"
 };
 if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded', ()=> updateBuildInfo());
+  document.addEventListener('DOMContentLoaded', ()=>{ updateBuildInfo(); attachGlobalSearch(); });
 }else{
   updateBuildInfo();
+  attachGlobalSearch();
 }
 initFirebase(FIREBASE_CFG);
 </script>
