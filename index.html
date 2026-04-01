@@ -1097,6 +1097,61 @@ function getLocalStockSpec(pid,sid){
   const sent=D.outbounds.filter(r=>r.pid==pid&&r.sid==sid).reduce((s,r)=>s+r.qty,0);
   return Math.max(0,recv-sent);
 }
+/** 与表格可编辑单元格一致的「当前本地库存」：多型号父行=各型号之和，否则单型号或单品 */
+function computeEditableLocalStock(pid, sid){
+  const p=gp(pid), specs=(p&&p.specs)||[];
+  const sidN=parseInt(sid,10)||0;
+  if(sidN) return getLocalStockSpec(pid,sidN);
+  if(specs.length) return specs.reduce((s,sp)=>s+getLocalStockSpec(pid,sp.sid),0);
+  return getLocalStock(pid);
+}
+function pushAdjustOutbound(pid, sid, qty){
+  D.outbounds.push({date:today(),pid,sid:sid||0,qty,tracking:'',note:'快速调整',isAdjust:true});
+}
+function pushAdjustInbound(pid, sid, qty){
+  D.purchases.push({date:today(),pid,sid:sid||0,qty,price:0,shipPerUnit:0,shipTotal:0,
+    tracking:'',order:'快速调整',link:'',img:'',status:'received',receivedQty:qty,receivedDate:today(),isAdjust:true});
+}
+/** 应用本地库存目标值（多型号父行会按各型号现有库存比例分摊，避免 sid=0 出库不改变子行合计的问题） */
+function applyLocalStockTarget(pid, sidFromEdit, newVal){
+  const p=gp(pid), specs=(p&&p.specs)||[];
+  const sidN=parseInt(sidFromEdit,10)||0;
+  const isMultiParent=specs.length>0&&sidN===0;
+  let current;
+  if(sidN) current=getLocalStockSpec(pid,sidN);
+  else if(specs.length) current=specs.reduce((s,sp)=>s+getLocalStockSpec(pid,sp.sid),0);
+  else current=getLocalStock(pid);
+  const diff=newVal-current;
+  if(diff===0) return false;
+  if(!D.stockAdjustments) D.stockAdjustments=[];
+  D.stockAdjustments.push({date:today(),pid,sid:sidN,diff,note:'库存快速调整'});
+  if(isMultiParent){
+    if(diff<0){
+      let need=-diff;
+      for(const sp of specs){
+        if(need<=0) break;
+        const loc=getLocalStockSpec(pid,sp.sid);
+        const take=Math.min(loc,need);
+        if(take>0){ pushAdjustOutbound(pid,sp.sid,take); need-=take; }
+      }
+      if(need>0) pushAdjustOutbound(pid,0,need);
+    } else {
+      const sumLoc=specs.reduce((s,sp)=>s+getLocalStockSpec(pid,sp.sid),0);
+      if(sumLoc<=0){ pushAdjustInbound(pid,specs[0].sid,diff); }
+      else{
+        let allocated=0;
+        specs.forEach((sp,i)=>{
+          let q=i===specs.length-1?diff-allocated:Math.floor(diff*getLocalStockSpec(pid,sp.sid)/sumLoc);
+          if(q>0){ pushAdjustInbound(pid,sp.sid,q); allocated+=q; }
+        });
+      }
+    }
+  } else {
+    if(diff>0) pushAdjustInbound(pid,sidN,diff);
+    else pushAdjustOutbound(pid,sidN,-diff);
+  }
+  return true;
+}
 function getTemuStock(pid){
   const sent=D.outbounds.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
   const sold=D.sales.filter(r=>r.pid==pid).reduce((s,r)=>s+r.qty,0);
@@ -1791,7 +1846,8 @@ function renderStockTable(){
 }
 
 window.inlineEditStock = function(el, pid, sid){
-  const current = parseInt(el.textContent)||0;
+  const sidN=parseInt(sid,10)||0;
+  const current=computeEditableLocalStock(pid,sidN);
   const input = document.createElement('input');
   input.type='number'; input.value=current; input.min='0';
   input.style.cssText='width:64px;height:28px;padding:0 6px;border:1.5px solid var(--primary);border-radius:5px;font-size:13px;font-weight:700;text-align:center';
@@ -1810,15 +1866,7 @@ window.inlineEditStock = function(el, pid, sid){
     const newVal = parseInt(input.value,10);
     window._inlineQtyEditing = false;
     if(isNaN(newVal)||newVal<0||newVal===current){ cancel(); return; }
-    const diff = newVal - current;
-    if(!D.stockAdjustments) D.stockAdjustments=[];
-    D.stockAdjustments.push({date:today(),pid,sid:sid||0,diff,note:'库存快速调整'});
-    if(diff>0){
-      D.purchases.push({date:today(),pid,sid:sid||0,qty:diff,price:0,shipPerUnit:0,shipTotal:0,
-        tracking:'',order:'快速调整',link:'',img:'',status:'received',receivedQty:diff,receivedDate:today(),isAdjust:true});
-    } else {
-      D.outbounds.push({date:today(),pid,sid:sid||0,qty:Math.abs(diff),tracking:'',note:'快速调整',isAdjust:true});
-    }
+    applyLocalStockTarget(pid,sidN,newVal);
     save(); renderStockTable(); render();
   };
   input.addEventListener('blur', ()=>{ confirmEdit(); });
