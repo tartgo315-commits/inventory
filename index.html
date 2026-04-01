@@ -354,14 +354,19 @@ input::placeholder{color:var(--text3)}
       </div>
     </div>
 
-    <!-- 新品信息（默认隐藏） -->
+    <!-- 新品信息（默认隐藏）：支持多型号 + 指定本单对应型号 -->
     <div id="new-product-fields" style="display:none;background:var(--primary-bg);border:1.5px solid var(--primary-light);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
       <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px">📦 新商品信息</div>
-      <div class="form-grid form-grid-3">
+      <div class="form-grid" style="margin-bottom:12px">
         <div class="fg"><label>商品名称 *</label><input type="text" id="new-p-name" placeholder="从书签自动填入或手动填写"></div>
-        <div class="fg"><label>规格/型号（可选）</label><input type="text" id="new-p-spec" placeholder="428-48mm-32T"></div>
-        <div class="fg"><label>SKU编码（可选）</label><input type="text" id="new-p-sku" placeholder="F1002"></div>
-        <div class="fg"><label>Temu售价（¥）</label><input type="number" id="new-p-price" placeholder="65.00" step="0.01"></div>
+        <div class="fg"><label>默认 Temu 售价（¥）</label><input type="number" id="new-p-price" placeholder="65.00" step="0.01" title="产品默认价；各型号未填售价时用此价"></div>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">型号列表 <span style="font-weight:500;color:var(--text3)">（一行一个型号；不填型号名称则视为「无分型号」单品）</span></div>
+      <div id="new-spec-rows" oninput="syncNewProductPickSelect()"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addNewProductSpecRow()" style="margin-top:4px">＋ 再加一个型号</button>
+      <div class="fg" id="new-p-pick-wrap" style="display:none;margin-top:14px;max-width:420px">
+        <label>本单进货记在哪个型号 <span style="font-weight:500;color:var(--text3)">（多型号时必选）</span></label>
+        <select id="new-p-pick-spec-idx"></select>
       </div>
     </div>
 
@@ -3004,7 +3009,9 @@ window.fillFromGoods = function(g) {
   } else {
     window.toggleNewProduct('new');
     const nEl=document.getElementById('new-p-name'); if(nEl) nEl.value=disp;
-    const sEl=document.getElementById('new-p-spec'); if(sEl) sEl.value=g.spec||'';
+    const first=document.querySelector('#new-spec-rows .new-spec-row .new-spec-name');
+    if(first) first.value=g.spec||'';
+    syncNewProductPickSelect();
   }
   document.getElementById('pur-price').value=g.price.toFixed(2);
   document.getElementById('pur-qty').value=g.qty;
@@ -3246,8 +3253,9 @@ function handleBookmarkParams() {
         window.toggleNewProduct('new');
         const nameEl = document.getElementById('new-p-name');
         if(nameEl) nameEl.value = bName;
-        const specEl = document.getElementById('new-p-spec');
-        if(specEl && bSpec) specEl.value = bSpec;
+        const firstSpec=document.querySelector('#new-spec-rows .new-spec-row .new-spec-name');
+        if(firstSpec && bSpec) firstSpec.value = bSpec;
+        syncNewProductPickSelect();
       }
     }
 
@@ -3915,6 +3923,59 @@ window.batchDeleteProduct = function() {
   });
 };
 
+window.syncNewProductPickSelect=function(){
+  const wrap=document.getElementById('new-p-pick-wrap');
+  const sel=document.getElementById('new-p-pick-spec-idx');
+  const c=document.getElementById('new-spec-rows');
+  if(!wrap||!sel||!c) return;
+  const rowEls=[...c.querySelectorAll('.new-spec-row')];
+  const named=rowEls.map((row,i)=>({i,row,n:row.querySelector('.new-spec-name')?.value.trim()||''})).filter(x=>x.n);
+  if(named.length<=1){
+    wrap.style.display='none';
+    return;
+  }
+  wrap.style.display='block';
+  const keep=sel.value;
+  sel.innerHTML=named.map(({n},j)=>`<option value="${j}">${n}</option>`).join('');
+  if(keep!==''&&[...sel.options].some(o=>o.value===keep)) sel.value=keep;
+};
+
+window.addNewProductSpecRow=function(){
+  const c=document.getElementById('new-spec-rows');
+  if(!c) return;
+  const n=c.querySelectorAll('.new-spec-row').length;
+  const div=document.createElement('div');
+  div.className='new-spec-row';
+  div.style.cssText='display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px';
+  div.innerHTML=`<div class="fg"><label style="font-size:11px;color:var(--text2)">型号名称</label><input class="new-spec-name" placeholder="如 530型-13齿" style="height:38px;padding:0 10px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);width:100%"></div>
+  <div class="fg"><label style="font-size:11px;color:var(--text2)">SKU</label><input class="new-spec-sku" placeholder="可选" style="height:38px;padding:0 10px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);width:100%"></div>
+  <div class="fg"><label style="font-size:11px;color:var(--text2)">售价(¥)</label><input class="new-spec-price" type="number" step="0.01" placeholder="默认" style="height:38px;padding:0 10px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);width:100%"></div>
+  <button type="button" class="btn btn-ghost btn-sm rm-new-spec" style="height:38px;padding:0 10px;flex-shrink:0" onclick="removeNewProductSpecRow(this)">移除</button>`;
+  const rm=div.querySelector('.rm-new-spec');
+  if(n===0) rm.style.visibility='hidden';
+  c.appendChild(div);
+  syncNewProductPickSelect();
+};
+
+window.removeNewProductSpecRow=function(btn){
+  const c=document.getElementById('new-spec-rows');
+  if(!c||c.querySelectorAll('.new-spec-row').length<=1){ showToast('至少保留一行型号区域','err'); return; }
+  btn.closest('.new-spec-row')?.remove();
+  c.querySelectorAll('.new-spec-row').forEach((row,idx,arr)=>{
+    const r=row.querySelector('.rm-new-spec');
+    if(r) r.style.visibility=arr.length===1?'hidden':'visible';
+  });
+  syncNewProductPickSelect();
+};
+
+window.initNewProductSpecRows=function(){
+  const c=document.getElementById('new-spec-rows');
+  if(!c) return;
+  c.innerHTML='';
+  addNewProductSpecRow();
+  syncNewProductPickSelect();
+};
+
 window.toggleNewProduct = function(force) {
   const fields = document.getElementById('new-product-fields');
   const selPid = document.getElementById('pur-product-pid');
@@ -3924,6 +3985,7 @@ window.toggleNewProduct = function(force) {
   const showNew = force==='new' || (force===undefined && fields.style.display==='none');
   if(showNew){
     fields.style.display='block';
+    initNewProductSpecRows();
     selPid.disabled=true; selPid.style.opacity='.4';
     if(selSpec){ selSpec.disabled=true; selSpec.style.opacity='.4'; }
     btn.textContent='← 选择已有商品';
@@ -3945,15 +4007,29 @@ window.addPurchase = function(status){
 
   if(isNew){
     const name = document.getElementById('new-p-name').value.trim();
-    const spec = document.getElementById('new-p-spec').value.trim();
-    const sku = document.getElementById('new-p-sku').value.trim();
-    const price = parseFloat(document.getElementById('new-p-price').value)||0;
+    const defPrice = parseFloat(document.getElementById('new-p-price').value)||0;
     if(!name){ alert('请填写商品名称'); return; }
     if(!D.nextSid) D.nextSid=100;
-    const np = {id:D.nextId++, name, sku:sku||'', price, specs:[]};
-    if(spec){
-      np.specs.push({sid:D.nextSid++, name:spec, price:price, sku:sku||''});
-      sid = np.specs[0].sid;
+    const rowEls=[...document.querySelectorAll('#new-spec-rows .new-spec-row')];
+    const specRows=rowEls.map(row=>({
+      name:row.querySelector('.new-spec-name')?.value.trim()||'',
+      sku:row.querySelector('.new-spec-sku')?.value.trim()||'',
+      price:parseFloat(row.querySelector('.new-spec-price')?.value)||0
+    })).filter(s=>s.name);
+    let np;
+    if(specRows.length===0){
+      np={id:D.nextId++, name, sku:'', price:defPrice, specs:[]};
+      sid=0;
+    } else {
+      np={id:D.nextId++, name, sku:'', price:defPrice, specs:specRows.map(s=>({
+        sid:D.nextSid++, name:s.name, sku:s.sku||'', price:s.price||defPrice
+      }))};
+      let pick=0;
+      if(specRows.length>1){
+        pick=parseInt(document.getElementById('new-p-pick-spec-idx')?.value,10)||0;
+        pick=Math.max(0,Math.min(pick,np.specs.length-1));
+      }
+      sid=np.specs[pick].sid;
     }
     D.products.push(np);
     pid = np.id;
@@ -3990,7 +4066,8 @@ window.addPurchase = function(status){
   save();
 
   ['pur-qty','pur-price','pur-ship-total','pur-tracking','pur-order','pur-link',
-   'new-p-name','new-p-spec','new-p-sku','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+   'new-p-name','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  initNewProductSpecRows();
   document.getElementById('pur-img-file').value='';
   _purImgBase64='';
   setPreviewEl('pur-img-preview','');
