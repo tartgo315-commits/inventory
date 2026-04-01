@@ -339,14 +339,18 @@ input::placeholder{color:var(--text3)}
   <div class="card">
     <div class="card-title">新建采购单</div>
 
-    <!-- 商品选择或新建 -->
-    <div class="form-grid" style="margin-bottom:10px">
+    <!-- 商品选择或新建：产品、型号分两栏 -->
+    <div class="form-grid form-grid-3" style="margin-bottom:10px;align-items:end">
       <div class="fg">
-        <label>选择已有商品</label>
-        <select id="pur-product" onchange="toggleNewProduct()"></select>
+        <label>选择产品</label>
+        <select id="pur-product-pid" onchange="onPurProductPidChange()"></select>
       </div>
-      <div class="fg" style="justify-content:flex-end;padding-top:22px">
-        <button class="btn btn-ghost btn-sm" onclick="toggleNewProduct('new')" id="btn-new-product" style="color:var(--primary);border-color:var(--primary)">＋ 这是新品，直接创建</button>
+      <div class="fg" id="pur-spec-wrap">
+        <label>选择型号</label>
+        <select id="pur-product-spec"></select>
+      </div>
+      <div class="fg" style="justify-content:flex-end">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="toggleNewProduct('new')" id="btn-new-product" style="color:var(--primary);border-color:var(--primary)">＋ 这是新品，直接创建</button>
       </div>
     </div>
 
@@ -2556,27 +2560,58 @@ window.toggleProductSpecs = function(pid){
   renderProductsTable();
 };
 
+/** 进货页：根据已选产品刷新「型号」下拉；preferredSid 若存在且合法则选中 */
+window.refreshPurSpecSelect=function(preferredSid){
+  const pidEl=document.getElementById('pur-product-pid'), specEl=document.getElementById('pur-product-spec'), wrap=document.getElementById('pur-spec-wrap');
+  if(!pidEl||!specEl) return;
+  const pid=parseInt(pidEl.value,10);
+  const p=gp(pid);
+  if(!pid||!p){
+    specEl.innerHTML='<option value="0">请先选择产品</option>';
+    specEl.disabled=true;
+    if(wrap) wrap.style.opacity='0.55';
+    return;
+  }
+  if(wrap) wrap.style.opacity='1';
+  specEl.disabled=false;
+  const specs=p.specs||[];
+  if(specs.length===0){
+    specEl.innerHTML='<option value="0">默认（无分型号）</option>';
+    return;
+  }
+  specEl.innerHTML=specs.map(sp=>`<option value="${sp.sid}">${sp.name}</option>`).join('');
+  const want=preferredSid!=null&&preferredSid!==''?parseInt(preferredSid,10):NaN;
+  if(!isNaN(want)&&specs.some(sp=>sp.sid===want)) specEl.value=String(want);
+};
+
+window.onPurProductPidChange=function(){
+  refreshPurSpecSelect();
+};
+
 function populateSelects(){
-  // 展开产品+型号到选项
-  let purO='', outO='', salO='';
+  let purP='<option value="">— 请选择产品 —</option>', outO='', salO='';
   D.products.forEach(p=>{
+    purP+=`<option value="${p.id}">${p.name}</option>`;
     const specs=p.specs||[];
     if(specs.length===0){
-      // 无型号，直接用产品
-      purO+=`<option value="${p.id}|0">${p.name}</option>`;
       outO+=`<option value="${p.id}|0">${p.name}（本地${getLocalStock(p.id)}件）</option>`;
       salO+=`<option value="${p.id}|0">${p.name}（Temu${getTemuStock(p.id)}件）</option>`;
     } else {
-      // 有型号，展开各型号
       specs.forEach(sp=>{
         const local=getLocalStockSpec(p.id,sp.sid), temu=getTemuStockSpec(p.id,sp.sid);
-        purO+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}</option>`;
         outO+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}（本地${local}件）</option>`;
         salO+=`<option value="${p.id}|${sp.sid}">${p.name} · ${sp.name}（Temu${temu}件）</option>`;
       });
     }
   });
-  [['pur-product',purO],['out-product',outO],['sale-product',salO]].forEach(([id,o])=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});
+  const purPidEl=document.getElementById('pur-product-pid');
+  if(purPidEl){
+    const prev=purPidEl.value;
+    purPidEl.innerHTML=purP;
+    if(prev&&D.products.some(p=>String(p.id)===prev)) purPidEl.value=prev;
+    refreshPurSpecSelect();
+  }
+  [['out-product',outO],['sale-product',salO]].forEach(([id,o])=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});
 }
 
 // ===== 操作 =====
@@ -2851,7 +2886,11 @@ window.smartParse = function() {
     if (price) { document.getElementById('pur-price').value=price; updateCostPreview(); }
     if (name) {
       const matched=D.products.find(p=>p.name.includes(name.slice(0,6))||name.includes(p.name.slice(0,6)));
-      if(matched) document.getElementById('pur-product').value=matched.id+'|0';
+      if(matched){
+        document.getElementById('pur-product-pid').value=String(matched.id);
+        const spL=matched.specs||[];
+        refreshPurSpecSelect(spL.length?spL[0].sid:0);
+      }
     }
     resultEl.innerHTML=`<div style="padding:10px 12px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:13px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
       ${name?`<span>📦 <strong>${name.slice(0,30)}${name.length>30?'...':''}</strong></span>`:''}
@@ -2954,7 +2993,14 @@ window.fillFromGoods = function(g) {
   const matched = D.products.find(p=>p.name.includes(disp.slice(0,6))||disp.includes(p.name.slice(0,6)));
   if(matched) {
     window.toggleNewProduct('existing');
-    document.getElementById('pur-product').value=matched.id+'|0';
+    document.getElementById('pur-product-pid').value=String(matched.id);
+    const gSpec=(g.spec||'').trim();
+    let pref=0;
+    if(matched.specs&&matched.specs.length){
+      const sp=matched.specs.find(s=>s.name===gSpec||(gSpec&&(s.name.includes(gSpec)||gSpec.includes(s.name))));
+      pref=sp?sp.sid:matched.specs[0].sid;
+    }
+    refreshPurSpecSelect(pref);
   } else {
     window.toggleNewProduct('new');
     const nEl=document.getElementById('new-p-name'); if(nEl) nEl.value=disp;
@@ -3186,7 +3232,15 @@ function handleBookmarkParams() {
         p.name.includes(bName.slice(0,6)) || bName.includes(p.name.slice(0,6))
       );
       if (matched) {
-        document.getElementById('pur-product').value = matched.id;
+        document.getElementById('pur-product-pid').value = String(matched.id);
+        let prefSid = 0;
+        if (matched.specs && matched.specs.length) {
+          if (bSpec) {
+            const sp = matched.specs.find(s => s.name === bSpec || s.name.includes(bSpec) || bSpec.includes(s.name));
+            prefSid = sp ? sp.sid : matched.specs[0].sid;
+          } else prefSid = matched.specs[0].sid;
+        }
+        refreshPurSpecSelect(prefSid);
         window.toggleNewProduct('existing');
       } else {
         window.toggleNewProduct('new');
@@ -3863,18 +3917,21 @@ window.batchDeleteProduct = function() {
 
 window.toggleNewProduct = function(force) {
   const fields = document.getElementById('new-product-fields');
-  const sel = document.getElementById('pur-product');
+  const selPid = document.getElementById('pur-product-pid');
+  const selSpec = document.getElementById('pur-product-spec');
   const btn = document.getElementById('btn-new-product');
-  if(!fields||!sel||!btn) return;
+  if(!fields||!selPid||!btn) return;
   const showNew = force==='new' || (force===undefined && fields.style.display==='none');
   if(showNew){
     fields.style.display='block';
-    sel.disabled=true; sel.style.opacity='.4';
+    selPid.disabled=true; selPid.style.opacity='.4';
+    if(selSpec){ selSpec.disabled=true; selSpec.style.opacity='.4'; }
     btn.textContent='← 选择已有商品';
     btn.onclick=()=>window.toggleNewProduct('existing');
   } else {
     fields.style.display='none';
-    sel.disabled=false; sel.style.opacity='1';
+    selPid.disabled=false; selPid.style.opacity='1';
+    if(selSpec){ selSpec.disabled=false; selSpec.style.opacity='1'; refreshPurSpecSelect(); }
     btn.textContent='＋ 这是新品，直接创建';
     btn.onclick=()=>window.toggleNewProduct('new');
   }
@@ -3901,11 +3958,11 @@ window.addPurchase = function(status){
     D.products.push(np);
     pid = np.id;
   } else {
-    const val = document.getElementById('pur-product').value;
-    const parts = val.split('|');
-    pid = parseInt(parts[0]);
-    sid = parseInt(parts[1])||0;
-    if(!pid){ alert('请选择商品'); return; }
+    pid = parseInt(document.getElementById('pur-product-pid').value,10);
+    sid = parseInt(document.getElementById('pur-product-spec').value,10)||0;
+    if(!pid){ alert('请选择产品'); return; }
+    const p=gp(pid), specs=p&&p.specs||[];
+    if(specs.length>0 && !sid){ alert('请选择型号'); return; }
   }
 
   const qty=parseInt(document.getElementById('pur-qty').value);
