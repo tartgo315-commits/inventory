@@ -191,6 +191,22 @@ input::placeholder{color:var(--text3)}
 .global-search-item:hover{background:var(--primary-bg)}
 .global-search-item small{display:block;color:var(--text3);font-size:11px;margin-top:3px;font-weight:500}
 
+/* 进货页：产品自定义下拉（可显示缩略图；原生 option 无法放图） */
+.pur-pid-dd-wrap{position:relative;width:100%}
+.pur-pid-trigger{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:4px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer;text-align:left;font-size:13px;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+.pur-pid-trigger:hover{border-color:var(--primary)}
+.pur-pid-trigger:disabled{cursor:not-allowed;opacity:.55}
+.pur-pid-trigger .pur-dd-chev{margin-left:auto;color:var(--text3);font-size:10px;flex-shrink:0}
+#pur-pid-trigger-thumb{flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.pur-pid-menu{position:absolute;left:0;right:0;top:calc(100%+5px);max-height:min(380px,55vh);overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);z-index:55;display:none}
+.pur-pid-menu.open{display:block}
+.pur-dd-item{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;text-align:left}
+.pur-dd-item:last-child{border-bottom:none}
+.pur-dd-item:hover{background:var(--primary-bg)}
+.pur-dd-thumb{width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0;background:#fff}
+.pur-dd-ph{width:40px;height:40px;border-radius:6px;background:var(--bg);border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;color:var(--text3)}
+.pur-dd-item-name{flex:1;min-width:0;line-height:1.4;word-break:break-word;color:var(--text)}
+
 /* 表格：可滚动 + 表头吸附 */
 .tbl-wrap.tbl-scroll{max-height:min(72vh,900px);overflow:auto;position:relative;-webkit-overflow-scrolling:touch}
 .tbl-scroll table thead th{position:sticky;top:0;z-index:2;background:#fafbfc;box-shadow:0 1px 0 var(--border)}
@@ -343,7 +359,15 @@ input::placeholder{color:var(--text3)}
     <div class="form-grid form-grid-3" style="margin-bottom:10px;align-items:end">
       <div class="fg">
         <label>选择产品</label>
-        <select id="pur-product-pid" onchange="onPurProductPidChange()"></select>
+        <div class="pur-pid-dd-wrap" id="pur-pid-dd-wrap">
+          <input type="hidden" id="pur-product-pid" value="">
+          <button type="button" class="pur-pid-trigger" id="pur-pid-trigger" onclick="togglePurPidMenu(event)" aria-expanded="false" aria-haspopup="listbox">
+            <span id="pur-pid-trigger-thumb"></span>
+            <span id="pur-pid-trigger-label" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">— 请选择产品 —</span>
+            <span class="pur-dd-chev">▼</span>
+          </button>
+          <div class="pur-pid-menu" id="pur-pid-menu" role="listbox" onclick="event.stopPropagation()"></div>
+        </div>
       </div>
       <div class="fg" id="pur-spec-wrap">
         <label>选择型号</label>
@@ -2593,10 +2617,67 @@ window.onPurProductPidChange=function(){
   refreshPurSpecSelect();
 };
 
+function escHtml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function purPickerThumbHtml(pid){
+  const img=getProductImg(pid,0);
+  if(!img) return '<div class="pur-dd-ph">📷</div>';
+  const esc=String(img).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+  return `<img src="${esc}" class="pur-dd-thumb" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'pur-dd-ph',textContent:'📷'}))">`;
+}
+window.updatePurPidTriggerDisplay=function(){
+  const hid=document.getElementById('pur-product-pid');
+  const th=document.getElementById('pur-pid-trigger-thumb');
+  const lb=document.getElementById('pur-pid-trigger-label');
+  if(!hid||!th||!lb) return;
+  const pid=parseInt(hid.value,10);
+  if(!pid||!gp(pid)){
+    th.innerHTML='<div class="pur-dd-ph">📦</div>';
+    lb.textContent='— 请选择产品 —';
+    return;
+  }
+  const p=gp(pid);
+  th.innerHTML=purPickerThumbHtml(pid);
+  lb.textContent=p.name;
+};
+window.closePurPidMenu=function(){
+  const m=document.getElementById('pur-pid-menu');
+  const trig=document.getElementById('pur-pid-trigger');
+  if(m) m.classList.remove('open');
+  if(trig) trig.setAttribute('aria-expanded','false');
+};
+window.togglePurPidMenu=function(e){
+  e.stopPropagation();
+  const hid=document.getElementById('pur-product-pid');
+  const m=document.getElementById('pur-pid-menu');
+  const trig=document.getElementById('pur-pid-trigger');
+  if(!m||!trig||(hid&&hid.disabled)) return;
+  if(m.classList.contains('open')){
+    window.closePurPidMenu();
+    return;
+  }
+  m.classList.add('open');
+  trig.setAttribute('aria-expanded','true');
+  setTimeout(function(){
+    document.addEventListener('click',function onDocPurDd(){
+      window.closePurPidMenu();
+      document.removeEventListener('click',onDocPurDd);
+    });
+  },0);
+};
+window.selectPurProductPid=function(pid){
+  const hid=document.getElementById('pur-product-pid');
+  if(!hid) return;
+  hid.value=(pid===undefined||pid===null||pid==='')?'':String(pid);
+  window.closePurPidMenu();
+  window.updatePurPidTriggerDisplay();
+  window.onPurProductPidChange();
+};
+
 function populateSelects(){
-  let purP='<option value="">— 请选择产品 —</option>', outO='', salO='';
+  let outO='', salO='';
   D.products.forEach(p=>{
-    purP+=`<option value="${p.id}">${p.name}</option>`;
     const specs=p.specs||[];
     if(specs.length===0){
       outO+=`<option value="${p.id}|0">${p.name}（本地${getLocalStock(p.id)}件）</option>`;
@@ -2610,10 +2691,16 @@ function populateSelects(){
     }
   });
   const purPidEl=document.getElementById('pur-product-pid');
-  if(purPidEl){
+  const purMenu=document.getElementById('pur-pid-menu');
+  if(purPidEl&&purMenu){
     const prev=purPidEl.value;
-    purPidEl.innerHTML=purP;
-    if(prev&&D.products.some(p=>String(p.id)===prev)) purPidEl.value=prev;
+    let items='<div class="pur-dd-item" role="option" onclick="selectPurProductPid(\'\')"><div class="pur-dd-ph">⋯</div><span class="pur-dd-item-name">— 请选择产品 —</span></div>';
+    D.products.forEach(p=>{
+      items+=`<div class="pur-dd-item" role="option" onclick="selectPurProductPid(${p.id})">${purPickerThumbHtml(p.id)}<span class="pur-dd-item-name">${escHtml(p.name)}</span></div>`;
+    });
+    purMenu.innerHTML=items;
+    if(prev&&D.products.some(p=>String(p.id)===prev)) purPidEl.value=prev; else purPidEl.value='';
+    window.updatePurPidTriggerDisplay();
     refreshPurSpecSelect();
   }
   [['out-product',outO],['sale-product',salO]].forEach(([id,o])=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});
@@ -2895,6 +2982,7 @@ window.smartParse = function() {
         document.getElementById('pur-product-pid').value=String(matched.id);
         const spL=matched.specs||[];
         refreshPurSpecSelect(spL.length?spL[0].sid:0);
+        window.updatePurPidTriggerDisplay();
       }
     }
     resultEl.innerHTML=`<div style="padding:10px 12px;background:#fff;border-radius:8px;border:1px solid var(--border);font-size:13px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
@@ -3006,6 +3094,7 @@ window.fillFromGoods = function(g) {
       pref=sp?sp.sid:matched.specs[0].sid;
     }
     refreshPurSpecSelect(pref);
+    window.updatePurPidTriggerDisplay();
   } else {
     window.toggleNewProduct('new');
     const nEl=document.getElementById('new-p-name'); if(nEl) nEl.value=disp;
@@ -3248,6 +3337,7 @@ function handleBookmarkParams() {
           } else prefSid = matched.specs[0].sid;
         }
         refreshPurSpecSelect(prefSid);
+        window.updatePurPidTriggerDisplay();
         window.toggleNewProduct('existing');
       } else {
         window.toggleNewProduct('new');
@@ -3981,18 +4071,22 @@ window.toggleNewProduct = function(force) {
   const selPid = document.getElementById('pur-product-pid');
   const selSpec = document.getElementById('pur-product-spec');
   const btn = document.getElementById('btn-new-product');
+  const trig = document.getElementById('pur-pid-trigger');
   if(!fields||!selPid||!btn) return;
   const showNew = force==='new' || (force===undefined && fields.style.display==='none');
   if(showNew){
     fields.style.display='block';
     initNewProductSpecRows();
-    selPid.disabled=true; selPid.style.opacity='.4';
+    window.closePurPidMenu();
+    selPid.disabled=true;
+    if(trig) trig.disabled=true;
     if(selSpec){ selSpec.disabled=true; selSpec.style.opacity='.4'; }
     btn.textContent='← 选择已有商品';
     btn.onclick=()=>window.toggleNewProduct('existing');
   } else {
     fields.style.display='none';
-    selPid.disabled=false; selPid.style.opacity='1';
+    selPid.disabled=false;
+    if(trig) trig.disabled=false;
     if(selSpec){ selSpec.disabled=false; selSpec.style.opacity='1'; refreshPurSpecSelect(); }
     btn.textContent='＋ 这是新品，直接创建';
     btn.onclick=()=>window.toggleNewProduct('new');
