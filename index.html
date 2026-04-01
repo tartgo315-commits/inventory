@@ -394,11 +394,15 @@ input::placeholder{color:var(--text3)}
       </div>
     </div>
 
-    <div class="form-grid form-grid-4">
+    <div class="form-grid form-grid-3">
       <div class="fg"><label>采购数量</label><input type="number" id="pur-qty" placeholder="100" min="1" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
       <div class="fg"><label>单件进价（¥）</label><input type="number" id="pur-price" placeholder="21.85" step="0.01" min="0" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
-      <div class="fg"><label>这批总运费（¥，自动均摊）</label><input type="number" id="pur-ship-total" placeholder="50.00" step="0.01" min="0" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
-      <div class="fg"><label title="含货款+运费；填写后按「总价−左侧总运费」÷数量自动回填单件进价">实付总价（¥，含运费）</label><input type="number" id="pur-grand-total" placeholder="实付合计" step="0.01" min="0" oninput="applyPurGrandTotal()" title="例如订单实付金额；会反算单件进价"></div>
+      <div class="fg"><label>运费及杂费（¥，自动均摊）</label><input type="number" id="pur-ship-total" placeholder="0" step="0.01" min="0" oninput="syncPurGrandFromParts();updateCostPreview()" title="仅运费/杂费；不含货款。货款通过单价×数量或下方实付总价体现"></div>
+    </div>
+    <div class="pur-grand-row fg" style="margin-bottom:16px;padding:14px 16px;background:var(--primary-bg);border:1.5px solid var(--primary-light);border-radius:var(--radius-sm)">
+      <label for="pur-grand-total" style="font-size:13px;color:var(--primary);font-weight:800">实付总价（¥，含货款+运费）</label>
+      <div style="font-size:11px;color:var(--text3);font-weight:500;line-height:1.45;margin:2px 0 8px">填 1688 订单「实付款」等<strong>整单实付</strong>，将按「实付 − 上方运费及杂费」÷ 数量，自动回填单件进价（可不填，仍可用单价+运费）</div>
+      <input type="number" id="pur-grand-total" placeholder="例如 33.60" step="0.01" min="0" oninput="applyPurGrandTotal()" title="整单实付金额；会反算单件进价" style="max-width:280px">
     </div>
     <div class="form-grid form-grid-3">
       <div class="fg"><label>快递单号（可选）</label><input type="text" id="pur-tracking" placeholder="SF1234567890123"></div>
@@ -427,7 +431,7 @@ input::placeholder{color:var(--text3)}
     <div class="btns">
       <button class="btn btn-primary" onclick="addPurchase('transit')">确认下单（在途）</button>
       <button class="btn btn-success" onclick="addPurchase('received')">货已到 直接入库</button>
-      <div class="cost-preview" id="pur-cost-preview" style="flex:1;max-width:360px">填写数量与进价，或填实付总价反算</div>
+      <div class="cost-preview" id="pur-cost-preview" style="flex:1;max-width:380px">填写数量与进价，或填上方「实付总价」反算</div>
     </div>
   </div>
 
@@ -3693,7 +3697,7 @@ window.updateCostPreview = function(){
       +`<strong style="color:var(--primary);font-size:15px">¥${totalCost.toFixed(2)}</strong>`
       +`<span style="font-size:11px;color:var(--text3);margin-left:8px">（进¥${price.toFixed(2)}+运¥${shipPer.toFixed(2)}/件）</span>`;
   } else {
-    el.textContent='填写数量与单件进价，或填右侧实付总价自动反算';
+    el.textContent='填写数量与单件进价，或填「实付总价」自动反算进价';
   }
 };
 
@@ -4206,7 +4210,7 @@ window.addPurchase = function(status){
   document.getElementById('pur-img-file').value='';
   _purImgBase64='';
   setPreviewEl('pur-img-preview','');
-  document.getElementById('pur-cost-preview').textContent='填写数量与进价，或填实付总价反算';
+  document.getElementById('pur-cost-preview').textContent='填写数量与进价，或填「实付总价」反算';
   window.toggleNewProduct('existing');
   render();
   const p=gp(pid);
