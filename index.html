@@ -898,6 +898,7 @@ input::placeholder{color:var(--text3)}
           <div class="fg"><label>SKU编码</label><input type="text" id="pe-sku"></div>
           <div class="fg" style="grid-column:1/-1"><label>Temu商品链接</label><input type="text" id="pe-temu-link" placeholder="https://www.temu.com/..."></div>
           <div class="fg" style="grid-column:1/-1"><label>1688货源链接 <span style="font-size:11px;color:var(--text3);font-weight:400">（保存后🔗图标直接跳转）</span></label><input type="text" id="pe-source-link" placeholder="https://detail.1688.com/offer/..."></div>
+          <div class="fg" style="grid-column:1/-1"><label>抓取匹配用名字 <span style="font-size:11px;color:var(--text3);font-weight:400">（每行一条：1688 原标题、曾用名等；<strong>改产品名时会自动把旧名追加到此处</strong>）</span></label><textarea id="pe-name-aliases" rows="3" placeholder="例如粘贴整段 1688 商品标题，或历史用过的名称" style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;resize:vertical;min-height:68px;line-height:1.45"></textarea></div>
         </div>
       </div>
       <input type="file" id="pe-img-file" accept="image/*" style="display:none" onchange="handleProductImg(this)">
@@ -2754,42 +2755,77 @@ function normCatalogTitle(s) {
   return String(s || '').replace(/\s+/g, '').trim();
 }
 
-/** 解析标题与已有产品匹配：支持库内短名出现在 1688 长标题中、长前缀一致等 */
+/** d = normCatalogTitle(解析标题)；catalogNameRaw = 当前商品名或 nameAliases 里一条 */
+function scoreParsedAgainstCatalogName(d, catalogNameRaw) {
+  const pn = normCatalogTitle(catalogNameRaw);
+  if (!pn) return 0;
+  let score = 0;
+  if (pn === d) score = 200000 + pn.length;
+  else if (pn.length >= 3 && d.includes(pn)) score = 100000 + Math.min(pn.length * 100, 12000);
+  else if (pn.includes(d)) score = 80000 + Math.min(d.length * 100, 12000);
+  else {
+    let pref = 0;
+    const maxL = Math.min(pn.length, d.length);
+    for (let i = 0; i < maxL; i++) {
+      if (pn[i] !== d[i]) break;
+      pref++;
+    }
+    if (pref >= 8) score = Math.max(score, 50000 + pref * 100);
+    else if (pref >= 6) score = Math.max(score, 20000 + pref * 50);
+    else if (pref >= 4) score = Math.max(score, 2000 + pref * 10);
+    if (score < 80000 && pn.length >= 3) {
+      for (let len = Math.min(pn.length, 40); len >= 3; len--) {
+        const head = pn.slice(0, len);
+        if (d.includes(head)) {
+          score = Math.max(score, 30000 + len * 80);
+          break;
+        }
+      }
+    }
+  }
+  return score;
+}
+
+function productTitleMatchScore(dNorm, p) {
+  let score = scoreParsedAgainstCatalogName(dNorm, p.name);
+  if (Array.isArray(p.nameAliases)) {
+    for (let i = 0; i < p.nameAliases.length; i++) {
+      score = Math.max(score, scoreParsedAgainstCatalogName(dNorm, p.nameAliases[i]));
+    }
+  }
+  return score;
+}
+
+/** 解析标题与已有产品匹配：当前名 + nameAliases（改名自动记旧名、可手填 1688 标题） */
 function findBestCatalogProductForTitle(parsedTitle) {
   const d = normCatalogTitle(parsedTitle);
   if (d.length < 2) return null;
   let best = null, bestScore = 0;
-  for (const p of D.products) {
-    const pn = normCatalogTitle(p.name);
-    if (!pn) continue;
-    let score = 0;
-    if (pn === d) score = 200000 + pn.length;
-    else if (pn.length >= 3 && d.includes(pn)) score = 100000 + Math.min(pn.length * 100, 12000);
-    else if (pn.includes(d)) score = 80000 + Math.min(d.length * 100, 12000);
-    else {
-      let pref = 0;
-      const maxL = Math.min(pn.length, d.length);
-      for (let i = 0; i < maxL; i++) {
-        if (pn[i] !== d[i]) break;
-        pref++;
-      }
-      if (pref >= 8) score = Math.max(score, 50000 + pref * 100);
-      else if (pref >= 6) score = Math.max(score, 20000 + pref * 50);
-      else if (pref >= 4) score = Math.max(score, 2000 + pref * 10);
-      if (score < 80000 && pn.length >= 3) {
-        for (let len = Math.min(pn.length, 40); len >= 3; len--) {
-          const head = pn.slice(0, len);
-          if (d.includes(head)) {
-            score = Math.max(score, 30000 + len * 80);
-            break;
-          }
-        }
-      }
-    }
-    if (score > bestScore) { bestScore = score; best = p; }
+  for (let i = 0; i < D.products.length; i++) {
+    const p = D.products[i];
+    const sc = productTitleMatchScore(d, p);
+    if (sc > bestScore) { bestScore = sc; best = p; }
   }
   if (bestScore < 2200) return null;
   return best;
+}
+
+function parseNameAliasesFromTextarea(text, currentName) {
+  const lines = String(text || '').split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+  const seen = {};
+  const curN = normCatalogTitle(currentName);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\s+/g, ' ').trim();
+    const n = normCatalogTitle(line);
+    if (n.length < 2) continue;
+    if (curN && n === curN) continue;
+    if (seen[n]) continue;
+    seen[n] = 1;
+    out.push(line);
+    if (out.length >= 40) break;
+  }
+  return out;
 }
 
 function resolveCatalogProductForGoods(g) {
@@ -3882,6 +3918,7 @@ window.openEditProduct = window.editProduct = function(id){
   document.getElementById('pe-price').value = p.price||'';
   document.getElementById('pe-temu-link').value = p.temuLink||'';
   document.getElementById('pe-source-link').value = p.sourceLink||getProductLink(p.id)||'';
+  const peAli=document.getElementById('pe-name-aliases'); if(peAli) peAli.value=Array.isArray(p.nameAliases)?p.nameAliases.join('\n'):'';
   const reorderEl=document.getElementById('pe-reorder'); if(reorderEl) reorderEl.value=p.reorderPoint||'';
   _productImgBase64 = p.img||'';
   setPreviewEl('pe-img-preview', p.img||'');
@@ -4014,6 +4051,7 @@ window.addSpecInModal = function(){
 window.saveEditProduct = function(){
   const id=parseInt(document.getElementById('pe-id').value);
   const p=gp(id); if(!p) return;
+  const oldStoredName=(p.name||'').trim();
   const name=document.getElementById('pe-name').value.trim();
   const price=parseFloat(document.getElementById('pe-price').value)||0;
   const sku=document.getElementById('pe-sku').value.trim();
@@ -4029,7 +4067,13 @@ window.saveEditProduct = function(){
     if(priceEl){ const v=priceEl.value.trim(); sp.price=v===''?sp.price||0:parseFloat(v)||0; }
     if(costEl){ const v=costEl.value.trim(); sp.cost=v===''?sp.cost||0:parseFloat(v)||0; }
   });
+  let aliasRaw=(document.getElementById('pe-name-aliases')&&document.getElementById('pe-name-aliases').value)||'';
+  if(name!==oldStoredName&&oldStoredName.length>=2){
+    aliasRaw=oldStoredName+'\n'+aliasRaw;
+  }
+  const finalAliases=parseNameAliasesFromTextarea(aliasRaw,name);
   Object.assign(p,{name,price,sku,temuLink,sourceLink,reorderPoint,img:_productImgBase64});
+  if(finalAliases.length) p.nameAliases=finalAliases; else delete p.nameAliases;
   document.getElementById('product-edit-modal').style.display='none';
   save(); render();
 };
