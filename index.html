@@ -2742,10 +2742,67 @@ function attachProductNamesFromLines(lines, goods) {
     if (hasLongCnTitle) return { ...g, productName: g.productName || nm, name: nm };
     if (shared) {
       const finalSpec = sp || (nm && !/[\u4e00-\u9fff]{4,}/.test(nm) ? nm : '');
-      return { ...g, name: shared, productName: shared, spec: finalSpec };
+      const out = { ...g, name: shared, productName: shared, spec: finalSpec };
+      if (nm && nm !== shared) out._origLineTitle = nm;
+      return out;
     }
     return { ...g, productName: g.productName || nm };
   });
+}
+
+function normCatalogTitle(s) {
+  return String(s || '').replace(/\s+/g, '').trim();
+}
+
+/** 解析标题与已有产品匹配：支持库内短名出现在 1688 长标题中、长前缀一致等 */
+function findBestCatalogProductForTitle(parsedTitle) {
+  const d = normCatalogTitle(parsedTitle);
+  if (d.length < 2) return null;
+  let best = null, bestScore = 0;
+  for (const p of D.products) {
+    const pn = normCatalogTitle(p.name);
+    if (!pn) continue;
+    let score = 0;
+    if (pn === d) score = 200000 + pn.length;
+    else if (pn.length >= 3 && d.includes(pn)) score = 100000 + Math.min(pn.length * 100, 12000);
+    else if (pn.includes(d)) score = 80000 + Math.min(d.length * 100, 12000);
+    else {
+      let pref = 0;
+      const maxL = Math.min(pn.length, d.length);
+      for (let i = 0; i < maxL; i++) {
+        if (pn[i] !== d[i]) break;
+        pref++;
+      }
+      if (pref >= 8) score = Math.max(score, 50000 + pref * 100);
+      else if (pref >= 6) score = Math.max(score, 20000 + pref * 50);
+      else if (pref >= 4) score = Math.max(score, 2000 + pref * 10);
+      if (score < 80000 && pn.length >= 3) {
+        for (let len = Math.min(pn.length, 40); len >= 3; len--) {
+          const head = pn.slice(0, len);
+          if (d.includes(head)) {
+            score = Math.max(score, 30000 + len * 80);
+            break;
+          }
+        }
+      }
+    }
+    if (score > bestScore) { bestScore = score; best = p; }
+  }
+  if (bestScore < 2200) return null;
+  return best;
+}
+
+function resolveCatalogProductForGoods(g) {
+  const tries = [];
+  const add = (x) => { const t = (x && String(x).trim()) || ''; if (t && tries.indexOf(t) < 0) tries.push(t); };
+  add(g.productName || g.name);
+  add(g.name);
+  add(g._origLineTitle);
+  for (let i = 0; i < tries.length; i++) {
+    const hit = findBestCatalogProductForTitle(tries[i]);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 function buildImportBatchHtml(meta) {
@@ -2982,8 +3039,9 @@ window.smartParse = function() {
     if (!name&&!price) { resultEl.innerHTML=`<span style="color:var(--amber)">未能识别，请确认复制了完整页面文字</span>`; return; }
     if (price) { document.getElementById('pur-price').value=price; syncPurGrandFromParts(); updateCostPreview(); }
     if (name) {
-      const matched=D.products.find(p=>p.name.includes(name.slice(0,6))||name.includes(p.name.slice(0,6)));
+      const matched=findBestCatalogProductForTitle(name);
       if(matched){
+        window.toggleNewProduct('existing');
         document.getElementById('pur-product-pid').value=String(matched.id);
         const spL=matched.specs||[];
         refreshPurSpecSelect(spL.length?spL[0].sid:0);
@@ -3088,7 +3146,7 @@ window.importAllGoods = function(status) {
 window.fillFromGoods = function(g) {
   if(!g) return;
   const disp = (g.productName || g.name || '').trim();
-  const matched = D.products.find(p=>p.name.includes(disp.slice(0,6))||disp.includes(p.name.slice(0,6)));
+  const matched = resolveCatalogProductForGoods(g);
   if(matched) {
     window.toggleNewProduct('existing');
     document.getElementById('pur-product-pid').value=String(matched.id);
@@ -3118,10 +3176,14 @@ window.fillFromGoods = function(g) {
   const ship=g.ship||0, qty=g.qty||1;
   const unitShip=qty>0?ship/qty:0;
   const total=g.price+unitShip;
+  const matchLine = matched
+    ? `<div style="font-size:12px;color:var(--green);font-weight:600;margin-top:8px">✓ 已匹配已有商品「${escHtml(matched.name)}」，可直接下单</div>`
+    : `<div style="font-size:11px;color:var(--text3);margin-top:8px">未匹配到已有商品，已按<strong>新品</strong>填写，可改选上方已有产品</div>`;
   document.getElementById('parse-result').innerHTML=`
     <div style="padding:12px 14px;background:#fff;border:1px solid var(--border);border-radius:8px">
-      <div style="font-weight:700;color:var(--primary);margin-bottom:8px">✅ 已填入：${disp.slice(0,30)}</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:13px">
+      <div style="font-weight:700;color:var(--primary);margin-bottom:8px">✅ 已填入：${escHtml(disp.slice(0,40))}${disp.length>40?'…':''}</div>
+      ${matchLine}
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:13px;margin-top:10px">
         <div style="background:var(--bg);border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:var(--text3)">数量</div><div style="font-weight:800">${qty}件</div></div>
         <div style="background:var(--bg);border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:var(--text3)">单件进价</div><div style="font-weight:800">¥${g.price.toFixed(2)}</div></div>
         <div style="background:var(--primary-bg);border-radius:6px;padding:8px;text-align:center;border:1px solid var(--primary-light)"><div style="font-size:10px;color:var(--primary)">单件总成本</div><div style="font-weight:800;color:var(--primary)">¥${total.toFixed(2)}</div></div>
@@ -3172,7 +3234,7 @@ window.createMultiSpecProductAt = function(idx) {
   const pName = g0.productName || g0.name;
   const ship = g0.ship || 0;
   const totalQty = group.reduce((s, g) => s + g.qty, 0);
-  let p = D.products.find(pp => pp.name === pName || pp.name.slice(0, 15) === pName.slice(0, 15));
+  let p = findBestCatalogProductForTitle(pName) || D.products.find(pp => pp.name === pName || pp.name.slice(0, 15) === pName.slice(0, 15));
   if (!p) {
     p = { id: D.nextId++, name: pName, price: 0, sku: '', img: '', specs: [], sourceLink: g0.sourceLink || '' };
     D.products.push(p);
@@ -3336,9 +3398,7 @@ function handleBookmarkParams() {
     }
 
     if (bName) {
-      const matched = D.products.find(p =>
-        p.name.includes(bName.slice(0,6)) || bName.includes(p.name.slice(0,6))
-      );
+      const matched = findBestCatalogProductForTitle(bName);
       if (matched) {
         document.getElementById('pur-product-pid').value = String(matched.id);
         let prefSid = 0;
