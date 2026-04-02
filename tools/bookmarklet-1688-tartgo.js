@@ -20,7 +20,11 @@
           var t = c.textContent.trim();
           if (t) parts.push(t);
         } else if (c.nodeType === 1) {
-          if (c.tagName === 'IFRAME') {
+          var tag = c.tagName;
+          if (tag === 'STYLE' || tag === 'SCRIPT' || tag === 'NOSCRIPT' || tag === 'TEMPLATE') {
+            continue;
+          }
+          if (tag === 'IFRAME') {
             try { parts.push(getText(c.contentDocument.body)); } catch (e) {}
           } else {
             parts.push(getText(c));
@@ -85,6 +89,14 @@
       if (/^with\s*\(\s*document\s*\)/.test(l)) return false;
       if (/aplus_id|exparams|userid=\d+.*aplus|setAttribute\s*\(\s*["']exparams["']/i.test(l)) return false;
       if (l.length > 600 && /createElement\s*\(\s*["']script["']\)/.test(l)) return false;
+      if (/!important/i.test(l)) return false;
+      if (
+        /^\s*(?:padding|margin|border(?:-[a-zA-Z]+)*|color|fill|transition|background(?:-[a-z]+)?|display|position|width|height|font|line-height|text-(?:align|decoration|shadow)?|flex|align-(?:items|self)?|justify-(?:content)?|box-(?:shadow|sizing)|transform|opacity|z-index|overflow(?:-[xy])?|cursor|outline)\s*:/i.test(
+          l
+        )
+      ) {
+        return false;
+      }
       return true;
     });
   }
@@ -99,12 +111,46 @@
     return x;
   }
 
+  /** 从单价/优惠后行向上扫：跳过货号，收集 规格/颜色/型号/款式，最近一条可读标题为品名 */
+  function scan1688RowNameSpec(lines, startIdx, maxBack) {
+    var SKIP_BADGE = /^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请)/;
+    var specParts = [];
+    var name = '';
+    var lim = Math.max(0, startIdx - (maxBack || 55));
+    for (var j = startIdx; j >= lim; j--) {
+      var l = lines[j];
+      if (SKIP_BADGE.test(l)) continue;
+      if (/^货号[：:]/.test(l)) continue;
+      var am = l.match(/^(规格|颜色|型号|款式)[：:]\s*(.+)$/);
+      if (am) {
+        var v = am[2].trim();
+        if (v) specParts.unshift(v);
+        continue;
+      }
+      var minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
+      if (
+        l.length >= minName &&
+        l.length <= 120 &&
+        !/^[\d\s¥￥元\.\/×xX＊*,，。]+$/.test(l) &&
+        !/^(规格|颜色|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l)
+      ) {
+        name = l;
+        break;
+      }
+    }
+    return { name: name, spec: specParts.join(' · ') };
+  }
+
   function dedupeGoodsArr(arr) {
     var seen = {},
       res = [];
     for (var di = 0; di < arr.length; di++) {
       var g = arr[di];
-      var k = (g.name || '').slice(0, 14) + '_' + g.price + '_' + (g.qty || 1);
+      var specK = String(g.spec || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 48);
+      var k = (g.name || '').slice(0, 14) + '_' + g.price + '_' + (g.qty || 1) + '_' + specK;
       if (seen[k]) continue;
       seen[k] = 1;
       res.push(g);
@@ -112,10 +158,14 @@
     return res;
   }
 
-  /** 猜测订单明细 iframe，跳转后同页可读到 DOM（跨域 iframe 内书签读不到） */
-  function findOrderIframeJumpUrl() {
+  /** 收集可打开的订单内嵌页地址（书签在外壳页读不到 iframe 内 DOM 时用） */
+  function findOrderIframeJumpUrls() {
     var list = document.querySelectorAll('iframe[src]');
     var cur = location.href.replace(/#.*$/, '');
+    var oid = '';
+    var om = cur.match(/orderId=(\d{8,30})/i);
+    if (om) oid = om[1];
+    var out = [];
     for (var fi = 0; fi < list.length; fi++) {
       var s = list[fi].getAttribute('src') || '';
       if (!s || /^about:/i.test(s)) continue;
@@ -126,12 +176,19 @@
         continue;
       }
       if (!/1688\.com/i.test(u)) continue;
-      if (/redirect|trace|spm=/i.test(u) && !/order|trade|detail|offer|purchase|ctf-page/i.test(u)) continue;
-      if (!/trade|order|detail|purchase|ctf-page|orderId|offer\/|offer\.html|page\/offer/i.test(u)) continue;
+      if (/redirect|trace/i.test(u) && !/order|trade|detail|offer|purchase|ctf-page/i.test(u)) continue;
+      if (!/trade|order|detail|purchase|ctf-page|orderId|offer\/|offer\.html|page\/offer|buyer\.1688/i.test(u)) continue;
       if (u.split('#')[0] === cur.split('#')[0]) continue;
-      return u;
+      out.push(u);
     }
-    return '';
+    if (!out.length) return [];
+    if (oid) {
+      var withOid = out.filter(function (x) {
+        return x.indexOf(oid) >= 0;
+      });
+      if (withOid.length) return withOid;
+    }
+    return out;
   }
 
   /** 从页面 HTML 内嵌 JSON 抠品名/单价/数量（邻近配对 + 全局兜底） */
@@ -214,35 +271,23 @@
     var goods = [];
     var skipIdx = new Set();
     var SKIP = /^(规格|颜色|型号|款式|货号|数量|单价|优惠|货品|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请|假一|查看|快递|发货|备注|收货|卖家|买家|支付|配送|手机|电话|地址|订单|交易|物流|等待|当前|如果|原价|实付|合计|运费|48|上门)/;
-    /* 含中文的品名常短于 8 字（如「自行车手把包」），单独放宽 */
-    function ok(s) {
-      var minLen = /[\u4e00-\u9fff]/.test(s) ? 4 : 8;
-      return s.length >= minLen && s.length <= 120 && !SKIP.test(s) && !/^\d+$/.test(s) && !/^\d+\.\d+$/.test(s) && !/^[¥￥\d\s\/.元,，套件对]+$/.test(s);
-    }
 
     for (var i = 0; i < lines.length; i++) {
       if (skipIdx.has(i)) continue;
       var l = lines[i];
-      var discM = l.match(/优惠后(\d+\.?\d*)元?[\/／]?[件个只条对套组双副片张包盒袋根支块]?/);
+      var discM = l.match(/优惠后(\d+\.?\d*)元?[\/／]?[件个只条对套组双副片张包盒袋根支块付辆台箱瓶把卷米克]?/);
       if (discM) {
         var price = parseFloat(discM[1]);
         for (var s2 = i + 1; s2 < Math.min(lines.length, i + 4); s2++) {
-          if (lines[s2].match(/^\d+\.?\d*\s*元[\/／][件个只条对套组双副片张包盒袋根支块]/) || lines[s2].match(/^\d+\.?\d*[\/／][件个只条对套组双副片张包盒袋根支块]/)) {
+          if (lines[s2].match(/^\d+\.?\d*\s*元[\/／][件个只条对套组双副片张包盒袋根支块付辆台箱瓶把卷米克]/) || lines[s2].match(/^\d+\.?\d*[\/／][件个只条对套组双副片张包盒袋根支块付辆台箱瓶把卷米克]/)) {
             skipIdx.add(s2);
             break;
           }
         }
-        var name = '', spec = '', qty = 1;
-        for (var j = i - 1; j >= Math.max(0, i - 40); j--) {
-          var lj = lines[j];
-          if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货)/.test(lj)) continue;
-          if (/^货号[：:]/.test(lj)) continue;
-          if (/^规格[：:]/.test(lj)) {
-            spec = lj.replace(/^规格[：:]\s*/, '').trim();
-            continue;
-          }
-          if (ok(lj) && !name) { name = lj; break; }
-        }
+        var qty = 1;
+        var _rowDisc = scan1688RowNameSpec(lines, i - 1, 40);
+        var name = _rowDisc.name;
+        var spec = _rowDisc.spec;
         for (var k = i + 1; k < Math.min(lines.length, i + 10); k++) {
           if (skipIdx.has(k)) continue;
           if (/^\d+$/.test(lines[k])) {
@@ -253,23 +298,16 @@
         if (name && price > 0) goods.push({ name: name, spec: spec, price: price, qty: qty });
         continue;
       }
-      var pm = l.match(/^(\d+\.?\d*)\s*元\s*[\/／]\s*[件个只条对套组双副片张包盒袋根支块]/) ||
-        l.match(/^(\d+\.?\d*)\s*[\/／]\s*[件个只条对套组双副片张包盒袋根支块]/) ||
-        l.match(/^[¥￥]\s*(\d+\.?\d*)\s*[\/／]\s*[件个只条对套组双副片张包盒袋根支块]/);
+      var pm = l.match(/^(\d+\.?\d*)\s*元\s*[\/／]\s*[件个只条对套组双副片张包盒袋根支块付辆台箱瓶把卷米克]/) ||
+        l.match(/^(\d+\.?\d*)\s*[\/／]\s*[件个只条对套组双副片张包盒袋根支块付辆台箱瓶把卷米克]/) ||
+        l.match(/^[¥￥]\s*(\d+\.?\d*)\s*[\/／]\s*[件个只条对套组双副片张包盒袋根支块付辆台箱瓶把卷米克]/);
       if (!pm) continue;
       var price2 = parseFloat(pm[1]);
       if (price2 <= 0 || price2 > 99999) continue;
-      var name2 = '', spec2 = '', qty2 = 1;
-      for (var j2 = i - 1; j2 >= Math.max(0, i - 40); j2--) {
-        var lj2 = lines[j2];
-        if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货)/.test(lj2)) continue;
-        if (/^货号[：:]/.test(lj2)) continue;
-        if (/^规格[：:]/.test(lj2)) {
-          spec2 = lj2.replace(/^规格[：:]\s*/, '').trim();
-          continue;
-        }
-        if (ok(lj2) && !name2) { name2 = lj2; break; }
-      }
+      var qty2 = 1;
+      var _rowPm = scan1688RowNameSpec(lines, i - 1, 40);
+      var name2 = _rowPm.name;
+      var spec2 = _rowPm.spec;
       for (var k2 = i + 1; k2 < Math.min(lines.length, i + 10); k2++) {
         if (/^\d+$/.test(lines[k2])) {
           var v2 = parseInt(lines[k2], 10);
@@ -310,22 +348,9 @@
             break;
           }
         }
-        var nameA = '';
-        var specA = '';
-        for (var aj = anchor - 1; aj >= Math.max(0, anchor - 55); aj--) {
-          if (skipIdx.has(aj)) continue;
-          var lja = lines[aj];
-          if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货)/.test(lja)) continue;
-          if (/^货号[：:]/.test(lja)) continue;
-          if (/^规格[：:]/.test(lja)) {
-            specA = lja.replace(/^规格[：:]\s*/, '').trim();
-            continue;
-          }
-          if (ok(lja) && !nameA) {
-            nameA = lja;
-            break;
-          }
-        }
+        var _rowAir = scan1688RowNameSpec(lines, anchor - 1, 55);
+        var nameA = _rowAir.name;
+        var specA = _rowAir.spec;
         if (nameA && priceA > 0) goods.push({ name: nameA, spec: specA, price: priceA, qty: qtyA });
       }
     }
@@ -355,16 +380,23 @@
       }
     }
 
-    /* 有订单内嵌 iframe：跳到内页再点书签，才能读到 DOM */
+    /* 明细在内嵌框架里：新标签打开内页（避免关掉当前页），再点一次本书签 */
     if (!goods.length) {
-      var jump = findOrderIframeJumpUrl();
+      var jumps = findOrderIframeJumpUrls();
+      var jump = jumps.length ? jumps[0] : '';
       if (jump) {
         if (
           confirm(
-            '当前页未识别到商品。\n1688 常把明细放在内嵌框架里，书签读不到。\n\n点「确定」打开订单内页，然后请再点一次本书签。\n点「取消」可改用：本页 Ctrl+A 复制 → TARTGO 进货页粘贴。'
+            '【为什么失败】浏览器规定：书签只能读「当前这一层」网页。1688 把订单明细放在内嵌框架里时，这里读不到里面的字。\n\n【怎么解决】\n1）点「确定」→ 会在新标签打开内嵌订单页 → 切到那个标签 → 再点一次本书签；\n2）点「取消」→ 在本页 Ctrl+A 全选、Ctrl+C，到 TARTGO 进货页粘贴。\n\n（若浏览器拦截弹窗，请允许 1688 弹窗后重试，或改用复制粘贴。）'
           )
         ) {
-          location.href = jump;
+          var w = null;
+          try {
+            w = window.open(jump, '_blank', 'noopener,noreferrer');
+          } catch (e) {}
+          if (!w) {
+            if (confirm('无法打开新标签（可能被拦截）。是否改为在本窗口打开内页？（会离开当前页）')) location.href = jump;
+          }
         }
       }
     }
