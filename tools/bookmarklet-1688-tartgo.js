@@ -101,6 +101,23 @@
     });
   }
 
+  /** 把「长标题 + 颜色：值」挤在同一行的复制结果拆成多行 */
+  function expandGlued1688Lines(rawLines) {
+    var out = [];
+    for (var i = 0; i < rawLines.length; i++) {
+      var L = rawLines[i];
+      if (!L) continue;
+      var splitM = L.match(/^(.{10,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+      if (splitM && splitM[1].trim().length >= 8 && splitM[3].trim().length >= 1) {
+        out.push(splitM[1].trim());
+        out.push(splitM[2] + '：' + splitM[3].trim());
+        continue;
+      }
+      out.push(L);
+    }
+    return out;
+  }
+
   function normMoney(p) {
     var x = parseFloat(p);
     if (!(x > 0)) return 0;
@@ -121,18 +138,23 @@
       var l = lines[j];
       if (SKIP_BADGE.test(l)) continue;
       if (/^货号[：:]/.test(l)) continue;
-      var am = l.match(/^(规格|颜色|型号|款式)[：:]\s*(.+)$/);
+      var am = l.match(/^(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
       if (am) {
         var v = am[2].trim();
         if (v) specParts.unshift(v);
         continue;
       }
       var minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
+      var tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+      if (tail) {
+        specParts.unshift(tail[3].trim());
+        l = tail[1].trim();
+      }
       if (
         l.length >= minName &&
-        l.length <= 120 &&
+        l.length <= 200 &&
         !/^[\d\s¥￥元\.\/×xX＊*,，。]+$/.test(l) &&
-        !/^(规格|颜色|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l)
+        !/^(规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l)
       ) {
         name = l;
         break;
@@ -151,6 +173,7 @@
         .trim()
         .slice(0, 48);
       var k = (g.name || '').slice(0, 14) + '_' + g.price + '_' + (g.qty || 1) + '_' + specK;
+      if (!specK) k += '_' + di;
       if (seen[k]) continue;
       seen[k] = 1;
       res.push(g);
@@ -260,7 +283,7 @@
 
   function runBookmarklet() {
     var text = buildRawText();
-    var lines = toCleanLines(text);
+    var lines = expandGlued1688Lines(toCleanLines(text));
     var oM = text.match(/订单号[：:\s]*(\d{10,25})/);
     var orderId = oM ? oM[1] : '';
     var sM = text.match(/运费[\s\S]{0,10}[¥￥]\s*(\d+\.?\d*)/) || text.match(/[¥￥]\s*(\d+\.?\d*)\s*[\s\S]{0,5}运费/);
@@ -424,12 +447,17 @@
       return;
     }
 
-    var seen = {};
-    var unique = goods.filter(function (g) {
-      var k = g.name.slice(0, 15) + '_' + g.price + '_' + g.spec;
-      if (seen[k]) return false;
-      seen[k] = 1;
-      return true;
+    var seenU = {};
+    var unique = [];
+    goods.forEach(function (g, gi) {
+      var specK = String(g.spec || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      var k = (g.name || '').slice(0, 15) + '_' + g.price + '_' + (g.qty || 1) + '_' + specK;
+      if (!specK) k += '__r' + gi;
+      if (seenU[k]) return;
+      seenU[k] = 1;
+      unique.push(g);
     });
 
     var SKIP2 = /^(规格|颜色|型号|款式|货号|数量|单价|优惠|货品|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请|假一|查看|快递|发货|备注|收货|卖家|买家|支付|配送|手机|电话|地址|订单|交易|物流|等待|当前|如果|原价|实付|合计|运费|48|上门)/;
@@ -456,7 +484,7 @@
         var nm = (g.name || '').trim();
         var sp = (g.spec || '').trim();
         if (/[\u4e00-\u9fff]{5,}/.test(nm) && nm.length >= 14) return;
-        if (!sp && nm) g.spec = nm;
+        if (!sp && nm && nm.length <= 16) g.spec = nm;
         g.name = best;
         g.productName = best;
       });
