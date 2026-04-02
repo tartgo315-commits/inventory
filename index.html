@@ -2913,6 +2913,27 @@ function expandGlued1688Lines(rawLines) {
   return out;
 }
 
+function junk1688AttrValue(v) {
+  v = String(v || '').replace(/\s+/g, ' ').trim();
+  if (!v) return true;
+  const compact = v.replace(/\s/g, '');
+  if (/规格无忧|交期无忧|品质无忧|无忧购|7天无理由|15天包换|晚发必赔|破损包赔|退货包运|极速退款|延期必赔|假一赔|包邮|现货|库存/.test(compact)) return true;
+  if (v.length <= 8 && /^(无忧|规格|保障|包赔|承诺|服务|认证)$/.test(compact)) return true;
+  return false;
+}
+
+function findColorLineAbove(lines, startIdx, maxBack) {
+  const lim = Math.max(0, startIdx - (maxBack || 55));
+  for (let j = startIdx; j >= lim; j--) {
+    const cm = lines[j].match(/颜色[：:\s]\s*(.+)$/);
+    if (cm) {
+      const cv = cm[1].replace(/\s+/g, ' ').trim();
+      if (cv && !junk1688AttrValue(cv)) return cv;
+    }
+  }
+  return '';
+}
+
 /** 从订单「单价/优惠后」行向上扫：跳过货号，收集 规格/颜色/型号/款式，最近一条可读标题为品名 */
 function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
   const SKIP_BADGE = /^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请)/;
@@ -2926,13 +2947,14 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
     const am = l.match(/^(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
     if (am) {
       const v = am[2].trim();
-      if (v) specParts.unshift(v);
+      if (v && !junk1688AttrValue(v)) specParts.unshift(v);
       continue;
     }
     const minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
     const tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
     if (tail) {
-      specParts.unshift(tail[3].trim());
+      const tv = tail[3].trim();
+      if (tv && !junk1688AttrValue(tv)) specParts.unshift(tv);
       l = tail[1].trim();
     }
     if (l.length >= minName && l.length <= 200 &&
@@ -2942,7 +2964,13 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
       break;
     }
   }
-  return { name, spec: specParts.join(' · ') };
+  const filtered = specParts.filter(p => p && !junk1688AttrValue(p));
+  let spec = filtered.join(' · ');
+  if (!spec || junk1688AttrValue(spec)) {
+    const col = findColorLineAbove(lines, startIdx, maxLookback);
+    if (col) spec = col;
+  }
+  return { name, spec };
 }
 
 // ===== 智能解析1688文字 =====
@@ -2970,9 +2998,19 @@ window.smartParse = function() {
     const goods = [];
     for (let i=0; i<lines.length; i++) {
       // 支持「优惠后4.00元/个」连写 和「6.20 元/件」两种格式
-      const priceM = lines[i].match(/优惠后(\d+\.?\d*)元?/) || lines[i].match(/^(\d+\.?\d*)\s*元\/[件个只条对套组双副片张包盒袋根支块]/);
+      const discLine = lines[i].match(/优惠后(\d+\.?\d*)元?/);
+      const yuanLine = lines[i].match(/^(\d+\.?\d*)\s*元\/[件个只条对套组双副片张包盒袋根支块]/);
+      const priceM = discLine || yuanLine;
       if (!priceM) continue;
       const price = parseFloat(priceM[1]);
+      if (yuanLine && !discLine) {
+        let skipYuan = false;
+        for (let yi = Math.max(0, i - 5); yi < i; yi++) {
+          const yd = lines[yi].match(/优惠后(\d+\.?\d*)元?/);
+          if (yd && Math.abs(parseFloat(yd[1]) - price) < 0.001) { skipYuan = true; break; }
+        }
+        if (skipYuan) continue;
+      }
 
       let qty=1;
       const { name, spec } = scan1688AttrAndNameBackward(lines, i - 1, 35);
