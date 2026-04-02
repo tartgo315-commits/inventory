@@ -2896,6 +2896,33 @@ function buildImportBatchHtml(meta) {
   </div>`;
 }
 
+/** 从订单「单价/优惠后」行向上扫：跳过货号，收集 规格/颜色/型号/款式，最近一条可读标题为品名 */
+function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
+  const SKIP_BADGE = /^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请)/;
+  const specParts = [];
+  let name = '';
+  const lim = Math.max(0, startIdx - (maxLookback || 55));
+  for (let j = startIdx; j >= lim; j--) {
+    const l = lines[j];
+    if (SKIP_BADGE.test(l)) continue;
+    if (/^货号[：:]\s*/.test(l)) continue;
+    const am = l.match(/^(规格|颜色|型号|款式)[：:]\s*(.+)$/);
+    if (am) {
+      const v = am[2].trim();
+      if (v) specParts.unshift(v);
+      continue;
+    }
+    const minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
+    if (l.length >= minName && l.length <= 120 &&
+      !/^[\d\s¥￥元\.\/×xX＊*,，。]+$/.test(l) &&
+      !/^(规格|颜色|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l)) {
+      name = l;
+      break;
+    }
+  }
+  return { name, spec: specParts.join(' · ') };
+}
+
 // ===== 智能解析1688文字 =====
 window.smartParse = function() {
   const text = document.getElementById('paste-input').value;
@@ -2924,42 +2951,8 @@ window.smartParse = function() {
       if (!priceM) continue;
       const price = parseFloat(priceM[1]);
 
-      let spec='', name='', qty=1;
-      let specFound=false;
-
-      // 从价格行往前扫，找最近的规格行，规格行正上方就是商品名
-      for (let j=i-1; j>=Math.max(0,i-30); j--) {
-        const l = lines[j];
-
-        // 跳过标签行
-        if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请)/.test(l)) continue;
-        // 跳过货号行
-        if (/^货号[：:]\s*/.test(l)) continue;
-
-        // 找到规格行
-        if (/^规格[：:]\s*/.test(l)) {
-          spec = l.replace(/^规格[：:]\s*/,'').trim();
-          specFound = true;
-          // 规格行的正上方（跳过空行）就是商品名
-          for (let k=j-1; k>=Math.max(0,j-5); k--) {
-            const nl = lines[k];
-            if (nl.length>=6 && nl.length<=120 &&
-              !/^[\d\s¥￥元\.\/×x,，。]+$/.test(nl) &&
-              !/^(规格|货号|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请)/.test(nl)) {
-              name = nl;
-              break;
-            }
-          }
-          break; // 找到规格就停，不再往前找
-        }
-
-        // 如果没有规格行，用遇到的第一个合适行作为商品名
-        if (!specFound && !name && l.length>=6 && l.length<=120 &&
-          !/^[\d\s¥￥元\.\/×x,，。]+$/.test(l) &&
-          !/^(规格|货号|数量|优惠|运费|单价|原价|实付|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|收货|配送|手机|电话|地址)/.test(l)) {
-          name = l;
-        }
-      }
+      let qty=1;
+      const { name, spec } = scan1688AttrAndNameBackward(lines, i - 1, 35);
 
       // 往后找数量
       for (let k=i+1; k<Math.min(lines.length,i+8); k++) {
@@ -2979,11 +2972,6 @@ window.smartParse = function() {
 
     // air.1688 等：无「优惠后」，单价与金额分行
     if (!goods.length) {
-      const SKIP_AIR = /^(规格|颜色|型号|款式|货号|数量|单价|价格|优惠|货品|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请|假一|查看|快递|发货|备注|收货|卖家|买家|支付|配送|手机|电话|地址|订单|交易|物流|等待|当前|如果|原价|实付|合计|运费|48|上门)/;
-      function okAirName(s) {
-        const minL = /[\u4e00-\u9fff]/.test(s) ? 4 : 6;
-        return s.length >= minL && s.length <= 120 && !SKIP_AIR.test(s) && !/^\d+$/.test(s) && !/^[¥￥\d\s\/.元,，套件对]+$/.test(s);
-      }
       for (let ai = 0; ai < lines.length; ai++) {
         const al = lines[ai];
         let priceA = 0, anchor = ai;
@@ -3003,14 +2991,7 @@ window.smartParse = function() {
             qtyA = parseInt(lines[aq + 1], 10); break;
           }
         }
-        let nameA = '', specA = '';
-        for (let aj = anchor - 1; aj >= Math.max(0, anchor - 55); aj--) {
-          const lja = lines[aj];
-          if (/^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货)/.test(lja)) continue;
-          if (/^货号[：:]/.test(lja)) continue;
-          if (/^规格[：:]/.test(lja)) { specA = lja.replace(/^规格[：:]\s*/, '').trim(); continue; }
-          if (okAirName(lja) && !nameA) { nameA = lja; break; }
-        }
+        const { name: nameA, spec: specA } = scan1688AttrAndNameBackward(lines, anchor - 1, 55);
         if (nameA && priceA > 0) {
           const existLink2 = D.purchases.filter(r=>r.link&&r.pid&&gp(r.pid)&&
             (gp(r.pid).name===nameA||gp(r.pid).name.slice(0,10)===nameA.slice(0,10)))
