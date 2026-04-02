@@ -2773,8 +2773,8 @@ function scoreParsedAgainstCatalogName(d, catalogNameRaw) {
     if (pref >= 8) score = Math.max(score, 50000 + pref * 100);
     else if (pref >= 6) score = Math.max(score, 20000 + pref * 50);
     else if (pref >= 4) score = Math.max(score, 2000 + pref * 10);
-    if (score < 80000 && pn.length >= 3) {
-      for (let len = Math.min(pn.length, 40); len >= 3; len--) {
+    if (score < 80000 && pn.length >= 8) {
+      for (let len = Math.min(pn.length, 40); len >= 8; len--) {
         const head = pn.slice(0, len);
         if (d.includes(head)) {
           score = Math.max(score, 30000 + len * 80);
@@ -2806,7 +2806,7 @@ function findBestCatalogProductForTitle(parsedTitle) {
     const sc = productTitleMatchScore(d, p);
     if (sc > bestScore) { bestScore = sc; best = p; }
   }
-  if (bestScore < 2200) return null;
+  if (bestScore < 12000) return null;
   return best;
 }
 
@@ -2896,6 +2896,23 @@ function buildImportBatchHtml(meta) {
   </div>`;
 }
 
+/** 把「长标题 + 颜色：值」挤在同一行的复制结果拆成多行，便于按行解析 */
+function expandGlued1688Lines(rawLines) {
+  const out = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const L = rawLines[i];
+    if (!L) continue;
+    const splitM = L.match(/^(.{10,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+    if (splitM && splitM[1].trim().length >= 8 && splitM[3].trim().length >= 1) {
+      out.push(splitM[1].trim());
+      out.push(splitM[2] + '：' + splitM[3].trim());
+      continue;
+    }
+    out.push(L);
+  }
+  return out;
+}
+
 /** 从订单「单价/优惠后」行向上扫：跳过货号，收集 规格/颜色/型号/款式，最近一条可读标题为品名 */
 function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
   const SKIP_BADGE = /^(极速退款|售后延长|交期保障|延期必赔|品质保障|破损包赔|退货包运费|确认收货|已发货|待发货|申请)/;
@@ -2903,19 +2920,24 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
   let name = '';
   const lim = Math.max(0, startIdx - (maxLookback || 55));
   for (let j = startIdx; j >= lim; j--) {
-    const l = lines[j];
+    let l = lines[j];
     if (SKIP_BADGE.test(l)) continue;
     if (/^货号[：:]\s*/.test(l)) continue;
-    const am = l.match(/^(规格|颜色|型号|款式)[：:]\s*(.+)$/);
+    const am = l.match(/^(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
     if (am) {
       const v = am[2].trim();
       if (v) specParts.unshift(v);
       continue;
     }
     const minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
-    if (l.length >= minName && l.length <= 120 &&
+    const tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+    if (tail) {
+      specParts.unshift(tail[3].trim());
+      l = tail[1].trim();
+    }
+    if (l.length >= minName && l.length <= 200 &&
       !/^[\d\s¥￥元\.\/×xX＊*,，。]+$/.test(l) &&
-      !/^(规格|颜色|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l)) {
+      !/^(规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l)) {
       name = l;
       break;
     }
@@ -2929,10 +2951,11 @@ window.smartParse = function() {
   const resultEl = document.getElementById('parse-result');
   if (!text.trim()) { resultEl.innerHTML=''; return; }
 
-  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l);
+  let lines = text.split('\n').map(l=>l.trim()).filter(l=>l);
   const isOrder = /订单号|实付款|待发货|已发货|等待买家|买家已付款/.test(text);
 
   if (isOrder) {
+    lines = expandGlued1688Lines(lines);
     // ===== 订单模式：解析完整订单文字 =====
     let ship=0, paid=0, orderId='';
 
