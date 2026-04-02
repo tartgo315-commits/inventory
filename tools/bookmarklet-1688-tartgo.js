@@ -237,6 +237,28 @@
     return { name: name, spec: spec };
   }
 
+  /** 同一 SKU 在页面里「单价」等出现两次时，按 品名+价+件+型号 合并 */
+  function dedupe1688GoodsRows(arr) {
+    function stripInv(s) {
+      return String(s || '')
+        .replace(/[\u200b-\u200d\ufeff\u00a0]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    var seen = {};
+    var out = [];
+    for (var di = 0; di < arr.length; di++) {
+      var g = arr[di];
+      var nm = stripInv(g.name || '').replace(/\s/g, '');
+      var sp = stripInv(g.spec || '').replace(/\s/g, '');
+      var k = nm.slice(0, 40) + '_' + g.price + '_' + (g.qty || 1) + '_' + sp.slice(0, 48);
+      if (seen[k]) continue;
+      seen[k] = 1;
+      out.push(g);
+    }
+    return out;
+  }
+
   function dedupeGoodsArr(arr) {
     var seen = {},
       res = [];
@@ -540,6 +562,8 @@
       alert('❌ 未识别到商品' + hint + '\n\n调试片段：\n' + sample);
       return;
     }
+
+    goods = dedupe1688GoodsRows(goods);
 
     var seenU = {};
     var unique = [];

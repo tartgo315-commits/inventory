@@ -2998,6 +2998,23 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
   return { name, spec };
 }
 
+/** 同一 SKU 在复制文本里出现两行「元/个」等时合并为一条 */
+function dedupe1688OrderGoods(arr) {
+  const stripInv = (s) => String(s || '').replace(/[\u200b-\u200d\ufeff\u00a0]/g, '').replace(/\s+/g, ' ').trim();
+  const seen = {};
+  const out = [];
+  for (let i = 0; i < arr.length; i++) {
+    const g = arr[i];
+    const nm = stripInv(g.name || '').replace(/\s/g, '');
+    const sp = stripInv(g.spec || '').replace(/\s/g, '');
+    const k = `${nm.slice(0, 40)}_${g.price}_${g.qty || 1}_${sp.slice(0, 48)}`;
+    if (seen[k]) continue;
+    seen[k] = 1;
+    out.push(g);
+  }
+  return out;
+}
+
 // ===== 智能解析1688文字 =====
 window.smartParse = function() {
   const text = document.getElementById('paste-input').value;
@@ -3118,6 +3135,7 @@ window.smartParse = function() {
       return;
     }
 
+    goods = dedupe1688OrderGoods(goods);
     const goodsFixed = attachProductNamesFromLines(lines, goods.map(g => ({ ...g, productName: g.productName || g.name })));
 
     if (goodsFixed.length===1) {
@@ -3317,6 +3335,7 @@ window._handleImportData = function(data) {
     sourceLink: data.sourceLink || '',
     imgB64: g.imgB64 || ''
   }));
+  mapped = dedupe1688OrderGoods(mapped);
   mapped = attachProductNamesFromLines(lines, mapped);
   window._parsedGoods = mapped;
 
