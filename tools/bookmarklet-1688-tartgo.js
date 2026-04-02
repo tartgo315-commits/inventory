@@ -142,11 +142,33 @@
     return false;
   }
 
-  /** 不可当品名行的营销/保障短句 */
+  /** 不可当品名行的营销/保障短句（含手机阿里整行服务保障） */
   function isBad1688TitleLine(l) {
     l = String(l || '').trim();
-    if (!l || l.length > 120) return false;
+    if (!l) return false;
     var c = l.replace(/\s/g, '');
+    var svcKw = [
+      '7天无理由',
+      '无理由退货',
+      '极速退款',
+      '48小时发货',
+      '小时发货',
+      '售后延长',
+      '跨境无忧',
+      '退货包运费',
+      '晚发必赔',
+      '破损包赔',
+      '交期保障',
+      '品质保障',
+      '延期必赔',
+      '假货包赔'
+    ];
+    var hits = 0;
+    for (var si = 0; si < svcKw.length; si++) {
+      if (c.indexOf(svcKw[si]) >= 0) hits++;
+    }
+    if (hits >= 2) return true;
+    if (/7天无理由|无理由退货/.test(c) && (/极速退款|小时发货|跨境无忧|退货包运费/.test(c))) return true;
     if (/无忧/.test(c) && c.length <= 14) return true;
     if (/无理由|包赔|必赔|保障$|认证$|包邮$|疯抢|热卖|限购|券后|到手价|立即|抢购/.test(c) && c.length <= 18) return true;
     return false;
@@ -157,8 +179,7 @@
     for (var j = startIdx; j >= lim; j--) {
       var raw = lines[j];
       var cm =
-        raw.match(/(?:颜色|颜色分类)[：:\s]\s*(.+)$/) ||
-        raw.match(/(?:颜色|颜色分类)[:：]\s*(.+)$/) ||
+        raw.match(/(?:颜色|颜色分类)\s*[：:]\s*(.+)$/) ||
         raw.match(/颜色\s+([^：:\s].{0,60})$/);
       if (cm) {
         var cv = cm[1].replace(/\s+/g, ' ').trim();
@@ -177,15 +198,16 @@
     for (var j = startIdx; j >= lim; j--) {
       var l = lines[j];
       if (SKIP_BADGE.test(l)) continue;
-      if (/^货号[：:]/.test(l)) continue;
-      var am = l.match(/^(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+      if (isBad1688TitleLine(l)) continue;
+      if (/^货号\s*[：:]/.test(l)) continue;
+      var am = l.match(/^(规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
       if (am) {
         var v = am[2].trim();
         if (v && !junk1688AttrValue(v)) specParts.unshift(v);
         continue;
       }
       var minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
-      var tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+      var tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
       if (tail) {
         var tv = tail[3].trim();
         if (tv && !junk1688AttrValue(tv)) specParts.unshift(tv);

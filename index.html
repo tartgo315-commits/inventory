@@ -2716,8 +2716,15 @@ function populateSelects(){
 // ===== 1688 导入：共享商品标题推断（多型号同一商品名） =====
 function isBad1688TitleLine(l) {
   l = String(l || '').trim();
-  if (!l || l.length > 120) return false;
+  if (!l) return false;
   const c = l.replace(/\s/g, '');
+  const svcKw = ['7天无理由', '无理由退货', '极速退款', '48小时发货', '小时发货', '售后延长', '跨境无忧', '退货包运费', '晚发必赔', '破损包赔', '交期保障', '品质保障', '延期必赔', '假货包赔'];
+  let hits = 0;
+  for (let si = 0; si < svcKw.length; si++) {
+    if (c.indexOf(svcKw[si]) >= 0) hits++;
+  }
+  if (hits >= 2) return true;
+  if (/7天无理由|无理由退货/.test(c) && (/极速退款|小时发货|跨境无忧|退货包运费/.test(c))) return true;
   if (/无忧/.test(c) && c.length <= 14) return true;
   if (/无理由|包赔|必赔|保障$|认证$|包邮$|疯抢|热卖|限购|券后|到手价|立即|抢购/.test(c) && c.length <= 18) return true;
   return false;
@@ -2939,7 +2946,7 @@ function findColorLineAbove(lines, startIdx, maxBack) {
   const lim = Math.max(0, startIdx - (maxBack || 55));
   for (let j = startIdx; j >= lim; j--) {
     const raw = lines[j];
-    const cm = raw.match(/(?:颜色|颜色分类)[：:\s]\s*(.+)$/) || raw.match(/(?:颜色|颜色分类)[:：]\s*(.+)$/) || raw.match(/颜色\s+([^：:\s].{0,60})$/);
+    const cm = raw.match(/(?:颜色|颜色分类)\s*[：:]\s*(.+)$/) || raw.match(/颜色\s+([^：:\s].{0,60})$/);
     if (cm) {
       const cv = cm[1].replace(/\s+/g, ' ').trim();
       if (cv && !junk1688AttrValue(cv)) return cv;
@@ -2957,15 +2964,16 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
   for (let j = startIdx; j >= lim; j--) {
     let l = lines[j];
     if (SKIP_BADGE.test(l)) continue;
-    if (/^货号[：:]\s*/.test(l)) continue;
-    const am = l.match(/^(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+    if (isBad1688TitleLine(l)) continue;
+    if (/^货号\s*[：:]/.test(l)) continue;
+    const am = l.match(/^(规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
     if (am) {
       const v = am[2].trim();
       if (v && !junk1688AttrValue(v)) specParts.unshift(v);
       continue;
     }
     const minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
-    const tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+    const tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
     if (tail) {
       const tv = tail[3].trim();
       if (tv && !junk1688AttrValue(tv)) specParts.unshift(tv);
