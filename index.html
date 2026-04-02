@@ -2714,10 +2714,19 @@ function populateSelects(){
 
 // ===== 操作 =====
 // ===== 1688 导入：共享商品标题推断（多型号同一商品名） =====
+function isBad1688TitleLine(l) {
+  l = String(l || '').trim();
+  if (!l || l.length > 120) return false;
+  const c = l.replace(/\s/g, '');
+  if (/无忧/.test(c) && c.length <= 14) return true;
+  if (/无理由|包赔|必赔|保障$|认证$|包邮$|疯抢|热卖|限购|券后|到手价|立即|抢购/.test(c) && c.length <= 18) return true;
+  return false;
+}
+
 function inferSharedTitleFromLines(lines) {
   const SKIP_BEGIN = /^(规格|颜色|型号|款式|货号|数量|单价|优惠|货品|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请|假一|查看|快递|发货|备注|收货|卖家|买家|支付|配送|手机|电话|地址|订单|交易|物流|等待|当前|如果|原价|实付|合计|运费|48|上门)/;
   function okLine(s) {
-    return s && s.length >= 8 && s.length <= 200 && !SKIP_BEGIN.test(s) && !/^\d+$/.test(s) && !/^\d+\.\d+$/.test(s) && !/^[¥￥\d\s\/.元,，套件对]+$/.test(s);
+    return s && s.length >= 8 && s.length <= 200 && !SKIP_BEGIN.test(s) && !isBad1688TitleLine(s) && !/^\d+$/.test(s) && !/^\d+\.\d+$/.test(s) && !/^[¥￥\d\s\/.元,，套件对]+$/.test(s);
   }
   const freq = {};
   lines.forEach(L => {
@@ -2742,7 +2751,7 @@ function attachProductNamesFromLines(lines, goods) {
     const hasLongCnTitle = /[\u4e00-\u9fff]{5,}/.test(nm) && nm.length >= 14;
     if (hasLongCnTitle) return { ...g, productName: g.productName || nm, name: nm };
     if (shared) {
-      const finalSpec = sp || (nm && !/[\u4e00-\u9fff]{4,}/.test(nm) ? nm : '');
+      const finalSpec = sp || (nm && !/[\u4e00-\u9fff]{4,}/.test(nm) && !junk1688AttrValue(nm) && !isBad1688TitleLine(nm) ? nm : '');
       const out = { ...g, name: shared, productName: shared, spec: finalSpec };
       if (nm && nm !== shared) out._origLineTitle = nm;
       return out;
@@ -2917,7 +2926,11 @@ function junk1688AttrValue(v) {
   v = String(v || '').replace(/\s+/g, ' ').trim();
   if (!v) return true;
   const compact = v.replace(/\s/g, '');
-  if (/规格无忧|交期无忧|品质无忧|无忧购|7天无理由|15天包换|晚发必赔|破损包赔|退货包运|极速退款|延期必赔|假一赔|包邮|现货|库存/.test(compact)) return true;
+  if (/无忧/.test(compact)) {
+    if (/螺纹|齿|寸|码|×|mm|M\d|\d+mm|黑色|白色|红色|蓝色|绿色|黄色|灰色|紫色|橙色|粉色|卡其|咖啡|银色|金色|透明/.test(compact)) return false;
+    if (compact.length <= 14) return true;
+  }
+  if (/规格无忧|交期无忧|品质无忧|无忧购|7天无理由|15天包换|晚发必赔|破损包赔|退货包运|极速退款|延期必赔|假一赔|包邮|现货|库存|售后无忧|跨境无忧|发货无忧|采购无忧|退换无忧|源头工厂|实力商家/.test(compact)) return true;
   if (v.length <= 8 && /^(无忧|规格|保障|包赔|承诺|服务|认证)$/.test(compact)) return true;
   return false;
 }
@@ -2925,7 +2938,8 @@ function junk1688AttrValue(v) {
 function findColorLineAbove(lines, startIdx, maxBack) {
   const lim = Math.max(0, startIdx - (maxBack || 55));
   for (let j = startIdx; j >= lim; j--) {
-    const cm = lines[j].match(/颜色[：:\s]\s*(.+)$/);
+    const raw = lines[j];
+    const cm = raw.match(/(?:颜色|颜色分类)[：:\s]\s*(.+)$/) || raw.match(/(?:颜色|颜色分类)[:：]\s*(.+)$/) || raw.match(/颜色\s+([^：:\s].{0,60})$/);
     if (cm) {
       const cv = cm[1].replace(/\s+/g, ' ').trim();
       if (cv && !junk1688AttrValue(cv)) return cv;
@@ -2959,7 +2973,8 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
     }
     if (l.length >= minName && l.length <= 200 &&
       !/^[\d\s¥￥元\.\/×xX＊*,，。]+$/.test(l) &&
-      !/^(规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l)) {
+      !/^(规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l) &&
+      !isBad1688TitleLine(l)) {
       name = l;
       break;
     }
@@ -2970,6 +2985,8 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
     const col = findColorLineAbove(lines, startIdx, maxLookback);
     if (col) spec = col;
   }
+  if (junk1688AttrValue(spec)) spec = '';
+  if (isBad1688TitleLine(name)) name = '';
   return { name, spec };
 }
 
@@ -3033,6 +3050,7 @@ window.smartParse = function() {
 
     // air.1688 等：无「优惠后」，单价与金额分行
     if (!goods.length) {
+      let lastAirIdx = -99, lastAirP = 0, lastAirQ = 0;
       for (let ai = 0; ai < lines.length; ai++) {
         const al = lines[ai];
         let priceA = 0, anchor = ai;
@@ -3052,12 +3070,16 @@ window.smartParse = function() {
             qtyA = parseInt(lines[aq + 1], 10); break;
           }
         }
+        if (ai - lastAirIdx <= 8 && Math.abs(priceA - lastAirP) < 0.001 && qtyA === lastAirQ) continue;
         const { name: nameA, spec: specA } = scan1688AttrAndNameBackward(lines, anchor - 1, 55);
         if (nameA && priceA > 0) {
           const existLink2 = D.purchases.filter(r=>r.link&&r.pid&&gp(r.pid)&&
             (gp(r.pid).name===nameA||gp(r.pid).name.slice(0,10)===nameA.slice(0,10)))
             .map(r=>r.link)[0]||'';
           goods.push({name:nameA, productName:nameA, spec:specA, price:priceA, qty:qtyA, ship, paid, orderId, sourceLink:existLink2});
+          lastAirIdx = ai;
+          lastAirP = priceA;
+          lastAirQ = qtyA;
         }
       }
     }
