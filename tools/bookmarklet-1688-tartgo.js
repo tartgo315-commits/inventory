@@ -107,7 +107,7 @@
     for (var i = 0; i < rawLines.length; i++) {
       var L = rawLines[i];
       if (!L) continue;
-      var splitM = L.match(/^(.{10,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+      var splitM = L.match(/^(.{10,200}?)\s+(规格型号|规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
       if (splitM && splitM[1].trim().length >= 8 && splitM[3].trim().length >= 1) {
         out.push(splitM[1].trim());
         out.push(splitM[2] + '：' + splitM[3].trim());
@@ -161,7 +161,9 @@
       '交期保障',
       '品质保障',
       '延期必赔',
-      '假货包赔'
+      '假货包赔',
+      '假一赔四',
+      '假一赔三'
     ];
     var hits = 0;
     for (var si = 0; si < svcKw.length; si++) {
@@ -180,6 +182,7 @@
       var raw = lines[j];
       var cm =
         raw.match(/(?:颜色|颜色分类)\s*[：:]\s*(.+)$/) ||
+        raw.match(/规格型号\s*[：:]\s*(.+)$/) ||
         raw.match(/颜色\s+([^：:\s].{0,60})$/);
       if (cm) {
         var cv = cm[1].replace(/\s+/g, ' ').trim();
@@ -200,14 +203,14 @@
       if (SKIP_BADGE.test(l)) continue;
       if (isBad1688TitleLine(l)) continue;
       if (/^货号\s*[：:]/.test(l)) continue;
-      var am = l.match(/^(规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
+      var am = l.match(/^(规格型号|规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
       if (am) {
         var v = am[2].trim();
         if (v && !junk1688AttrValue(v)) specParts.unshift(v);
         continue;
       }
       var minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
-      var tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
+      var tail = l.match(/^(.{6,200}?)\s+(规格型号|规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
       if (tail) {
         var tv = tail[3].trim();
         if (tv && !junk1688AttrValue(tv)) specParts.unshift(tv);
@@ -217,7 +220,7 @@
         l.length >= minName &&
         l.length <= 200 &&
         !/^[\d\s¥￥元\.\/×xX＊*,，。]+$/.test(l) &&
-        !/^(规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l) &&
+        !/^(规格型号|规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l) &&
         !isBad1688TitleLine(l)
       ) {
         name = l;

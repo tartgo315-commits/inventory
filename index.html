@@ -2718,7 +2718,7 @@ function isBad1688TitleLine(l) {
   l = String(l || '').trim();
   if (!l) return false;
   const c = l.replace(/\s/g, '');
-  const svcKw = ['7天无理由', '无理由退货', '极速退款', '48小时发货', '小时发货', '售后延长', '跨境无忧', '退货包运费', '晚发必赔', '破损包赔', '交期保障', '品质保障', '延期必赔', '假货包赔'];
+  const svcKw = ['7天无理由', '无理由退货', '极速退款', '48小时发货', '小时发货', '售后延长', '跨境无忧', '退货包运费', '晚发必赔', '破损包赔', '交期保障', '品质保障', '延期必赔', '假货包赔', '假一赔四', '假一赔三'];
   let hits = 0;
   for (let si = 0; si < svcKw.length; si++) {
     if (c.indexOf(svcKw[si]) >= 0) hits++;
@@ -2771,6 +2771,59 @@ function normCatalogTitle(s) {
   return String(s || '').replace(/\s+/g, '').trim();
 }
 
+function extractKpCodesFromText(s) {
+  const m = String(s || '').toUpperCase().match(/KP\d+/g);
+  return m ? [...new Set(m)] : [];
+}
+
+function kpIntersectionsScore(dNorm, catalogRaw) {
+  const a = extractKpCodesFromText(dNorm);
+  const b = extractKpCodesFromText(normCatalogTitle(catalogRaw));
+  if (!a.length || !b.length) return 0;
+  let n = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (b.indexOf(a[i]) >= 0) n++;
+  }
+  return n > 0 ? 12000 + n * 2500 : 0;
+}
+
+/** 进货导入：按全名、包含关系、KP 编号、内孔 mm 匹配已有型号 */
+function findExistingSpecForImport(product, gSpec) {
+  const specs = product && product.specs;
+  if (!specs || !specs.length) return null;
+  const raw = String(gSpec || '').trim().replace(/\s+/g, ' ');
+  if (!raw) return null;
+  let sp = specs.find(s => (s.name || '').trim() === raw);
+  if (sp) return sp;
+  sp = specs.find(s => {
+    const sn = (s.name || '').trim();
+    return sn && (raw.includes(sn) || sn.includes(raw));
+  });
+  if (sp) return sp;
+  const kps = extractKpCodesFromText(raw);
+  if (kps.length) {
+    sp = specs.find(s => {
+      const sn = String(s.name || '').toUpperCase();
+      return kps.some(k => sn.includes(k));
+    });
+    if (sp) return sp;
+  }
+  const mm = raw.match(/内孔\s*(\d+)\s*mm/i);
+  if (mm) {
+    const n = mm[1];
+    sp = specs.find(s => /内孔/.test(s.name || '') && (s.name || '').includes(n));
+    if (sp) return sp;
+  }
+  return null;
+}
+
+function pickImportSpecSid(matched, gSpec) {
+  const specs = matched && matched.specs;
+  if (!specs || !specs.length) return 0;
+  const sp = findExistingSpecForImport(matched, gSpec);
+  return sp ? sp.sid : specs[0].sid;
+}
+
 /** d = normCatalogTitle(解析标题)；catalogNameRaw = 当前商品名或 nameAliases 里一条 */
 function scoreParsedAgainstCatalogName(d, catalogNameRaw) {
   const pn = normCatalogTitle(catalogNameRaw);
@@ -2803,10 +2856,12 @@ function scoreParsedAgainstCatalogName(d, catalogNameRaw) {
 }
 
 function productTitleMatchScore(dNorm, p) {
-  let score = scoreParsedAgainstCatalogName(dNorm, p.name);
+  let score = scoreParsedAgainstCatalogName(dNorm, p.name) + kpIntersectionsScore(dNorm, p.name);
   if (Array.isArray(p.nameAliases)) {
     for (let i = 0; i < p.nameAliases.length; i++) {
-      score = Math.max(score, scoreParsedAgainstCatalogName(dNorm, p.nameAliases[i]));
+      const a = p.nameAliases[i];
+      const sc = scoreParsedAgainstCatalogName(dNorm, a) + kpIntersectionsScore(dNorm, a);
+      score = Math.max(score, sc);
     }
   }
   return score;
@@ -2918,7 +2973,7 @@ function expandGlued1688Lines(rawLines) {
   for (let i = 0; i < rawLines.length; i++) {
     const L = rawLines[i];
     if (!L) continue;
-    const splitM = L.match(/^(.{10,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+    const splitM = L.match(/^(.{10,200}?)\s+(规格型号|规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
     if (splitM && splitM[1].trim().length >= 8 && splitM[3].trim().length >= 1) {
       out.push(splitM[1].trim());
       out.push(splitM[2] + '：' + splitM[3].trim());
@@ -2946,7 +3001,7 @@ function findColorLineAbove(lines, startIdx, maxBack) {
   const lim = Math.max(0, startIdx - (maxBack || 55));
   for (let j = startIdx; j >= lim; j--) {
     const raw = lines[j];
-    const cm = raw.match(/(?:颜色|颜色分类)\s*[：:]\s*(.+)$/) || raw.match(/颜色\s+([^：:\s].{0,60})$/);
+    const cm = raw.match(/(?:颜色|颜色分类)\s*[：:]\s*(.+)$/) || raw.match(/规格型号\s*[：:]\s*(.+)$/) || raw.match(/颜色\s+([^：:\s].{0,60})$/);
     if (cm) {
       const cv = cm[1].replace(/\s+/g, ' ').trim();
       if (cv && !junk1688AttrValue(cv)) return cv;
@@ -2966,14 +3021,14 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
     if (SKIP_BADGE.test(l)) continue;
     if (isBad1688TitleLine(l)) continue;
     if (/^货号\s*[：:]/.test(l)) continue;
-    const am = l.match(/^(规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
+    const am = l.match(/^(规格型号|规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
     if (am) {
       const v = am[2].trim();
       if (v && !junk1688AttrValue(v)) specParts.unshift(v);
       continue;
     }
     const minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
-    const tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
+    const tail = l.match(/^(.{6,200}?)\s+(规格型号|规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
     if (tail) {
       const tv = tail[3].trim();
       if (tv && !junk1688AttrValue(tv)) specParts.unshift(tv);
@@ -2981,7 +3036,7 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
     }
     if (l.length >= minName && l.length <= 200 &&
       !/^[\d\s¥￥元\.\/×xX＊*,，。]+$/.test(l) &&
-      !/^(规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l) &&
+      !/^(规格型号|规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l) &&
       !isBad1688TitleLine(l)) {
       name = l;
       break;
@@ -3196,6 +3251,10 @@ window.importAllGoods = function(status) {
     const specName = g.spec || '';
     let pid, sid = 0;
     let existProd = D.products.find(p => p.name === pName);
+    if (!existProd && pName) {
+      const fuzzy = findBestCatalogProductForTitle(pName);
+      if (fuzzy) existProd = fuzzy;
+    }
 
     if (!existProd && productMap[pName]) {
       pid = productMap[pName];
@@ -3207,7 +3266,7 @@ window.importAllGoods = function(status) {
       if (specName) {
         if (!existProd.specs) existProd.specs = [];
         if (!D.nextSid) D.nextSid = 100;
-        let existSpec = existProd.specs.find(s => s.name === specName);
+        let existSpec = findExistingSpecForImport(existProd, specName);
         if (!existSpec) {
           existSpec = { sid: D.nextSid++, name: specName, price: 0, sku: '' };
           existProd.specs.push(existSpec);
@@ -3277,11 +3336,7 @@ window.fillFromGoods = function(g) {
     window.toggleNewProduct('existing');
     document.getElementById('pur-product-pid').value=String(matched.id);
     const gSpec=(g.spec||'').trim();
-    let pref=0;
-    if(matched.specs&&matched.specs.length){
-      const sp=matched.specs.find(s=>s.name===gSpec||(gSpec&&(s.name.includes(gSpec)||gSpec.includes(s.name))));
-      pref=sp?sp.sid:matched.specs[0].sid;
-    }
+    const pref = matched.specs && matched.specs.length ? pickImportSpecSid(matched, gSpec) : 0;
     refreshPurSpecSelect(pref);
     window.updatePurPidTriggerDisplay();
   } else {
@@ -3369,8 +3424,8 @@ window.createMultiSpecProductAt = function(idx) {
   if (!D.nextSid) D.nextSid = 100;
   let added = 0;
   group.forEach(g => {
-    const specName = g.spec || '默认';
-    let sp = (p.specs || []).find(s => s.name === specName);
+    const specName = (g.spec || '').trim() || '默认';
+    let sp = findExistingSpecForImport(p, specName);
     if (!sp) {
       sp = { sid: D.nextSid++, name: specName, price: 0, sku: '', img: '' };
       if (!p.specs) p.specs = [];
@@ -3470,6 +3525,7 @@ function handleBookmarkParams() {
               price:g.price, qty:g.qty, ship:data.ship||0, paid:data.paid||0,
               orderId:data.orderId||'', sourceLink:data.sourceLink||'', imgB64:g.imgB64||''
             }));
+            mapped = dedupe1688OrderGoods(mapped);
             mapped = attachProductNamesFromLines(lines, mapped);
             window._parsedGoods = mapped;
             const resultEl=document.getElementById('parse-result');
@@ -3530,10 +3586,7 @@ function handleBookmarkParams() {
         document.getElementById('pur-product-pid').value = String(matched.id);
         let prefSid = 0;
         if (matched.specs && matched.specs.length) {
-          if (bSpec) {
-            const sp = matched.specs.find(s => s.name === bSpec || s.name.includes(bSpec) || bSpec.includes(s.name));
-            prefSid = sp ? sp.sid : matched.specs[0].sid;
-          } else prefSid = matched.specs[0].sid;
+          prefSid = pickImportSpecSid(matched, bSpec || '');
         }
         refreshPurSpecSelect(prefSid);
         window.updatePurPidTriggerDisplay();
