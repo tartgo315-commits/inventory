@@ -240,6 +240,31 @@
     return { name: name, spec: spec };
   }
 
+  /** 规格行可能在「优惠后」下方（手机端 DOM 顺序），向下有限行内补抓 */
+  function scan1688SpecForwardFrom(lines, fromIdx, maxLines) {
+    var end = Math.min(lines.length, fromIdx + (maxLines || 12));
+    for (var fj = fromIdx; fj < end; fj++) {
+      var l = lines[fj];
+      if (fj > fromIdx && /优惠后\s*\d+\.?\d*\s*元/.test(l)) return '';
+      var am = l.match(/^(规格型号|规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
+      if (am) {
+        var v = am[2].trim();
+        if (v && !junk1688AttrValue(v)) return v;
+      }
+    }
+    return '';
+  }
+
+  function scan1688RowNameSpecForPrice(lines, priceLineIdx, maxBack, maxFwd) {
+    var back = scan1688RowNameSpec(lines, priceLineIdx - 1, maxBack);
+    var spec = back.spec;
+    if (!spec) {
+      var fw = scan1688SpecForwardFrom(lines, priceLineIdx + 1, maxFwd || 12);
+      if (fw) spec = fw;
+    }
+    return { name: back.name, spec: spec };
+  }
+
   /** 同一 SKU 在页面里「单价」等出现两次时，按 品名+价+件+型号 合并 */
   function dedupe1688GoodsRows(arr) {
     function stripInv(s) {
@@ -407,7 +432,7 @@
           }
         }
         var qty = 1;
-        var _rowDisc = scan1688RowNameSpec(lines, i - 1, 40);
+        var _rowDisc = scan1688RowNameSpecForPrice(lines, i, 45, 14);
         var name = _rowDisc.name;
         var spec = _rowDisc.spec;
         for (var k = i + 1; k < Math.min(lines.length, i + 10); k++) {
@@ -437,7 +462,7 @@
       }
       if (skipDupYuan) continue;
       var qty2 = 1;
-      var _rowPm = scan1688RowNameSpec(lines, i - 1, 40);
+      var _rowPm = scan1688RowNameSpecForPrice(lines, i, 45, 14);
       var name2 = _rowPm.name;
       var spec2 = _rowPm.spec;
       for (var k2 = i + 1; k2 < Math.min(lines.length, i + 10); k2++) {
@@ -485,7 +510,7 @@
         }
         /* 详情页/订单里同一区块重复出现「单价+同价+同数量」，只保留第一条 */
         if (ai - lastAirIdx <= 8 && Math.abs(priceA - lastAirP) < 0.001 && qtyA === lastAirQ) continue;
-        var _rowAir = scan1688RowNameSpec(lines, anchor - 1, 55);
+        var _rowAir = scan1688RowNameSpecForPrice(lines, anchor, 60, 16);
         var nameA = _rowAir.name;
         var specA = _rowAir.spec;
         if (nameA && priceA > 0) {
