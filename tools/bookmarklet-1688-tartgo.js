@@ -101,6 +101,24 @@
     });
   }
 
+  /** 整段少换行时在关键标签前插换行，与站点 split1688TextToLines 一致 */
+  function split1688TextToLines(text) {
+    var t = String(text || '')
+      .replace(/[\u200b-\u200d\ufeff]/g, '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/[\t\f\v]+/g, '\n');
+    t = t.replace(/([^\n])(规格型号\s*[：:])/g, '$1\n$2');
+    t = t.replace(/([^\n])(优惠后\s*\d)/g, '$1\n$2');
+    t = t.replace(/([^\n])(假一赔[三四九十])/g, '$1\n$2');
+    return t
+      .split('\n')
+      .map(function (l) {
+        return l.trim();
+      })
+      .filter(Boolean);
+  }
+
   /** 把「长标题 + 颜色：值」挤在同一行的复制结果拆成多行 */
   function expandGlued1688Lines(rawLines) {
     var out = [];
@@ -407,7 +425,7 @@
 
   function runBookmarklet() {
     var text = buildRawText();
-    var lines = expandGlued1688Lines(toCleanLines(text));
+    var lines = expandGlued1688Lines(toCleanLines(split1688TextToLines(text).join('\n')));
     var oM = text.match(/订单号[：:\s]*(\d{10,25})/);
     var orderId = oM ? oM[1] : '';
     var sM = text.match(/运费[\s\S]{0,10}[¥￥]\s*(\d+\.?\d*)/) || text.match(/[¥￥]\s*(\d+\.?\d*)\s*[\s\S]{0,5}运费/);
