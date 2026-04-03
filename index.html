@@ -1234,8 +1234,9 @@ function getLocalStock(pid){
 }
 function getLocalStockSpec(pid,sid){
   if(!sid||sid==0) return getLocalStock(pid);
-  const recv=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received').reduce((s,r)=>s+(r.receivedQty||r.qty),0);
-  const sent=D.outbounds.filter(r=>r.pid==pid&&r.sid==sid).reduce((s,r)=>s+r.qty,0);
+  const sidN=normSid(sid);
+  const recv=D.purchases.filter(r=>r.pid==pid&&normSid(r.sid)===sidN&&r.status==='received').reduce((s,r)=>s+(r.receivedQty||r.qty),0);
+  const sent=D.outbounds.filter(r=>r.pid==pid&&normSid(r.sid)===sidN).reduce((s,r)=>s+r.qty,0);
   return Math.max(0,recv-sent);
 }
 /** 与表格可编辑单元格一致的「当前本地库存」：多型号父行=各型号之和，否则单型号或单品 */
@@ -1345,7 +1346,8 @@ function getWeightedAvgCost(pid){
 }
 
 function getWeightedAvgCostSpec(pid,sid){
-  const bs=D.purchases.filter(r=>r.pid==pid&&r.sid==sid&&r.status==='received'&&!r.isAdjust&&!r.isAdjustment);
+  const sidN=normSid(sid);
+  const bs=D.purchases.filter(r=>r.pid==pid&&normSid(r.sid)===sidN&&r.status==='received'&&!r.isAdjust&&!r.isAdjustment);
   const tq=bs.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
   const sp=gs(pid,sid);
   if(!tq){ return (sp&&sp.cost)||0; }
@@ -1357,6 +1359,8 @@ function getWeightedAvgCostSpec(pid,sid){
 // ===== 工具 =====
 function gp(id){ return D.products.find(p=>p.id==id); }
 function gs(pid,sid){ const p=gp(pid); if(!p||!sid) return null; return (p.specs||[]).find(s=>s.sid==sid); }
+/** 进货/出库等记录里 sid 与型号 sid 统一成数字再比，避免 "101" 与 101 拆成两批 */
+function normSid(x){ const n=parseInt(x,10); return isNaN(n)?0:n; }
 // 获取有效售价：型号售价 > 产品售价
 function getPrice(pid,sid){ const s=gs(pid,sid); if(s&&s.price>0) return s.price; const p=gp(pid); return p?p.price:0; }
 // 获取显示名称
@@ -2066,6 +2070,7 @@ function renderCostStats(){
     const profitRate = temuPriceRmb > 0 ? (profitPerUnit / temuPriceRmb * 100) : 0;
     const profitColor = profitPerUnit >= 0 ? 'c-green' : 'c-red';
     const rateColor = profitRate >= 20 ? 'c-green' : profitRate >= 0 ? '' : 'c-red';
+    const dashMulti = '<span class="c-muted" title="多型号：请展开「▼ N个型号」查看各型号自己的进货均价与毛利">—</span>';
     const temuPriceCell = temuPrice
       ? `<div style="display:flex;align-items:center;gap:6px">¥${temuPrice.toFixed(2)}<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="font-size:11px;height:24px;padding:0 8px">编辑</button></div>`
       : `<button class="btn btn-ghost btn-sm" onclick="openEditProduct(${p.id})" style="color:var(--primary)">+ 填写售价</button>`;
@@ -2079,19 +2084,19 @@ function renderCostStats(){
         ${pName(p.id, 0, expandBtn)}
       </td>
       <td>${all.length}</td><td>${tOrd}</td><td>${tRecv}</td>
-      <td><strong>¥${wavg.toFixed(2)}</strong></td>
-      <td>¥${lc.toFixed(2)}<span class="c-muted" style="font-size:11px;margin-left:4px">${last?last.receivedDate||last.date:''}</span></td>
-      <td>¥${fifo.toFixed(2)}</td>
+      <td>${hasSpecs ? dashMulti : `<strong>¥${wavg.toFixed(2)}</strong>`}</td>
+      <td>${hasSpecs ? dashMulti : `¥${lc.toFixed(2)}<span class="c-muted" style="font-size:11px;margin-left:4px">${last?last.receivedDate||last.date:''}</span>`}</td>
+      <td>${hasSpecs ? dashMulti : `¥${fifo.toFixed(2)}`}</td>
       <td>${temuPriceCell}</td>
-      <td class="${profitColor}">${temuPriceRmb ? (profitPerUnit>=0?'+':'')+'¥'+profitPerUnit.toFixed(2) : '-'}</td>
-      <td class="${rateColor}">${temuPriceRmb ? profitRate.toFixed(1)+'%' : '-'}</td>
+      <td class="${profitColor}">${hasSpecs ? dashMulti : (temuPriceRmb ? (profitPerUnit>=0?'+':'')+'¥'+profitPerUnit.toFixed(2) : '-')}</td>
+      <td class="${rateColor}">${hasSpecs ? dashMulti : (temuPriceRmb ? profitRate.toFixed(1)+'%' : '-')}</td>
       <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProduct(${p.id})" title="删除产品及所有进货记录">🗑</button></td>
     </tr>`;
 
     // 型号子行
     if(hasSpecs && isExp){
       specs.forEach(sp=>{
-        const spAll=D.purchases.filter(r=>r.pid==p.id&&r.sid==sp.sid);
+        const spAll=D.purchases.filter(r=>r.pid==p.id&&normSid(r.sid)===normSid(sp.sid));
         const spRecv=spAll.filter(r=>r.status==='received');
         const spTOrd=spAll.reduce((s,r)=>s+r.qty,0);
         const spTRecv=spRecv.reduce((s,r)=>s+(r.receivedQty||r.qty),0);
@@ -2260,10 +2265,10 @@ function renderStockTable(){
         :`<span style="font-size:12px;color:var(--amber);cursor:pointer" onclick="openEditProduct(${p.id})">+ 添加</span>`}</td>
       <td>${transit>0?`<span class="badge badge-transit" onclick="inlineEditTransit(this,${p.id})" title="点击修改在途" style="cursor:pointer">${transit}</span>`:'<span class="c-muted" onclick="inlineEditTransit(this,'+p.id+')" title="点击修改在途" style="cursor:pointer;border-bottom:1.5px dashed var(--border2)">0</span>'}</td>
       <td><span onclick="inlineEditStock(this,${p.id},0)" title="点击修改本地库存" style="cursor:pointer;font-weight:700;border-bottom:1.5px dashed var(--primary);color:var(--text)">${local}</span></td>
-      <td>¥${fifo.toFixed(2)}</td>
+      <td>${hasSpecs ? '<span class="c-muted" title="多型号：展开后看各型号成本">—</span>' : '¥'+fifo.toFixed(2)}</td>
       <td style="font-weight:600;color:var(--green)">${p.price?'¥'+p.price:'-'}</td>
-      <td>¥${wavg.toFixed(2)}</td>
-      <td class="${pr>20?'c-green':'c-red'}">${pr.toFixed(1)}%</td>
+      <td>${hasSpecs ? '<span class="c-muted" title="多型号：展开后看各型号历史均价">—</span>' : '¥'+wavg.toFixed(2)}</td>
+      <td class="${pr>20?'c-green':'c-red'}">${hasSpecs ? '<span class="c-muted" title="见子型号">—</span>' : pr.toFixed(1)+'%'}</td>
       <td style="font-weight:700;color:var(--primary)">¥${totalValue.toFixed(2)}</td>
     </tr>`;
 
@@ -4667,7 +4672,9 @@ window.addPurchase = function(status){
     }
     const names=[];
     for(const ln of lineRows){
-      const record = {date:today(),pid,sid:ln.sid||0,qty:ln.qty,price:ln.price,shipPerUnit,shipTotal,tracking,order,link,img,status};
+      const sidLine = normSid(ln.sid);
+      const lineShipTotal = shipPerUnit * ln.qty;
+      const record = {date:today(),pid,sid:sidLine,qty:ln.qty,price:ln.price,shipPerUnit,shipTotal:lineShipTotal,tracking,order,link,img,status};
       if(status==='received'){
         record.receivedQty=ln.qty;
         record.receivedDate=today();
@@ -4714,7 +4721,8 @@ window.addPurchase = function(status){
     if(pp && !pp.sourceLink) pp.sourceLink = link;
   }
 
-  const record = {date:today(),pid,sid,qty,price,shipPerUnit,shipTotal,tracking,order,link,img,status};
+  const sidOne = normSid(sid);
+  const record = {date:today(),pid,sid:sidOne,qty,price,shipPerUnit,shipTotal,tracking,order,link,img,status};
   if(status==='received'){
     record.receivedQty=qty;
     record.receivedDate=today();
@@ -4733,7 +4741,7 @@ window.addPurchase = function(status){
   window.toggleNewProduct('existing');
   render();
   const statusTxt = status==='received'?'已直接入库':'在途';
-  alert(`录入成功！${getDisplayName(pid,sid)} ${qty}件，单件成本¥${(price+shipPerUnit).toFixed(2)}，状态：${statusTxt}`);
+  alert(`录入成功！${getDisplayName(pid,sidOne)} ${qty}件，单件成本¥${(price+shipPerUnit).toFixed(2)}，状态：${statusTxt}`);
 };
 
 
