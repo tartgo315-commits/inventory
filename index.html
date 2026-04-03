@@ -395,10 +395,15 @@ input::placeholder{color:var(--text3)}
     </div>
 
     <div class="form-grid form-grid-3">
-      <div class="fg"><label>采购数量</label><input type="number" id="pur-qty" placeholder="100" min="1" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
+      <div class="fg"><label>采购数量 <span style="font-weight:500;color:var(--text3)">（首行）</span></label><input type="number" id="pur-qty" placeholder="100" min="1" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
       <div class="fg"><label>单件进价（¥）</label><input type="number" id="pur-price" placeholder="21.85" step="0.01" min="0" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
-      <div class="fg"><label>运费及杂费（¥，自动均摊）</label><input type="number" id="pur-ship-total" placeholder="0" step="0.01" min="0" oninput="syncPurGrandFromParts();updateCostPreview()" title="仅运费/杂费；不含货款。货款通过单价×数量或下方实付总价体现"></div>
+      <div class="fg"><label>运费及杂费（¥，自动均摊）</label><input type="number" id="pur-ship-total" placeholder="0" step="0.01" min="0" oninput="syncPurGrandFromParts();updateCostPreview()" title="按下方所有行的件数合计均摊到每件"></div>
     </div>
+    <p style="font-size:12px;color:var(--text3);margin:0 0 10px;line-height:1.55">同一 1688 单里有多个型号时：先填<strong>第一行</strong>（上方型号 + 数量 + 单价），再点 <strong>＋ 再加一条型号</strong> 增加行，每行可选不同型号、数量与单价；运费与实付总价按<strong>各行数量之和</strong>分摊。</p>
+    <div style="margin-bottom:10px">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addPurExtraSpecRow()" id="btn-pur-add-spec-row">＋ 再加一条型号</button>
+    </div>
+    <div id="pur-extra-spec-rows" style="margin-bottom:4px"></div>
     <div class="pur-grand-row fg" style="margin-bottom:16px;padding:14px 16px;background:var(--primary-bg);border:1.5px solid var(--primary-light);border-radius:var(--radius-sm)">
       <label for="pur-grand-total" style="font-size:13px;color:var(--primary);font-weight:800">实付总价（¥，含货款+运费）</label>
       <div style="font-size:11px;color:var(--text3);font-weight:500;line-height:1.45;margin:2px 0 8px">填 1688 订单「实付款」等<strong>整单实付</strong>，将按「实付 − 上方运费及杂费」÷ 数量，自动回填单件进价（可不填，仍可用单价+运费）</div>
@@ -2605,6 +2610,7 @@ window.refreshPurSpecSelect=function(preferredSid){
     specEl.innerHTML='<option value="0">请先选择产品</option>';
     specEl.disabled=true;
     if(wrap) wrap.style.opacity='0.55';
+    refreshPurExtraSpecSelects();
     return;
   }
   if(wrap) wrap.style.opacity='1';
@@ -2612,14 +2618,87 @@ window.refreshPurSpecSelect=function(preferredSid){
   const specs=p.specs||[];
   if(specs.length===0){
     specEl.innerHTML='<option value="0">默认（无分型号）</option>';
+    refreshPurExtraSpecSelects();
     return;
   }
   specEl.innerHTML=specs.map(sp=>`<option value="${sp.sid}">${sp.name}</option>`).join('');
   const want=preferredSid!=null&&preferredSid!==''?parseInt(preferredSid,10):NaN;
   if(!isNaN(want)&&specs.some(sp=>sp.sid===want)) specEl.value=String(want);
+  refreshPurExtraSpecSelects();
+};
+
+function getPurSpecOptionsHtmlFromProduct(p) {
+  if (!p) return '<option value="0">请先选择产品</option>';
+  const specs = p.specs || [];
+  if (!specs.length) return '<option value="0">默认（无分型号）</option>';
+  return specs.map(sp => `<option value="${sp.sid}">${escHtml(sp.name)}</option>`).join('');
+}
+
+function collectPurManualLines() {
+  const mainSid = parseInt(document.getElementById('pur-product-spec').value, 10) || 0;
+  const mainQty = parseInt(document.getElementById('pur-qty').value, 10) || 0;
+  const mainPrice = parseFloat(document.getElementById('pur-price').value) || 0;
+  const lines = [{ sid: mainSid, qty: mainQty, price: mainPrice }];
+  document.querySelectorAll('#pur-extra-spec-rows .pur-extra-line').forEach(row => {
+    const sid = parseInt(row.querySelector('.pur-extra-spec')?.value, 10) || 0;
+    const qty = parseInt(row.querySelector('.pur-extra-qty')?.value, 10) || 0;
+    const price = parseFloat(row.querySelector('.pur-extra-price')?.value) || 0;
+    lines.push({ sid, qty, price });
+  });
+  return lines;
+}
+
+function getPurTotalQty(lines) {
+  return lines.reduce((s, l) => s + (l.qty || 0), 0);
+}
+
+window.clearPurExtraSpecRows = function () {
+  const w = document.getElementById('pur-extra-spec-rows');
+  if (w) w.innerHTML = '';
+};
+
+function refreshPurExtraSpecSelects() {
+  const pid = parseInt(document.getElementById('pur-product-pid').value, 10);
+  const p = gp(pid);
+  document.querySelectorAll('#pur-extra-spec-rows .pur-extra-spec').forEach(sel => {
+    const prev = parseInt(sel.value, 10);
+    sel.innerHTML = getPurSpecOptionsHtmlFromProduct(p);
+    if (p && (p.specs || []).some(sp => sp.sid === prev)) sel.value = String(prev);
+  });
+}
+
+window.addPurExtraSpecRow = function () {
+  const isNew = document.getElementById('new-product-fields') && document.getElementById('new-product-fields').style.display !== 'none';
+  if (isNew) {
+    showToast('新品请在「型号列表」里维护多型号，并选本单对应型号；加行仅用于已有商品', 'err');
+    return;
+  }
+  const pid = parseInt(document.getElementById('pur-product-pid').value, 10);
+  const p = gp(pid);
+  if (!pid || !p) {
+    showToast('请先选择产品', 'err');
+    return;
+  }
+  if (!(p.specs || []).length) {
+    showToast('当前商品无分型号，无需加行', 'err');
+    return;
+  }
+  const wrap = document.getElementById('pur-extra-spec-rows');
+  if (!wrap) return;
+  const row = document.createElement('div');
+  row.className = 'pur-extra-line';
+  row.style.cssText = 'display:grid;grid-template-columns:minmax(140px,2fr) minmax(72px,0.9fr) minmax(88px,1fr) auto;gap:10px;align-items:end;margin-bottom:10px';
+  row.innerHTML = `
+    <div class="fg" style="margin:0"><label style="font-size:12px">型号</label><select class="pur-extra-spec" onchange="updateCostPreview()">${getPurSpecOptionsHtmlFromProduct(p)}</select></div>
+    <div class="fg" style="margin:0"><label style="font-size:12px">数量</label><input type="number" class="pur-extra-qty" min="1" placeholder="件数" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
+    <div class="fg" style="margin:0"><label style="font-size:12px">单件进价（¥）</label><input type="number" class="pur-extra-price" step="0.01" min="0" placeholder="单价" oninput="syncPurGrandFromParts();updateCostPreview()"></div>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.pur-extra-line').remove();syncPurGrandFromParts();updateCostPreview();" title="删除此行" style="height:38px">✕</button>`;
+  wrap.appendChild(row);
+  updateCostPreview();
 };
 
 window.onPurProductPidChange=function(){
+  clearPurExtraSpecRows();
   refreshPurSpecSelect();
 };
 
@@ -3427,6 +3506,7 @@ window.importAllGoods = function(status) {
 
 window.fillFromGoods = function(g) {
   if(!g) return;
+  clearPurExtraSpecRows();
   const disp = (g.productName || g.name || '').trim();
   const matched = resolveCatalogProductForGoods(g);
   if(matched) {
@@ -3994,50 +4074,88 @@ window.setTransitImgTarget = function(idx) {
 };
 
 window.syncPurGrandFromParts=function(){
-  const qty=parseFloat(document.getElementById('pur-qty').value)||0;
-  const price=parseFloat(document.getElementById('pur-price').value)||0;
-  const ship=parseFloat(document.getElementById('pur-ship-total').value)||0;
-  const ge=document.getElementById('pur-grand-total');
-  if(!ge) return;
-  if(qty<=0&&ship<=0&&price<=0){ ge.value=''; return; }
-  ge.value=(price*qty+ship).toFixed(2);
+  const lines = collectPurManualLines();
+  const totalQty = getPurTotalQty(lines);
+  const ship = parseFloat(document.getElementById('pur-ship-total').value) || 0;
+  const ge = document.getElementById('pur-grand-total');
+  if (!ge) return;
+  const sumGoods = lines.reduce((s, l) => s + (l.qty || 0) * (l.price || 0), 0);
+  if (totalQty <= 0 && ship <= 0 && sumGoods <= 0) {
+    ge.value = '';
+    return;
+  }
+  ge.value = (sumGoods + ship).toFixed(2);
 };
 
 window.applyPurGrandTotal=function(){
-  const qty=parseFloat(document.getElementById('pur-qty').value)||0;
-  const ship=parseFloat(document.getElementById('pur-ship-total').value)||0;
-  const ge=document.getElementById('pur-grand-total');
-  const pe=document.getElementById('pur-price');
-  if(!ge||!pe) return;
-  const raw=String(ge.value||'').trim();
-  if(!raw){ window.updateCostPreview(); return; }
-  const grand=parseFloat(raw);
-  if(!qty||grand<=0||isNaN(grand)){ window.updateCostPreview(); return; }
-  const net=grand-ship;
-  if(net<0){ showToast('实付总价不能小于总运费','err'); return; }
-  pe.value=(net/qty).toFixed(2);
+  const lines = collectPurManualLines();
+  const totalQty = getPurTotalQty(lines);
+  const ship = parseFloat(document.getElementById('pur-ship-total').value) || 0;
+  const ge = document.getElementById('pur-grand-total');
+  const pe = document.getElementById('pur-price');
+  if (!ge || !pe) return;
+  const raw = String(ge.value || '').trim();
+  if (!raw) {
+    window.updateCostPreview();
+    return;
+  }
+  const grand = parseFloat(raw);
+  if (!totalQty || grand <= 0 || isNaN(grand)) {
+    window.updateCostPreview();
+    return;
+  }
+  const net = grand - ship;
+  if (net < 0) {
+    showToast('实付总价不能小于总运费', 'err');
+    return;
+  }
+  const unit = net / totalQty;
+  pe.value = unit.toFixed(2);
+  document.querySelectorAll('#pur-extra-spec-rows .pur-extra-price').forEach(el => {
+    el.value = unit.toFixed(2);
+  });
   window.updateCostPreview();
 };
 
 window.updateCostPreview = function(){
-  const qty=parseFloat(document.getElementById('pur-qty').value)||0;
-  const price=parseFloat(document.getElementById('pur-price').value)||0;
-  const shipTotal=parseFloat(document.getElementById('pur-ship-total').value)||0;
-  const shipPer=qty>0?shipTotal/qty:0;
-  const unitCost=price+shipPer;
-  const totalCost=unitCost*qty;
-  const el=document.getElementById('pur-cost-preview');
-  if(!el) return;
-  if(price||shipPer){
-    el.innerHTML=`<span>¥${unitCost.toFixed(2)}/件</span>`
-      +`<span style="color:var(--text3);margin:0 6px">×</span>`
-      +`<span>${qty}件</span>`
-      +`<span style="color:var(--text3);margin:0 6px">=</span>`
-      +`<strong style="color:var(--primary);font-size:15px">¥${totalCost.toFixed(2)}</strong>`
-      +`<span style="font-size:11px;color:var(--text3);margin-left:8px">（进¥${price.toFixed(2)}+运¥${shipPer.toFixed(2)}/件）</span>`;
-  } else {
-    el.textContent='填写数量与单件进价，或填「实付总价」自动反算进价';
+  const lines = collectPurManualLines();
+  const totalQty = getPurTotalQty(lines);
+  const shipTotal = parseFloat(document.getElementById('pur-ship-total').value) || 0;
+  const shipPer = totalQty > 0 ? shipTotal / totalQty : 0;
+  const el = document.getElementById('pur-cost-preview');
+  if (!el) return;
+  const hasExtra = document.querySelectorAll('#pur-extra-spec-rows .pur-extra-line').length > 0;
+  const anyPrice = lines.some(l => l.price > 0) || shipPer > 0;
+  if (!hasExtra) {
+    const qty = lines[0].qty || 0;
+    const price = lines[0].price || 0;
+    const unitCost = price + shipPer;
+    const totalCost = unitCost * qty;
+    if (price || shipPer) {
+      el.innerHTML = `<span>¥${unitCost.toFixed(2)}/件</span>`
+        + `<span style="color:var(--text3);margin:0 6px">×</span>`
+        + `<span>${qty}件</span>`
+        + `<span style="color:var(--text3);margin:0 6px">=</span>`
+        + `<strong style="color:var(--primary);font-size:15px">¥${totalCost.toFixed(2)}</strong>`
+        + `<span style="font-size:11px;color:var(--text3);margin-left:8px">（进¥${price.toFixed(2)}+运¥${shipPer.toFixed(2)}/件）</span>`;
+    } else {
+      el.textContent = '填写数量与单件进价，或填「实付总价」自动反算进价';
+    }
+    return;
   }
+  if (!anyPrice) {
+    el.textContent = '多行时请逐行填写数量与单价，或填实付总价均摊到每件';
+    return;
+  }
+  let totalAll = 0;
+  const parts = lines.map((l, idx) => {
+    const uc = (l.price || 0) + shipPer;
+    const sub = uc * (l.qty || 0);
+    totalAll += sub;
+    const tag = idx === 0 ? '第1行' : `加行${idx}`;
+    return `<div style="font-size:12px;margin:2px 0;line-height:1.4">${tag}：<strong>${l.qty || 0}</strong>件 × ¥${uc.toFixed(2)}（进¥${(l.price || 0).toFixed(2)}+运¥${shipPer.toFixed(2)}） = ¥${sub.toFixed(2)}</div>`;
+  }).join('');
+  el.innerHTML = `${parts}<div style="margin-top:8px;font-weight:800;color:var(--primary);font-size:14px">本批合计 ¥${totalAll.toFixed(2)}（共 ${totalQty} 件）</div>`;
 };
 
 window.addProduct = function(){
@@ -4460,6 +4578,7 @@ window.toggleNewProduct = function(force) {
   if(!fields||!selPid||!btn) return;
   const showNew = force==='new' || (force===undefined && fields.style.display==='none');
   if(showNew){
+    clearPurExtraSpecRows();
     fields.style.display='block';
     initNewProductSpecRows();
     window.closePurPidMenu();
@@ -4514,10 +4633,62 @@ window.addPurchase = function(status){
     pid = np.id;
   } else {
     pid = parseInt(document.getElementById('pur-product-pid').value,10);
-    sid = parseInt(document.getElementById('pur-product-spec').value,10)||0;
     if(!pid){ alert('请选择产品'); return; }
     const p=gp(pid), specs=p&&p.specs||[];
-    if(specs.length>0 && !sid){ alert('请选择型号'); return; }
+    let lineRows = collectPurManualLines();
+    const totalQty = getPurTotalQty(lineRows);
+    if(totalQty<=0){ alert('请填写采购数量'); return; }
+    for(const ln of lineRows){
+      if(!ln.qty||ln.qty<1){ alert('请填写每一行的采购数量'); return; }
+      if(specs.length>0 && !ln.sid){ alert('请为每一行选择型号'); return; }
+    }
+    const shipTotal=parseFloat(document.getElementById('pur-ship-total').value)||0;
+    const grandStr=(document.getElementById('pur-grand-total')?.value||'').trim();
+    const grand=grandStr?parseFloat(grandStr):NaN;
+    if(grandStr&&totalQty>0&&isFinite(grand)&&grand>0){
+      const net=grand-shipTotal;
+      if(net<0){ alert('实付总价不能小于总运费'); return; }
+      const unitPrice=net/totalQty;
+      document.getElementById('pur-price').value=unitPrice.toFixed(2);
+      document.querySelectorAll('#pur-extra-spec-rows .pur-extra-price').forEach(e=>e.value=unitPrice.toFixed(2));
+      lineRows = collectPurManualLines();
+    }
+    for(const ln of lineRows){
+      if(isNaN(ln.price)||ln.price<0){ alert('请填写每行单件进价，或填写实付总价自动反算'); return; }
+    }
+    const shipPerUnit=totalQty>0?shipTotal/totalQty:0;
+    const tracking=document.getElementById('pur-tracking').value.trim();
+    const order=document.getElementById('pur-order').value.trim();
+    const link=document.getElementById('pur-link').value.trim();
+    const img=_purImgBase64||'';
+    if(link && pid) {
+      const pp=gp(pid);
+      if(pp && !pp.sourceLink) pp.sourceLink = link;
+    }
+    const names=[];
+    for(const ln of lineRows){
+      const record = {date:today(),pid,sid:ln.sid||0,qty:ln.qty,price:ln.price,shipPerUnit,shipTotal,tracking,order,link,img,status};
+      if(status==='received'){
+        record.receivedQty=ln.qty;
+        record.receivedDate=today();
+      }
+      D.purchases.push(record);
+      names.push(`${getDisplayName(pid,ln.sid)} ×${ln.qty}件`);
+    }
+    save();
+    ['pur-qty','pur-price','pur-ship-total','pur-grand-total','pur-tracking','pur-order','pur-link',
+     'new-p-name','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    clearPurExtraSpecRows();
+    initNewProductSpecRows();
+    document.getElementById('pur-img-file').value='';
+    _purImgBase64='';
+    setPreviewEl('pur-img-preview','');
+    document.getElementById('pur-cost-preview').textContent='填写数量与进价，或填「实付总价」反算';
+    window.toggleNewProduct('existing');
+    render();
+    const statusTxt = status==='received'?'已直接入库':'在途';
+    alert(`录入成功！共 ${lineRows.length} 条进货：\n${names.join('\n')}\n状态：${statusTxt}`);
+    return;
   }
 
   const qty=parseInt(document.getElementById('pur-qty').value);
@@ -4553,6 +4724,7 @@ window.addPurchase = function(status){
 
   ['pur-qty','pur-price','pur-ship-total','pur-grand-total','pur-tracking','pur-order','pur-link',
    'new-p-name','new-p-price'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  clearPurExtraSpecRows();
   initNewProductSpecRows();
   document.getElementById('pur-img-file').value='';
   _purImgBase64='';
@@ -4560,7 +4732,6 @@ window.addPurchase = function(status){
   document.getElementById('pur-cost-preview').textContent='填写数量与进价，或填「实付总价」反算';
   window.toggleNewProduct('existing');
   render();
-  const p=gp(pid);
   const statusTxt = status==='received'?'已直接入库':'在途';
   alert(`录入成功！${getDisplayName(pid,sid)} ${qty}件，单件成本¥${(price+shipPerUnit).toFixed(2)}，状态：${statusTxt}`);
 };
