@@ -2714,10 +2714,26 @@ function populateSelects(){
 
 // ===== 操作 =====
 // ===== 1688 导入：共享商品标题推断（多型号同一商品名） =====
+function isBad1688TitleLine(l) {
+  l = String(l || '').trim();
+  if (!l) return false;
+  const c = l.replace(/\s/g, '');
+  const svcKw = ['7天无理由', '无理由退货', '极速退款', '48小时发货', '小时发货', '售后延长', '跨境无忧', '退货包运费', '晚发必赔', '破损包赔', '交期保障', '品质保障', '延期必赔', '假货包赔', '假一赔四', '假一赔三'];
+  let hits = 0;
+  for (let si = 0; si < svcKw.length; si++) {
+    if (c.indexOf(svcKw[si]) >= 0) hits++;
+  }
+  if (hits >= 2) return true;
+  if (/7天无理由|无理由退货/.test(c) && (/极速退款|小时发货|跨境无忧|退货包运费/.test(c))) return true;
+  if (/无忧/.test(c) && c.length <= 14) return true;
+  if (/无理由|包赔|必赔|保障$|认证$|包邮$|疯抢|热卖|限购|券后|到手价|立即|抢购/.test(c) && c.length <= 18) return true;
+  return false;
+}
+
 function inferSharedTitleFromLines(lines) {
   const SKIP_BEGIN = /^(规格|颜色|型号|款式|货号|数量|单价|优惠|货品|极速|售后|交期|延期|品质|破损|退货|确认|已发|待发|申请|假一|查看|快递|发货|备注|收货|卖家|买家|支付|配送|手机|电话|地址|订单|交易|物流|等待|当前|如果|原价|实付|合计|运费|48|上门)/;
   function okLine(s) {
-    return s && s.length >= 8 && s.length <= 200 && !SKIP_BEGIN.test(s) && !/^\d+$/.test(s) && !/^\d+\.\d+$/.test(s) && !/^[¥￥\d\s\/.元,，套件对]+$/.test(s);
+    return s && s.length >= 8 && s.length <= 200 && !SKIP_BEGIN.test(s) && !isBad1688TitleLine(s) && !/^\d+$/.test(s) && !/^\d+\.\d+$/.test(s) && !/^[¥￥\d\s\/.元,，套件对]+$/.test(s);
   }
   const freq = {};
   lines.forEach(L => {
@@ -2742,7 +2758,7 @@ function attachProductNamesFromLines(lines, goods) {
     const hasLongCnTitle = /[\u4e00-\u9fff]{5,}/.test(nm) && nm.length >= 14;
     if (hasLongCnTitle) return { ...g, productName: g.productName || nm, name: nm };
     if (shared) {
-      const finalSpec = sp || (nm && !/[\u4e00-\u9fff]{4,}/.test(nm) ? nm : '');
+      const finalSpec = sp || (nm && !/[\u4e00-\u9fff]{4,}/.test(nm) && !junk1688AttrValue(nm) && !isBad1688TitleLine(nm) ? nm : '');
       const out = { ...g, name: shared, productName: shared, spec: finalSpec };
       if (nm && nm !== shared) out._origLineTitle = nm;
       return out;
@@ -2753,6 +2769,59 @@ function attachProductNamesFromLines(lines, goods) {
 
 function normCatalogTitle(s) {
   return String(s || '').replace(/\s+/g, '').trim();
+}
+
+function extractKpCodesFromText(s) {
+  const m = String(s || '').toUpperCase().match(/KP\d+/g);
+  return m ? [...new Set(m)] : [];
+}
+
+function kpIntersectionsScore(dNorm, catalogRaw) {
+  const a = extractKpCodesFromText(dNorm);
+  const b = extractKpCodesFromText(normCatalogTitle(catalogRaw));
+  if (!a.length || !b.length) return 0;
+  let n = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (b.indexOf(a[i]) >= 0) n++;
+  }
+  return n > 0 ? 12000 + n * 2500 : 0;
+}
+
+/** 进货导入：按全名、包含关系、KP 编号、内孔 mm 匹配已有型号 */
+function findExistingSpecForImport(product, gSpec) {
+  const specs = product && product.specs;
+  if (!specs || !specs.length) return null;
+  const raw = String(gSpec || '').trim().replace(/\s+/g, ' ');
+  if (!raw) return null;
+  let sp = specs.find(s => (s.name || '').trim() === raw);
+  if (sp) return sp;
+  sp = specs.find(s => {
+    const sn = (s.name || '').trim();
+    return sn && (raw.includes(sn) || sn.includes(raw));
+  });
+  if (sp) return sp;
+  const kps = extractKpCodesFromText(raw);
+  if (kps.length) {
+    sp = specs.find(s => {
+      const sn = String(s.name || '').toUpperCase();
+      return kps.some(k => sn.includes(k));
+    });
+    if (sp) return sp;
+  }
+  const mm = raw.match(/内孔\s*(\d+)\s*mm/i);
+  if (mm) {
+    const n = mm[1];
+    sp = specs.find(s => /内孔/.test(s.name || '') && (s.name || '').includes(n));
+    if (sp) return sp;
+  }
+  return null;
+}
+
+function pickImportSpecSid(matched, gSpec) {
+  const specs = matched && matched.specs;
+  if (!specs || !specs.length) return 0;
+  const sp = findExistingSpecForImport(matched, gSpec);
+  return sp ? sp.sid : specs[0].sid;
 }
 
 /** d = normCatalogTitle(解析标题)；catalogNameRaw = 当前商品名或 nameAliases 里一条 */
@@ -2787,10 +2856,12 @@ function scoreParsedAgainstCatalogName(d, catalogNameRaw) {
 }
 
 function productTitleMatchScore(dNorm, p) {
-  let score = scoreParsedAgainstCatalogName(dNorm, p.name);
+  let score = scoreParsedAgainstCatalogName(dNorm, p.name) + kpIntersectionsScore(dNorm, p.name);
   if (Array.isArray(p.nameAliases)) {
     for (let i = 0; i < p.nameAliases.length; i++) {
-      score = Math.max(score, scoreParsedAgainstCatalogName(dNorm, p.nameAliases[i]));
+      const a = p.nameAliases[i];
+      const sc = scoreParsedAgainstCatalogName(dNorm, a) + kpIntersectionsScore(dNorm, a);
+      score = Math.max(score, sc);
     }
   }
   return score;
@@ -2902,7 +2973,7 @@ function expandGlued1688Lines(rawLines) {
   for (let i = 0; i < rawLines.length; i++) {
     const L = rawLines[i];
     if (!L) continue;
-    const splitM = L.match(/^(.{10,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+    const splitM = L.match(/^(.{10,200}?)\s+(规格型号|规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
     if (splitM && splitM[1].trim().length >= 8 && splitM[3].trim().length >= 1) {
       out.push(splitM[1].trim());
       out.push(splitM[2] + '：' + splitM[3].trim());
@@ -2917,7 +2988,11 @@ function junk1688AttrValue(v) {
   v = String(v || '').replace(/\s+/g, ' ').trim();
   if (!v) return true;
   const compact = v.replace(/\s/g, '');
-  if (/规格无忧|交期无忧|品质无忧|无忧购|7天无理由|15天包换|晚发必赔|破损包赔|退货包运|极速退款|延期必赔|假一赔|包邮|现货|库存/.test(compact)) return true;
+  if (/无忧/.test(compact)) {
+    if (/螺纹|齿|寸|码|×|mm|M\d|\d+mm|黑色|白色|红色|蓝色|绿色|黄色|灰色|紫色|橙色|粉色|卡其|咖啡|银色|金色|透明/.test(compact)) return false;
+    if (compact.length <= 14) return true;
+  }
+  if (/规格无忧|交期无忧|品质无忧|无忧购|7天无理由|15天包换|晚发必赔|破损包赔|退货包运|极速退款|延期必赔|假一赔|包邮|现货|库存|售后无忧|跨境无忧|发货无忧|采购无忧|退换无忧|源头工厂|实力商家/.test(compact)) return true;
   if (v.length <= 8 && /^(无忧|规格|保障|包赔|承诺|服务|认证)$/.test(compact)) return true;
   return false;
 }
@@ -2925,7 +3000,8 @@ function junk1688AttrValue(v) {
 function findColorLineAbove(lines, startIdx, maxBack) {
   const lim = Math.max(0, startIdx - (maxBack || 55));
   for (let j = startIdx; j >= lim; j--) {
-    const cm = lines[j].match(/颜色[：:\s]\s*(.+)$/);
+    const raw = lines[j];
+    const cm = raw.match(/(?:颜色|颜色分类)\s*[：:]\s*(.+)$/) || raw.match(/规格型号\s*[：:]\s*(.+)$/) || raw.match(/颜色\s+([^：:\s].{0,60})$/);
     if (cm) {
       const cv = cm[1].replace(/\s+/g, ' ').trim();
       if (cv && !junk1688AttrValue(cv)) return cv;
@@ -2943,15 +3019,16 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
   for (let j = startIdx; j >= lim; j--) {
     let l = lines[j];
     if (SKIP_BADGE.test(l)) continue;
-    if (/^货号[：:]\s*/.test(l)) continue;
-    const am = l.match(/^(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+    if (isBad1688TitleLine(l)) continue;
+    if (/^货号\s*[：:]/.test(l)) continue;
+    const am = l.match(/^(规格型号|规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
     if (am) {
       const v = am[2].trim();
       if (v && !junk1688AttrValue(v)) specParts.unshift(v);
       continue;
     }
     const minName = /[\u4e00-\u9fff]/.test(l) ? 4 : 6;
-    const tail = l.match(/^(.{6,200}?)\s+(规格|颜色|颜色分类|型号|款式)[：:]\s*(.+)$/);
+    const tail = l.match(/^(.{6,200}?)\s+(规格型号|规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
     if (tail) {
       const tv = tail[3].trim();
       if (tv && !junk1688AttrValue(tv)) specParts.unshift(tv);
@@ -2959,7 +3036,8 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
     }
     if (l.length >= minName && l.length <= 200 &&
       !/^[\d\s¥￥元\.\/×xX＊*,，。]+$/.test(l) &&
-      !/^(规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l)) {
+      !/^(规格型号|规格|颜色|颜色分类|型号|款式|货号|数量|优惠|运费|单价|价格|原价|实付|合计|破损|品质|延期|交期|申请|查看|快递|发货|待发|已发|备注|收货|极速|退款|投诉|闪电|超时|卖家|买家|订单|支付|配送|手机|电话|地址|交易|物流|等待|当前|如果)/.test(l) &&
+      !isBad1688TitleLine(l)) {
       name = l;
       break;
     }
@@ -2970,7 +3048,167 @@ function scan1688AttrAndNameBackward(lines, startIdx, maxLookback) {
     const col = findColorLineAbove(lines, startIdx, maxLookback);
     if (col) spec = col;
   }
+  if (junk1688AttrValue(spec)) spec = '';
+  if (isBad1688TitleLine(name)) name = '';
   return { name, spec };
+}
+
+/** 手机阿里等：规格行可能在「优惠后」下方，向下有限行内补抓（遇下一条「优惠后」则停） */
+function scan1688SpecForwardFrom(lines, fromIdx, maxLines) {
+  const end = Math.min(lines.length, fromIdx + (maxLines || 12));
+  for (let j = fromIdx; j < end; j++) {
+    const l = lines[j];
+    if (j > fromIdx && /优惠后\s*\d+\.?\d*\s*元/.test(l)) return '';
+    const am = l.match(/^(规格型号|规格|颜色|颜色分类|型号|款式)\s*[：:]\s*(.+)$/);
+    if (am) {
+      const v = am[2].trim();
+      if (v && !junk1688AttrValue(v)) return v;
+    }
+  }
+  return '';
+}
+
+/** 以「单价/优惠后」所在行为锚点：先向上扫品名+规格，规格仍空则向下补扫 */
+function scan1688NameSpecForOrderPrice(lines, priceLineIdx, maxBack, maxFwd) {
+  const back = scan1688AttrAndNameBackward(lines, priceLineIdx - 1, maxBack);
+  let spec = back.spec;
+  if (!spec) {
+    const fw = scan1688SpecForwardFrom(lines, priceLineIdx + 1, maxFwd || 12);
+    if (fw) spec = fw;
+  }
+  return { name: back.name, spec };
+}
+
+/** 仅从订单行文中抽出 { name, spec, price, qty }（与 smartParse 订单逻辑一致，供书签 rawText 补全规格） */
+function extract1688OrderPriceRows(lines) {
+  const goods = [];
+  for (let i = 0; i < lines.length; i++) {
+    const discLine = lines[i].match(/优惠后(\d+\.?\d*)元?/);
+    const yuanLine = lines[i].match(/^(\d+\.?\d*)\s*元\/[件个只条对套组双副片张包盒袋根支块]/);
+    const priceM = discLine || yuanLine;
+    if (!priceM) continue;
+    const price = parseFloat(priceM[1]);
+    if (yuanLine && !discLine) {
+      let skipYuan = false;
+      for (let yi = Math.max(0, i - 5); yi < i; yi++) {
+        const yd = lines[yi].match(/优惠后(\d+\.?\d*)元?/);
+        if (yd && Math.abs(parseFloat(yd[1]) - price) < 0.001) {
+          skipYuan = true;
+          break;
+        }
+      }
+      if (skipYuan) continue;
+    }
+    let qty = 1;
+    const { name, spec } = scan1688NameSpecForOrderPrice(lines, i, 45, 14);
+    for (let k = i + 1; k < Math.min(lines.length, i + 8); k++) {
+      if (/^\d+$/.test(lines[k])) {
+        const v = parseInt(lines[k], 10);
+        if (v >= 1 && v <= 9999) {
+          qty = v;
+          break;
+        }
+      }
+    }
+    if (name && price > 0) goods.push({ name, spec, price, qty });
+  }
+  if (goods.length) return goods;
+  let lastAirIdx = -99;
+  let lastAirP = 0;
+  let lastAirQ = 0;
+  for (let ai = 0; ai < lines.length; ai++) {
+    const al = lines[ai];
+    let priceA = 0;
+    let anchor = ai;
+    let um = al.match(/单价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/) || al.match(/价格[：:\s]*[¥￥]?\s*(\d+\.?\d*)/);
+    if (um) priceA = parseFloat(um[1]);
+    else if ((/^单价[：:\s]*$|^单价$/.test(al) || /^价格[：:\s]*$|^价格$/.test(al)) && ai + 1 < lines.length) {
+      const nx = lines[ai + 1].match(/^[¥￥]?\s*(\d+\.?\d*)\s*$/);
+      if (nx) {
+        priceA = parseFloat(nx[1]);
+        anchor = ai;
+      }
+    }
+    if (!priceA || priceA <= 0) continue;
+    let qtyA = 1;
+    for (let aq = anchor + 1; aq < Math.min(lines.length, anchor + 12); aq++) {
+      const ql = lines[aq];
+      const qm1 = ql.match(/数量[：:\s]*(\d+)/);
+      if (qm1) {
+        qtyA = parseInt(qm1[1], 10);
+        break;
+      }
+      if ((/^数量[：:\s]*$|^数量$/.test(ql)) && aq + 1 < lines.length && /^\d+$/.test(lines[aq + 1])) {
+        qtyA = parseInt(lines[aq + 1], 10);
+        break;
+      }
+    }
+    if (ai - lastAirIdx <= 8 && Math.abs(priceA - lastAirP) < 0.001 && qtyA === lastAirQ) continue;
+    const { name: nameA, spec: specA } = scan1688NameSpecForOrderPrice(lines, anchor, 60, 16);
+    if (nameA && priceA > 0) {
+      goods.push({ name: nameA, spec: specA, price: priceA, qty: qtyA });
+      lastAirIdx = ai;
+      lastAirP = priceA;
+      lastAirQ = qtyA;
+    }
+  }
+  return goods;
+}
+
+/** 书签已解析出价量但 spec 为空时，用 rawText 再跑一遍订单解析按价量对齐补规格 */
+function enrichMappedGoodsFromOrderText(rawText, mapped) {
+  if (!rawText || !mapped || !mapped.length) return mapped;
+  if (!/订单号|实付款|待发货|已发货|等待买家|买家已付款/.test(rawText)) return mapped;
+  if (mapped.every(g => String(g.spec || '').trim())) return mapped;
+  let lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  lines = expandGlued1688Lines(lines);
+  const reparsed = extract1688OrderPriceRows(lines);
+  if (!reparsed.length) return mapped;
+  const used = new Set();
+  return mapped.map(g => {
+    if (String(g.spec || '').trim()) return g;
+    let idx = -1;
+    for (let r = 0; r < reparsed.length; r++) {
+      if (used.has(r)) continue;
+      const row = reparsed[r];
+      if (Math.abs(row.price - g.price) < 0.001 && row.qty === (g.qty || 1)) {
+        idx = r;
+        break;
+      }
+    }
+    if (idx < 0) {
+      for (let r = 0; r < reparsed.length; r++) {
+        if (used.has(r)) continue;
+        if (Math.abs(reparsed[r].price - g.price) < 0.001) {
+          idx = r;
+          break;
+        }
+      }
+    }
+    if (idx >= 0 && String(reparsed[idx].spec || '').trim()) {
+      used.add(idx);
+      const row = reparsed[idx];
+      return { ...g, spec: row.spec.trim(), name: row.name || g.name };
+    }
+    return g;
+  });
+}
+
+/** 同一 SKU 在复制文本里出现两行「元/个」等时合并为一条 */
+function dedupe1688OrderGoods(arr) {
+  const stripInv = (s) => String(s || '').replace(/[\u200b-\u200d\ufeff\u00a0]/g, '').replace(/\s+/g, ' ').trim();
+  const seen = {};
+  const out = [];
+  for (let i = 0; i < arr.length; i++) {
+    const g = arr[i];
+    const nm = stripInv(g.name || '').replace(/\s/g, '');
+    const sp = stripInv(g.spec || '').replace(/\s/g, '');
+    const k = `${nm.slice(0, 40)}_${g.price}_${g.qty || 1}_${sp.slice(0, 48)}`;
+    if (seen[k]) continue;
+    seen[k] = 1;
+    out.push(g);
+  }
+  return out;
 }
 
 // ===== 智能解析1688文字 =====
@@ -2994,73 +3232,22 @@ window.smartParse = function() {
     const oM = text.match(/订单号[\s：:]*(\d{10,25})/);
     if(oM) orderId=oM[1];
 
-    // 精准解析：结构是「商品名 → 规格行 → 货号行 → 标签行 → 优惠后xx元 → 原价 → 数量」
-    const goods = [];
-    for (let i=0; i<lines.length; i++) {
-      // 支持「优惠后4.00元/个」连写 和「6.20 元/件」两种格式
-      const discLine = lines[i].match(/优惠后(\d+\.?\d*)元?/);
-      const yuanLine = lines[i].match(/^(\d+\.?\d*)\s*元\/[件个只条对套组双副片张包盒袋根支块]/);
-      const priceM = discLine || yuanLine;
-      if (!priceM) continue;
-      const price = parseFloat(priceM[1]);
-      if (yuanLine && !discLine) {
-        let skipYuan = false;
-        for (let yi = Math.max(0, i - 5); yi < i; yi++) {
-          const yd = lines[yi].match(/优惠后(\d+\.?\d*)元?/);
-          if (yd && Math.abs(parseFloat(yd[1]) - price) < 0.001) { skipYuan = true; break; }
-        }
-        if (skipYuan) continue;
-      }
-
-      let qty=1;
-      const { name, spec } = scan1688AttrAndNameBackward(lines, i - 1, 35);
-
-      // 往后找数量
-      for (let k=i+1; k<Math.min(lines.length,i+8); k++) {
-        if (/^\d+$/.test(lines[k])) {
-          const v=parseInt(lines[k]); if(v>=1&&v<=9999){qty=v;break;}
-        }
-      }
-
-      if (name && price>0) {
-        // 尝试从已有进货记录里找该商品的1688链接
-        const existLink = D.purchases.filter(r=>r.link&&r.pid&&gp(r.pid)&&
-          (gp(r.pid).name===name||gp(r.pid).name.slice(0,10)===name.slice(0,10)))
-          .map(r=>r.link)[0]||'';
-        goods.push({name, productName:name, spec, price, qty, ship, paid, orderId, sourceLink:existLink});
-      }
-    }
-
-    // air.1688 等：无「优惠后」，单价与金额分行
-    if (!goods.length) {
-      for (let ai = 0; ai < lines.length; ai++) {
-        const al = lines[ai];
-        let priceA = 0, anchor = ai;
-        let um = al.match(/单价[：:\s]*[¥￥]?\s*(\d+\.?\d*)/) || al.match(/价格[：:\s]*[¥￥]?\s*(\d+\.?\d*)/);
-        if (um) priceA = parseFloat(um[1]);
-        else if ((/^单价[：:\s]*$|^单价$/.test(al) || /^价格[：:\s]*$|^价格$/.test(al)) && ai + 1 < lines.length) {
-          const nx = lines[ai + 1].match(/^[¥￥]?\s*(\d+\.?\d*)\s*$/);
-          if (nx) { priceA = parseFloat(nx[1]); anchor = ai; }
-        }
-        if (!priceA || priceA <= 0) continue;
-        let qtyA = 1;
-        for (let aq = anchor + 1; aq < Math.min(lines.length, anchor + 12); aq++) {
-          const ql = lines[aq];
-          const qm1 = ql.match(/数量[：:\s]*(\d+)/);
-          if (qm1) { qtyA = parseInt(qm1[1], 10); break; }
-          if ((/^数量[：:\s]*$|^数量$/.test(ql)) && aq + 1 < lines.length && /^\d+$/.test(lines[aq + 1])) {
-            qtyA = parseInt(lines[aq + 1], 10); break;
-          }
-        }
-        const { name: nameA, spec: specA } = scan1688AttrAndNameBackward(lines, anchor - 1, 55);
-        if (nameA && priceA > 0) {
-          const existLink2 = D.purchases.filter(r=>r.link&&r.pid&&gp(r.pid)&&
-            (gp(r.pid).name===nameA||gp(r.pid).name.slice(0,10)===nameA.slice(0,10)))
-            .map(r=>r.link)[0]||'';
-          goods.push({name:nameA, productName:nameA, spec:specA, price:priceA, qty:qtyA, ship, paid, orderId, sourceLink:existLink2});
-        }
-      }
-    }
+    let goods = extract1688OrderPriceRows(lines).map(row => {
+      const existLink = D.purchases.filter(r => r.link && r.pid && gp(r.pid) &&
+        (gp(r.pid).name === row.name || gp(r.pid).name.slice(0, 10) === row.name.slice(0, 10)))
+        .map(r => r.link)[0] || '';
+      return {
+        name: row.name,
+        productName: row.name,
+        spec: row.spec,
+        price: row.price,
+        qty: row.qty,
+        ship,
+        paid,
+        orderId,
+        sourceLink: existLink
+      };
+    });
 
     if (!goods.length) {
       const SKIP_ROW = /^(规格|颜色|型号|款式|货号|数量|单价|价格|优惠|货品|极速|售后|交期|订单|交易)/;
@@ -3088,6 +3275,7 @@ window.smartParse = function() {
       return;
     }
 
+    goods = dedupe1688OrderGoods(goods);
     const goodsFixed = attachProductNamesFromLines(lines, goods.map(g => ({ ...g, productName: g.productName || g.name })));
 
     if (goodsFixed.length===1) {
@@ -3148,6 +3336,10 @@ window.importAllGoods = function(status) {
     const specName = g.spec || '';
     let pid, sid = 0;
     let existProd = D.products.find(p => p.name === pName);
+    if (!existProd && pName) {
+      const fuzzy = findBestCatalogProductForTitle(pName);
+      if (fuzzy) existProd = fuzzy;
+    }
 
     if (!existProd && productMap[pName]) {
       pid = productMap[pName];
@@ -3159,7 +3351,7 @@ window.importAllGoods = function(status) {
       if (specName) {
         if (!existProd.specs) existProd.specs = [];
         if (!D.nextSid) D.nextSid = 100;
-        let existSpec = existProd.specs.find(s => s.name === specName);
+        let existSpec = findExistingSpecForImport(existProd, specName);
         if (!existSpec) {
           existSpec = { sid: D.nextSid++, name: specName, price: 0, sku: '' };
           existProd.specs.push(existSpec);
@@ -3229,11 +3421,7 @@ window.fillFromGoods = function(g) {
     window.toggleNewProduct('existing');
     document.getElementById('pur-product-pid').value=String(matched.id);
     const gSpec=(g.spec||'').trim();
-    let pref=0;
-    if(matched.specs&&matched.specs.length){
-      const sp=matched.specs.find(s=>s.name===gSpec||(gSpec&&(s.name.includes(gSpec)||gSpec.includes(s.name))));
-      pref=sp?sp.sid:matched.specs[0].sid;
-    }
+    const pref = matched.specs && matched.specs.length ? pickImportSpecSid(matched, gSpec) : 0;
     refreshPurSpecSelect(pref);
     window.updatePurPidTriggerDisplay();
   } else {
@@ -3287,7 +3475,9 @@ window._handleImportData = function(data) {
     sourceLink: data.sourceLink || '',
     imgB64: g.imgB64 || ''
   }));
+  mapped = dedupe1688OrderGoods(mapped);
   mapped = attachProductNamesFromLines(lines, mapped);
+  mapped = enrichMappedGoodsFromOrderText(data.rawText || '', mapped);
   window._parsedGoods = mapped;
 
   const resultEl = document.getElementById('parse-result');
@@ -3320,8 +3510,8 @@ window.createMultiSpecProductAt = function(idx) {
   if (!D.nextSid) D.nextSid = 100;
   let added = 0;
   group.forEach(g => {
-    const specName = g.spec || '默认';
-    let sp = (p.specs || []).find(s => s.name === specName);
+    const specName = (g.spec || '').trim() || '默认';
+    let sp = findExistingSpecForImport(p, specName);
     if (!sp) {
       sp = { sid: D.nextSid++, name: specName, price: 0, sku: '', img: '' };
       if (!p.specs) p.specs = [];
@@ -3421,7 +3611,9 @@ function handleBookmarkParams() {
               price:g.price, qty:g.qty, ship:data.ship||0, paid:data.paid||0,
               orderId:data.orderId||'', sourceLink:data.sourceLink||'', imgB64:g.imgB64||''
             }));
+            mapped = dedupe1688OrderGoods(mapped);
             mapped = attachProductNamesFromLines(lines, mapped);
+            mapped = enrichMappedGoodsFromOrderText(data.rawText || '', mapped);
             window._parsedGoods = mapped;
             const resultEl=document.getElementById('parse-result');
             if(!resultEl)return;
@@ -3481,10 +3673,7 @@ function handleBookmarkParams() {
         document.getElementById('pur-product-pid').value = String(matched.id);
         let prefSid = 0;
         if (matched.specs && matched.specs.length) {
-          if (bSpec) {
-            const sp = matched.specs.find(s => s.name === bSpec || s.name.includes(bSpec) || bSpec.includes(s.name));
-            prefSid = sp ? sp.sid : matched.specs[0].sid;
-          } else prefSid = matched.specs[0].sid;
+          prefSid = pickImportSpecSid(matched, bSpec || '');
         }
         refreshPurSpecSelect(prefSid);
         window.updatePurPidTriggerDisplay();
