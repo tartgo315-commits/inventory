@@ -4760,6 +4760,19 @@ window.deleteAllTransit = function(indices) {
   });
 };
 
+/** 多型号合计出库件数按各条「数量」比例拆分（最大余额法，合计严格等于 outTotal） */
+function splitOutboundQtyByPurchaseLines(records, outTotal) {
+  const total = records.reduce((s, r) => s + (r.qty || 0), 0);
+  if (outTotal <= 0 || !total) return records.map(() => 0);
+  if (outTotal > total) return null;
+  const exact = records.map(r => (outTotal * (r.qty || 0)) / total);
+  const floors = exact.map(x => Math.floor(x));
+  let rem = outTotal - floors.reduce((a, b) => a + b, 0);
+  const order = exact.map((x, i) => ({ i, f: x - Math.floor(x) })).sort((a, b) => b.f - a.f);
+  for (let k = 0; k < rem; k++) floors[order[k % order.length].i]++;
+  return floors;
+}
+
 window.confirmReceiveAll = function(indices) {
   const records = indices.map(i=>D.purchases[i]).filter(Boolean);
   if (!records.length) return;
@@ -4774,23 +4787,88 @@ ${p?p.name:''}
 
 ${specs}
 
-共 ${totalQty} 件，确认吗？`)) return;
+共 ${totalQty} 件。
+
+下一步将询问「发往 Temu」件数；不发出库请填 0。
+多型号时按各型号数量比例拆分出库。确定继续？`)) return;
+  const outStr = prompt(`本批签收入库后，合计发往 Temu 仓库的件数？\n（仅入库填 0；最多 ${totalQty} 件）`, '0');
+  if (outStr === null) return;
+  const outTotal = parseInt(outStr, 10);
+  if (isNaN(outTotal) || outTotal < 0) {
+    alert('请输入 0 或正整数');
+    return;
+  }
+  if (outTotal > totalQty) {
+    alert(`出库件数不能超过本批签收件数（${totalQty} 件）`);
+    return;
+  }
+  const perLine = splitOutboundQtyByPurchaseLines(records, outTotal);
+  if (perLine === null) {
+    alert('出库拆分失败，请检查数量');
+    return;
+  }
   records.forEach(r=>{
     r.status='received'; r.receivedQty=r.qty; r.receivedDate=today();
   });
+  records.forEach((r, i) => {
+    const oq = perLine[i] || 0;
+    if (oq > 0) {
+      D.outbounds.push({
+        date: today(),
+        pid: r.pid,
+        sid: r.sid || 0,
+        qty: oq,
+        shipTotal: 0,
+        shipPerUnit: 0,
+        tracking: '',
+        note: '签收入库同步出库'
+      });
+    }
+  });
   save(); render();
-  alert('✅ 已全部入库！共 '+totalQty+' 件');
+  let msg = '✅ 已全部入库！共 ' + totalQty + ' 件';
+  if (outTotal > 0) {
+    msg += '\n已按型号比例同步出库合计 ' + outTotal + ' 件（头程运费可到「出库到Temu」补录）。';
+  }
+  alert(msg);
 };
 
 window.confirmReceive = function(idx){
   const r=D.purchases[idx]; const p=gp(r.pid);
-  const inputQty=prompt(`确认入库「${p?p.name:''}」\n采购数量：${r.qty}\n实际签收数量：`,r.qty);
+  const sp = r.sid ? gs(r.pid, r.sid) : null;
+  const specHint = sp ? ` · ${sp.name}` : '';
+  const inputQty=prompt(`确认入库「${p?p.name:''}${specHint}」\n采购数量：${r.qty}\n实际签收数量：`,r.qty);
   if(inputQty===null) return;
   const rqty=parseInt(inputQty);
   if(isNaN(rqty)||rqty<=0){alert('请输入正确数量');return;}
+  const outStr = prompt(`签收入库后，立即发往 Temu 的数量？\n（仅入库、暂不发填 0；不能超过签收数量 ${rqty} 件）`, '0');
+  if(outStr===null) return;
+  const oqty = parseInt(outStr, 10);
+  if(isNaN(oqty) || oqty < 0) {
+    alert('出库数量须为 0 或正整数');
+    return;
+  }
+  if(oqty > rqty) {
+    alert(`出库不能超过签收数量（${rqty} 件）`);
+    return;
+  }
   r.status='received'; r.receivedQty=rqty; r.receivedDate=today();
+  let outMsg = '';
+  if (oqty > 0) {
+    D.outbounds.push({
+      date: today(),
+      pid: r.pid,
+      sid: r.sid || 0,
+      qty: oqty,
+      shipTotal: 0,
+      shipPerUnit: 0,
+      tracking: '',
+      note: '签收入库同步出库'
+    });
+    outMsg = `\n已同步出库 ${oqty} 件（头程运费可到「出库到Temu」补录）。`;
+  }
   save(); render();
-  alert(`✅ 入库成功！${p?p.name:''} 签收 ${rqty} 件${rqty!==r.qty?`（订单${r.qty}件，差异${rqty-r.qty}件）`:''}`);
+  alert(`✅ 入库成功！${p?p.name:''}${specHint} 签收 ${rqty} 件${rqty!==r.qty?`（订单${r.qty}件，差异${rqty-r.qty}件）`:''}${outMsg}`);
 };
 
 window.openEditPurchase = function(idx) {
