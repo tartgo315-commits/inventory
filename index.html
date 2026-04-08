@@ -1045,21 +1045,31 @@ function productControls(pid, expandBtn) {
   return `<div class="prod-cell-sub"><span onclick="event.stopPropagation();openEditProduct(${pid})" style="font-size:13px;color:var(--text3);cursor:pointer;flex-shrink:0" title="编辑产品">✏️</span>${specSlot}</div>`;
 }
 
-// 从进货记录取最新图片
+// 从进货记录取最新图片（未传 sid 时：主图 → 任一型号图 → 进货记录，保证与在途/编辑处贴的型号图全站一致）
 function getProductImg(pid, sid) {
   const p = gp(pid);
-  // 优先从产品/型号本身取图片
-  if (sid) {
-    const sp = gs(pid, sid);
-    if (sp && sp.img) return sp.img;
+  if (!p) return '';
+  const sidSpecified = sid != null && sid !== '';
+
+  if (sidSpecified) {
+    if (sid) {
+      const sp = gs(pid, sid);
+      if (sp && sp.img) return sp.img;
+    }
+    if (p.img) return p.img;
+    const records = D.purchases.filter(r => {
+      if (r.pid !== pid || !r.img) return false;
+      return Number(r.sid) === Number(sid);
+    }).sort((a, b) => b.date.localeCompare(a.date));
+    return records.length ? records[0].img : '';
   }
-  if (p && p.img) return p.img;
-  // 兜底：从进货记录取（未传 sid 时任意型号上有图即可，便于在途「多型号」父行显示缩略图）
-  const records = D.purchases.filter(r => {
-    if (r.pid !== pid || !r.img) return false;
-    if (sid) return r.sid === sid;
-    return true;
-  }).sort((a, b) => b.date.localeCompare(a.date));
+
+  if (p.img) return p.img;
+  for (let i = 0; i < (p.specs || []).length; i++) {
+    if (p.specs[i].img) return p.specs[i].img;
+  }
+  const records = D.purchases.filter(r => r.pid === pid && r.img)
+    .sort((a, b) => b.date.localeCompare(a.date));
   return records.length ? records[0].img : '';
 }
 
