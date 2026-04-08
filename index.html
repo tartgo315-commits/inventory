@@ -1045,17 +1045,15 @@ function productControls(pid, expandBtn) {
   return `<div class="prod-cell-sub"><span onclick="event.stopPropagation();openEditProduct(${pid})" style="font-size:13px;color:var(--text3);cursor:pointer;flex-shrink:0" title="编辑产品">✏️</span>${specSlot}</div>`;
 }
 
-// 从进货记录取最新图片（未传 sid 时：主图 → 任一型号图 → 进货记录，与在途/编辑处贴的型号图全站一致）
+// 从进货记录取最新图片。sid 未传、空串或 0（含 purPickerThumbHtml 传的 0）= 产品级汇总：主图 → 任一型号图 → 任一进货图。
 function getProductImg(pid, sid) {
   const p = gp(pid);
   if (!p) return '';
-  const sidSpecified = sid != null && sid !== '';
+  const aggregate = sid == null || sid === '' || Number(sid) === 0;
 
-  if (sidSpecified) {
-    if (sid) {
-      const sp = gs(pid, sid);
-      if (sp && sp.img) return sp.img;
-    }
+  if (!aggregate) {
+    const sp = gs(pid, sid);
+    if (sp && sp.img) return sp.img;
     if (p.img) return p.img;
     const records = D.purchases.filter(r => {
       if (r.pid !== pid || !r.img) return false;
