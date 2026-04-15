@@ -1,7 +1,7 @@
 name = "tartgo-inventory"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-23"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "tartgo-inventory"
-database_id = "PLACEHOLDER"
+database_id = "249b0605-3ed1-42cb-b0b0-aec821ea59fa"
