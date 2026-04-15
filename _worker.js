@@ -5,7 +5,8 @@
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname !== '/api/data') {
+    const path = url.pathname.replace(/\/$/, '') || '/';
+    if (path !== '/api/data') {
       return env.ASSETS.fetch(request);
     }
 
