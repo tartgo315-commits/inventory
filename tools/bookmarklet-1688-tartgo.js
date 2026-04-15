@@ -2,11 +2,11 @@
  * 1688 订单详情页 → TARTGO 进货页（可读源码）
  *
  * 单行书签：见同目录 bookmarklet-1688-tartgo-oneline.txt（运行 node tools/pack-bookmarklet.cjs 生成）。
- * 将脚本里 TARTGO 改成你的 GitHub Pages 地址。
+ * 将脚本里 TARTGO 改成你的 TARTGO 生产站点根地址（须以 / 结尾）。
  */
 
 (function () {
-  var TARTGO = 'https://tartgo315-commits.github.io/inventory/';
+  var TARTGO = 'https://inventory-016.pages.dev/';
 
   function getText(root) {
     var parts = [];
