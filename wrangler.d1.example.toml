@@ -7,4 +7,4 @@ compatibility_date = "2025-04-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "tartgo-inventory"
-database_id = "REPLACE_WITH_YOUR_D1_ID"
+database_id = "249b0605-3ed1-42cb-b0b0-aec821ea59fa"
