@@ -2,7 +2,7 @@
 # 生产部署使用仓库根 _worker.js（Pages Advanced Mode），D1 以 Dashboard Bindings（变量名 DB）为准。
 name = "inventory"
 pages_build_output_dir = "."
-compatibility_date = "2024-09-23"
+compatibility_date = "2025-04-01"
 
 [[d1_databases]]
 binding = "DB"

@@ -1,0 +1,7 @@
+{
+  "name": "tartgo-inventory-pages",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/rm-functions-dir.cjs"
+  }
+}

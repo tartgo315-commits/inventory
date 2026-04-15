@@ -1,0 +1,5 @@
+# 仅满足 Pages 对「有效 wrangler」的校验；D1 仍以 Dashboard Bindings（DB）为准。
+# API 逻辑在根目录 _worker.js（Advanced Mode），勿再使用 functions/ 目录。
+name = "inventory"
+pages_build_output_dir = "."
+compatibility_date = "2025-04-01"
