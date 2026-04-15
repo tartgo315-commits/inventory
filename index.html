@@ -1103,7 +1103,7 @@ let _syncPushInFlight = false;
 async function loadFromCloud() {
   if (_syncPushInFlight) return;
   try {
-    const r = await fetch('/api/data');
+    const r = await fetch('/api/data', { cache: 'no-store' });
     if (r.ok) {
       const d = await r.json();
       if (_ownWritePending > 0) {
@@ -1212,7 +1212,7 @@ function updateBuildInfo(){
 async function pushData() {
   if (!D.products || D.products.length === 0) {
     try {
-      const r = await fetch('/api/data');
+      const r = await fetch('/api/data', { cache: 'no-store' });
       if (r.ok) {
         const remote = await r.json();
         if (remote.products?.length > 0) {

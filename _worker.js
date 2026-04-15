@@ -28,14 +28,15 @@ export default {
     }
 
     const jsonHeaders = { ...cors, 'Content-Type': 'application/json' };
+    const jsonNoCache = { ...jsonHeaders, 'Cache-Control': 'no-store, max-age=0' };
 
     if (request.method === 'GET') {
       try {
         const row = await env.DB.prepare('SELECT value FROM inventory WHERE key = ?').bind('main').first();
         const raw = row?.value != null ? String(row.value) : '{}';
-        return new Response(raw, { status: 200, headers: jsonHeaders });
+        return new Response(raw, { status: 200, headers: jsonNoCache });
       } catch {
-        return new Response('{}', { status: 200, headers: jsonHeaders });
+        return new Response('{}', { status: 200, headers: jsonNoCache });
       }
     }
 
