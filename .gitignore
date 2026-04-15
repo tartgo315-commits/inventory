@@ -1,2 +1,8 @@
 # Cursor / Claude 本地工作区（勿提交）
 .claude/
+
+# Cloudflare Pages 的 functions/ 下只应保留 Pages Function；勿把 npm 依赖提交进仓库
+functions/node_modules/
+
+# Firebase Server酱 通知（已迁至 firebase-serverchan/）本地依赖
+firebase-serverchan/node_modules/
