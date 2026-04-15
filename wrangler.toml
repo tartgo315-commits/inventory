@@ -1,3 +1,5 @@
+# Pages 从 Git 部署时，若 D1 未生效：Dashboard → Workers & Pages → 你的 Pages 项目 →
+# Settings → Functions → D1 database bindings → Add binding → Variable name 填 DB → 选 tartgo-inventory
 name = "tartgo-inventory"
 compatibility_date = "2024-09-23"
 
