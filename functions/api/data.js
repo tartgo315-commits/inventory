@@ -1,3 +1,4 @@
+// D1 绑定名 DB：在 Cloudflare Pages → Settings → Bindings 中配置（不必依赖仓库根 wrangler.toml）。
 export async function onRequest({ request, env }) {
   const cors = {
     'Access-Control-Allow-Origin': '*',
