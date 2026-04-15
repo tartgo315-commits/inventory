@@ -246,7 +246,7 @@ input::placeholder{color:var(--text3)}
     <div style="font-family:'Playfair Display',Georgia,serif;font-size:24px;font-weight:900;letter-spacing:3px;color:#fff;line-height:1;text-shadow:0 0 20px rgba(79,70,229,.6)">TARTGO</div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,#4f46e5,#7c3aed,transparent);margin:6px 0"></div>
     <div class="logo-title" style="font-size:11px;font-weight:400;letter-spacing:.15em;color:rgba(255,255,255,.45);text-transform:uppercase">进销存系统</div>
-    <div class="logo-badge">CLOUD SYNC</div>
+    <div class="logo-badge" title="Cloudflare D1">CLOUD SYNC</div>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section">主菜单</div>
@@ -268,7 +268,7 @@ input::placeholder{color:var(--text3)}
   <div class="sidebar-bottom">
     <div class="sync-status-bar">
       <div class="sync-dot" id="sync-dot"></div>
-      <div class="sync-text" id="save-status">连接中...</div>
+      <div class="sync-text" id="save-status">加载云端…</div>
     </div>
     <div style="margin-top:8px;padding:0 4px;font-size:10px;color:rgba(255,255,255,.2);line-height:1.8">
       <div id="build-info">Build · …</div>
@@ -726,7 +726,7 @@ input::placeholder{color:var(--text3)}
   </div>
   <div class="card">
     <div class="card-title">图片压缩</div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:12px">如果遇到「同步失败」，点此一次性压缩所有图片，减少 Firebase 存储体积。</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px">如果遇到「同步失败」，点此一次性压缩所有图片，减小请求体积、加快 D1 同步。</div>
     <div class="btns">
       <button class="btn btn-amber" onclick="manualRecompress()">🗜️ 压缩所有图片</button>
       <span id="recompress-status" style="font-size:13px;color:var(--text2)"></span>
@@ -978,9 +978,6 @@ function changePassword() {
 </script>
 
 <script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-
 // ===== 快递查询：点击跳转快递100 =====
 function trackingLink(no) {
   if (!no) return '-';
@@ -1090,71 +1087,75 @@ function getProductLink(pid) {
 function isDelivered(data) { return false; }
 function getLatestStatus(data) { return null; }
 
-// ===== Firebase =====
-let db, docRef;
+// ===== 云端同步（Cloudflare Pages Function + D1）=====
 let D = defaultData();
 
 function defaultData() {
   return { settings:{rate:1,lowStock:10,confirmQuantityChange:true}, products:[], purchases:[], outbounds:[], sales:[], nextId:1, nextSid:1, suppliers:[], returns:[], stockAdjustments:[], trash:[] };
 }
 
-// 标记：Firebase数据是否已加载完成
-let _firebaseReady = false;
+let _cloudReady = false;
 let _bookmarkHandled = false;
-// 记录本地发出但还未收到回响的写入次数，避免 onSnapshot 把自己刚写的数据再覆盖回来
+// 本地 POST 后等待一次拉取：跳过该次远端合并，避免竞态覆盖
 let _ownWritePending = 0;
+let _syncPushInFlight = false;
 
-async function initFirebase(cfg) {
+async function loadFromCloud() {
+  if (_syncPushInFlight) return;
   try {
-    const app = initializeApp(cfg);
-    db = getFirestore(app);
-    docRef = doc(db,'inventory','main');
-    setSyncStatus('syncing');
-    onSnapshot(docRef, snap=>{
-      if(snap.exists()){
-        const remote = snap.data();
-        if(_ownWritePending > 0){
-          // 这是我们自己写入的回响，跳过覆盖，只消费一次计数
-          _ownWritePending--;
-        } else if(!_firebaseReady || remote.products?.length >= D.products.length){
-          D = {...defaultData(), ...remote};
-          if(!D.outbounds) D.outbounds = [];
-          if(!D.purchases) D.purchases = [];
-          if(!D.sales) D.sales = [];
-          if(!D.products) D.products = [];
-          if(!D.trash) D.trash = [];
-          if(D.settings.confirmQuantityChange===undefined) D.settings.confirmQuantityChange = true;
+    const r = await fetch('/api/data');
+    if (r.ok) {
+      const d = await r.json();
+      if (_ownWritePending > 0) {
+        _ownWritePending--;
+        _cloudReady = true;
+        render();
+        setSyncStatus('online');
+        if (!_bookmarkHandled) {
+          _bookmarkHandled = true;
+          handleBookmarkParams();
         }
-      } else {
-        if(!_firebaseReady){
-          D = defaultData();
+        return;
+      }
+      if (d && d.products) {
+        if (!_cloudReady || d.products.length >= (D.products?.length || 0)) {
+          D = { ...defaultData(), ...d };
+          if (!D.outbounds) D.outbounds = [];
+          if (!D.purchases) D.purchases = [];
+          if (!D.sales) D.sales = [];
+          if (!D.products) D.products = [];
+          if (!D.trash) D.trash = [];
+          if (D.settings.confirmQuantityChange === undefined) D.settings.confirmQuantityChange = true;
         }
       }
-      _firebaseReady = true;
+      _cloudReady = true;
       render();
       setSyncStatus('online');
-      if(!_bookmarkHandled){ _bookmarkHandled=true; handleBookmarkParams(); }
-    }, (err)=>{
+      if (!_bookmarkHandled) {
+        _bookmarkHandled = true;
+        handleBookmarkParams();
+      }
+    } else {
       setSyncStatus('error');
-      console.warn('[TARTGO] Firestore 实时同步失败:', err && err.message);
-    });
-  } catch(e){
+    }
+  } catch (e) {
+    console.log('Offline mode');
     setSyncStatus('error');
-    console.warn('[TARTGO] Firebase 初始化失败:', e && e.message,
-      '\n👉 如提示 Origin not allowed，请前往：Firebase Console > Authentication > Settings > 已获授权的网域，添加域名：', location.hostname);
   }
 }
 
-function setSyncStatus(s){
-  const dot=document.getElementById('sync-dot'),txt=document.getElementById('save-status');
-  dot.className='sync-dot'+(s==='error'?' error':s==='syncing'?' syncing':'');
-  txt.textContent=s==='online'?'云端已同步 · 任意设备可用':s==='syncing'?'保存中...':'同步失败';
+function setSyncStatus(s) {
+  const dot = document.getElementById('sync-dot'),
+    txt = document.getElementById('save-status');
+  if (!dot || !txt) return;
+  dot.className = 'sync-dot' + (s === 'error' ? ' error' : s === 'syncing' ? ' syncing' : '');
+  txt.textContent =
+    s === 'online' ? '云端已同步 · D1' : s === 'syncing' ? '保存中…' : '同步失败';
 }
 
 let _t;
-function save(){
-  // 只有Firebase已就绪，且有实际数据时才保存
-  if(!_firebaseReady) return;
+function save() {
+  if (!_cloudReady) return;
   setSyncStatus('syncing');
   clearTimeout(_t);
   _t = setTimeout(pushData, 800);
@@ -1209,28 +1210,38 @@ function updateBuildInfo(){
 }
 
 async function pushData() {
-  // 双重保护：空商品列表时绝不覆盖写入
-  if(!D.products || D.products.length === 0){
-    // 先检查Firebase里是否有有效数据
+  if (!D.products || D.products.length === 0) {
     try {
-      const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-      const snap = await getDoc(docRef);
-      if(snap.exists() && snap.data().products?.length > 0){
-        // Firebase有数据，本地是空的，说明可能是读取时序问题，不覆盖
-        D = {...defaultData(), ...snap.data()};
-        if(!D.outbounds) D.outbounds=[];
-        if(!D.trash) D.trash=[];
-        render();
-        setSyncStatus('online');
-        return;
+      const r = await fetch('/api/data');
+      if (r.ok) {
+        const remote = await r.json();
+        if (remote.products?.length > 0) {
+          D = { ...defaultData(), ...remote };
+          if (!D.outbounds) D.outbounds = [];
+          if (!D.trash) D.trash = [];
+          render();
+          setSyncStatus('online');
+          return;
+        }
       }
-    } catch(e){}
+    } catch (e) {}
   }
   try {
-    _ownWritePending++; // 标记这是自己的写入，onSnapshot 收到回响时不要覆盖
-    await setDoc(docRef, JSON.parse(JSON.stringify(D)));
+    _ownWritePending++;
+    _syncPushInFlight = true;
+    const res = await fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(JSON.parse(JSON.stringify(D))),
+    });
+    if (!res.ok) throw new Error('POST failed');
     setSyncStatus('online');
-  } catch(e){ _ownWritePending=Math.max(0,_ownWritePending-1); setSyncStatus('error'); }
+  } catch (e) {
+    _ownWritePending = Math.max(0, _ownWritePending - 1);
+    setSyncStatus('error');
+  } finally {
+    _syncPushInFlight = false;
+  }
 }
 window.resetConfig = ()=>{ if(confirm('重置？')) location.reload(); };
 
@@ -3851,7 +3862,7 @@ function compressImage(file, maxSize, callback) {
     img.onload = function() {
       const canvas = document.createElement('canvas');
       let w = img.width, h = img.height;
-      // 缩略图用途，最长边压到200px足够，大幅减少Firebase存储体积
+      // 缩略图用途，最长边压到200px足够，减小 JSON 体积、加快 D1 同步
       const max = 200;
       if(w > max || h > max) {
         if(w > h) { h = Math.round(h * max/w); w = max; }
@@ -4418,7 +4429,7 @@ window.addSpecInModal = function(){
   document.getElementById('pe-new-spec-name').value='';
   document.getElementById('pe-new-spec-price').value='';
   document.getElementById('pe-new-spec-cost').value='';
-  save(); // 立即同步到Firebase，防止onSnapshot覆盖刚添加的型号
+  save(); // 立即同步到云端，防止定时拉取覆盖刚添加的型号
   renderSpecsInModal(pid);
 };
 
@@ -5667,21 +5678,14 @@ window.importExcel = function(input){
 };
 
 // ===== 启动 =====
-const FIREBASE_CFG = {
-  apiKey: "AIzaSyA2UvLvIvOu20l1v76b23Lb6C9jVwD6sJc",
-  authDomain: "tartgo-6b2f5.firebaseapp.com",
-  projectId: "tartgo-6b2f5",
-  storageBucket: "tartgo-6b2f5.firebasestorage.app",
-  messagingSenderId: "494416286810",
-  appId: "1:494416286810:web:27029fe80e61a137b37463"
-};
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded', ()=>{ updateBuildInfo(); attachGlobalSearch(); });
 }else{
   updateBuildInfo();
   attachGlobalSearch();
 }
-initFirebase(FIREBASE_CFG);
+loadFromCloud();
+setInterval(loadFromCloud, 30000);
 </script>
 </body>
 </html>
