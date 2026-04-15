@@ -2,6 +2,11 @@
  * 当 Firestore 文档 inventory/main 被写入时，推送到 Server酱微信。
  * 本目录为 Firebase Cloud Functions 代码，勿放在仓库的 functions/ 下——该目录留给 Cloudflare Pages Function（如 api/data.js）。
  *
+ * 注意：本仓库 intentionally 不提交本目录的 package.json —— 否则 Cloudflare Pages 构建会对该目录 npm install，
+ * 依赖树里的 .d.ts 会触发 Pages Functions 打包报错（如 event-target-shim / EventTarget）。
+ * 需要部署到 Firebase 时，在本目录执行：
+ *   npm init -y && npm i firebase-functions@^6 firebase-admin@^12
+ *
  * 部署前：
  *   1. npm i -g firebase-tools && firebase login
  *   2. 在含 firebase.json 的项目中把 functions 源码目录指向本文件夹（例如 "functions": "firebase-serverchan"）
