@@ -91,4 +91,4 @@ setInterval(loadFromCloud, 30000);`;
 
 fs.writeFileSync(htmlPath, html, 'utf8');
 console.log('\n完成。原约', (original.length / 1024).toFixed(0), 'KB → 现约', (html.length / 1024).toFixed(0), 'KB');
-console.log('请自行检查：initFirebase / FIREBASE_CFG 等若仍存在需手工删除，并部署 functions/api/data.js + D1。');
+console.log('请自行检查：initFirebase / FIREBASE_CFG 等若仍存在需手工删除；云端 API 使用仓库根目录 _worker.js（Pages Advanced Mode）+ D1。');

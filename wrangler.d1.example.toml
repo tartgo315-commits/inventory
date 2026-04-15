@@ -1,5 +1,5 @@
-# 仅作本地 wrangler pages dev 参考：复制为 wrangler.toml 后再改 database_id。
-# 生产环境 D1 以 Cloudflare Dashboard → Pages → inventory → Bindings 为准，可不提交 wrangler.toml。
+# 本地 wrangler pages dev：复制为 wrangler.toml 并填写 database_id。
+# 生产部署使用仓库根 _worker.js（Pages Advanced Mode），D1 以 Dashboard Bindings（变量名 DB）为准。
 name = "inventory"
 pages_build_output_dir = "."
 compatibility_date = "2024-09-23"
